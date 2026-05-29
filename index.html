@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>arxivSCI-daily</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/subscriptions.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>arxivSCI-daily</h1>
+        </div>
+        <div class="header-right">
+            <div class="source-filters">
+                <button class="source-filter-btn active" onclick="filterBySource('all')">全部</button>
+                <button class="source-filter-btn" onclick="filterBySource('arxiv')">arXiv</button>
+                <button class="source-filter-btn" onclick="filterBySource('crossref')">期刊</button>
+            </div>
+            <button onclick="openSubscriptionModal()" class="gear-btn" title="订阅管理">⚙️</button>
+        </div>
+    </header>
+
+    <main id="paper-container">
+        <div id="loading">加载中...</div>
+    </main>
+
+    <!-- Paper Detail Modal -->
+    <div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closePaperModal()">&times;</button>
+            <div id="paper-detail"></div>
+        </div>
+    </div>
+
+    <!-- Subscription Modal -->
+    <div id="subscription-modal" class="subscription-modal" onclick="if(event.target===this)closeSubscriptionModal()">
+        <div class="subscription-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h2>订阅管理</h2>
+                <button onclick="closeSubscriptionModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
+            </div>
+            <div class="sub-tabs">
+                <div class="sub-tab active" onclick="switchSubTab('arxiv', this)">arXiv 分类</div>
+                <div class="sub-tab" onclick="switchSubTab('crossref', this)">期刊订阅</div>
+            </div>
+            <div id="sub-tab-arxiv">
+                <p>选择关注的 arXiv 分类：</p>
+                <div id="arxiv-categories-chips"></div>
+            </div>
+            <div id="sub-tab-crossref" style="display:none">
+                <input id="journal-search-input" type="text" placeholder="搜索期刊名称..." oninput="handleJournalSearch()" style="width:100%;padding:8px;margin-bottom:8px;box-sizing:border-box">
+                <div id="journal-search-results"></div>
+                <hr style="margin:16px 0">
+                <h3>已订阅期刊</h3>
+                <div id="crossref-journals-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/subscriptions.js"></script>
+    <script src="js/crossref-search.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
