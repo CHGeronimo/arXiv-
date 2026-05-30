@@ -1,8 +1,11 @@
-Research direction: {research_direction}
+## Researcher Profile
+Direction: {research_direction}
 Keywords: {keywords}
+Quality Criteria: {quality_criteria}
+Preferred Topics: {liked_topics}
+Disliked Topics: {disliked_topics}
 
-Analyze this paper:
-
+## Paper to Analyze
 Title: {title}
 
 Abstract:

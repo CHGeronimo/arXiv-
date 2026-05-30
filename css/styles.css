@@ -527,6 +527,20 @@ header h1 {
 .bookmark-btn:hover { transform: scale(1.2); }
 .bookmark-btn.active { color: #eab308; }
 
+.feedback-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    opacity: 0.4;
+    padding: 2px 4px;
+    transition: opacity 0.2s;
+}
+.feedback-btn:hover { opacity: 1; }
+.feedback-btn.voted { opacity: 1; }
+.feedback-btn.voted[data-feedback-rating="useful"] { opacity: 1; filter: none; }
+.feedback-btn.voted[data-feedback-rating="not_useful"] { opacity: 1; filter: none; }
+
 .paper-card.is-read { opacity: 0.6; }
 .paper-card.is-read:hover { opacity: 1; }
 

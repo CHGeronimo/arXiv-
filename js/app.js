@@ -117,12 +117,28 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('journal-search-input').addEventListener('input', handleJournalSearch);
     document.getElementById('use-profile-keywords').addEventListener('change', toggleCustomKeywords);
 
-    document.getElementById('paper-container').addEventListener('click', (e) => {
+    document.getElementById('paper-container').addEventListener('click', async (e) => {
         const bmBtn = e.target.closest('.bookmark-btn');
         if (bmBtn) {
             e.stopPropagation();
             toggleBookmark(bmBtn.dataset.bmId);
             renderPapers();
+            return;
+        }
+        const fbBtn = e.target.closest('[data-feedback-id]');
+        if (fbBtn) {
+            e.stopPropagation();
+            const id = fbBtn.dataset.feedbackId;
+            const rating = fbBtn.dataset.feedbackRating;
+            try {
+                await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({paper_id: id, rating})
+                });
+                fbBtn.classList.add('voted');
+                showToast(rating === 'useful' ? '已标记为有用' : '已标记为没用');
+            } catch {}
             return;
         }
         const card = e.target.closest('.paper-card[data-idx]');
@@ -515,6 +531,8 @@ function renderPapers() {
                     ${sourceBadge}${venueBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${_escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
+                    <button class="feedback-btn" data-feedback-id="${_escAttr(paper.id)}" data-feedback-rating="useful" title="有用">👍</button>
+                    <button class="feedback-btn" data-feedback-id="${_escAttr(paper.id)}" data-feedback-rating="not_useful" title="没用">👎</button>
                 </div>
                 <div class="paper-title">${title}</div>
                 ${cardTldr}

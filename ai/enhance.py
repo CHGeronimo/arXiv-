@@ -56,6 +56,7 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict | N
         "tldr": "", "motivation": "", "method": "", "result": "", "conclusion": "",
         "title_zh": "", "summary_zh": "",
         "quality_score": 0, "relevance_score": 0, "recommendation": "skip",
+        "skip_reason": "",
     }
     try:
         response: Structure = chain.invoke({
@@ -64,6 +65,9 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict | N
             "title": paper.get("title", ""),
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
+            "quality_criteria": profile.get("quality_criteria", ""),
+            "liked_topics": "\n".join(profile.get("liked_topics", [])[-5:]),
+            "disliked_topics": "\n".join(profile.get("disliked_topics", [])[-5:]),
         })
         paper["AI"] = response.model_dump()
     except langchain_core.exceptions.OutputParserException as e:

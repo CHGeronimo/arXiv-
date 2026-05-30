@@ -12,3 +12,9 @@ class Structure(BaseModel):
     quality_score: int = Field(description="paper quality score from 1-10: 1=trivial/incremental, 5=solid contribution, 10=breakthrough work")
     relevance_score: int = Field(description="relevance to user research direction from 1-10: 1=unrelated, 5=tangentially related, 10=directly addresses core topic")
     recommendation: str = Field(description="one of: must-read, worth-reading, skim, skip")
+    skip_reason: str = Field(default="", description="when skip: one sentence why; otherwise empty string")
+
+
+class QuickFilter(BaseModel):
+    is_relevant: bool = Field(description="whether this paper is relevant to the user's research direction and worth detailed analysis")
+    relevance_reason: str = Field(description="one sentence explaining why relevant or not")
