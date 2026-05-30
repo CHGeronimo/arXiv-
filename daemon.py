@@ -138,6 +138,29 @@ def put_subscriptions():
         return jsonify({"error": "empty body"}), 400
 
 
+@app.route("/api/profile", methods=["GET"])
+def get_profile():
+    profile_path = Path("research_profile.json")
+    if profile_path.exists():
+        return jsonify(json.loads(profile_path.read_text(encoding="utf-8")))
+    return jsonify({"direction": "", "keywords": [], "quality_criteria": ""})
+
+
+@app.route("/api/profile", methods=["PUT"])
+def put_profile():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "empty body"}), 400
+    Path("research_profile.json").write_text(
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    global _ai_chain, _ai_profile
+    _ai_chain = None
+    _ai_profile = None
+    logger.info("Research profile updated, AI chain reset")
+    return jsonify(data)
+
+
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
     if job not in ("arxiv", "crossref"):

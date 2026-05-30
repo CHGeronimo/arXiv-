@@ -17,6 +17,7 @@
             <input id="date-filter" type="date" class="date-filter" onchange="handleDateFilter()" title="按日期筛选">
             <button id="sort-btn" class="sort-btn" onclick="toggleSort()" title="按日期排序">↓ 新→旧</button>
             <span id="paper-count" class="paper-count"></span>
+            <button onclick="openProfileModal()" class="gear-btn" title="研究方向">🎯</button>
             <button onclick="openSubscriptionModal()" class="gear-btn" title="订阅管理">⚙️</button>
         </div>
     </header>
@@ -61,6 +62,21 @@
         <div class="modal-content">
             <button class="close-btn" onclick="closePaperModal()">&times;</button>
             <div id="paper-detail"></div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal" onclick="if(event.target===this)closeProfileModal()">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeProfileModal()">&times;</button>
+            <h2 style="margin-bottom:12px">研究方向设置</h2>
+            <label style="font-size:0.85rem;color:var(--text-secondary)">研究方向描述</label>
+            <textarea id="profile-direction" rows="3" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;resize:vertical" placeholder="描述你的研究方向..."></textarea>
+            <label style="font-size:0.85rem;color:var(--text-secondary)">关键词（逗号分隔）</label>
+            <input id="profile-keywords" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="neural rendering, 3D reconstruction...">
+            <label style="font-size:0.85rem;color:var(--text-secondary)">质量标准（可选）</label>
+            <input id="profile-quality" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="Prioritize papers with strong results...">
+            <button onclick="saveProfile()" class="follow-btn" style="width:100%">保存</button>
         </div>
     </div>
 

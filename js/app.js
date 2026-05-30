@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') {
             closePaperModal();
             closeSubscriptionModal();
+            closeProfileModal();
             closeAllDropdowns();
         }
     });
@@ -401,6 +402,39 @@ function updatePaperCount() {
     const shown = filteredPapers.length;
     const hasFilter = searchQuery || dateFilter || Object.values(activeFilters).some(s => s.size > 0);
     el.textContent = hasFilter ? `${shown}/${total} 篇` : `${total} 篇`;
+}
+
+async function openProfileModal() {
+    try {
+        const resp = await fetch('/api/profile');
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('profile-direction').value = data.direction || '';
+            document.getElementById('profile-keywords').value = (data.keywords || []).join(', ');
+            document.getElementById('profile-quality').value = data.quality_criteria || '';
+        }
+    } catch {}
+    document.getElementById('profile-modal').classList.add('active');
+}
+
+function closeProfileModal() {
+    document.getElementById('profile-modal').classList.remove('active');
+}
+
+async function saveProfile() {
+    const direction = document.getElementById('profile-direction').value;
+    const keywords = document.getElementById('profile-keywords').value.split(',').map(k => k.trim()).filter(k => k);
+    const quality_criteria = document.getElementById('profile-quality').value;
+    try {
+        await fetch('/api/profile', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({direction, keywords, quality_criteria}),
+        });
+        closeProfileModal();
+    } catch (e) {
+        console.error('Failed to save profile:', e);
+    }
 }
 
 function _inferType(p) {
