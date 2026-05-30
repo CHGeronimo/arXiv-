@@ -10,7 +10,7 @@ __all__ = ["Paper"]
 @dataclass
 class Paper:
     id: str
-    source: str  # "arxiv" or "crossref"
+    source: str  # "arxiv", "crossref", "dblp", or "semantic_scholar"
     title: str
     summary: str
     authors: List[str] = field(default_factory=list)
@@ -24,6 +24,10 @@ class Paper:
     issn: List[str] = field(default_factory=list)
     comment: Optional[str] = None
     article_type: str = ""  # "research" or "news"
+    venue: str = ""
+    acceptance: str = ""
+    citation_count: int = 0
+    version: str = ""
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
