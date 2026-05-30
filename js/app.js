@@ -67,12 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
     startAutoRefresh();
     window.addEventListener('beforeunload', () => { if (refreshTimer) clearInterval(refreshTimer); });
 
-    // Sidebar toggle
+    // Sidebar toggle (in header)
     const sidebarToggle = document.getElementById('sidebar-toggle');
     sidebarToggle?.addEventListener('click', () => {
         const isOpen = sidebarOpen;
         setSidebarOpen(!isOpen);
-        if (sidebarToggle) sidebarToggle.textContent = isOpen ? '☰' : '✕';
+        sidebarToggle.classList.toggle('active', !isOpen);
     });
 
     // Sidebar filter group expand/collapse

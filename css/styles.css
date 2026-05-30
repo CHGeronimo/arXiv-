@@ -599,9 +599,6 @@ header h1 {
     .filter-sidebar {
         width: 260px;
     }
-    .sidebar-toggle.open {
-        left: 260px;
-    }
 }
 
 @media (max-width: 768px) {
@@ -616,15 +613,6 @@ header h1 {
     }
     .filter-sidebar {
         width: 100%;
-    }
-    .sidebar-toggle.open {
-        left: 0;
-        top: auto;
-        bottom: 16px;
-        right: 16px;
-        border-radius: 50%;
-        width: 44px;
-        height: 44px;
     }
     #paper-container {
         grid-template-columns: 1fr;
