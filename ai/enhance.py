@@ -30,6 +30,66 @@ if os.path.exists('.env'):
 template = open("template.txt", "r").read()
 system = open("system.txt", "r").read()
 
+
+def load_research_profile() -> dict:
+    profile_path = os.path.join(os.path.dirname(__file__), '..', 'research_profile.json')
+    if os.path.exists(profile_path):
+        with open(profile_path, 'r') as f:
+            return json.load(f)
+    return {"direction": "", "keywords": [], "quality_criteria": ""}
+
+
+def build_chain(model_name: str):
+    llm = ChatOpenAI(model=model_name).with_structured_output(Structure, method="json_mode")
+    prompt_template = ChatPromptTemplate.from_messages([
+        SystemMessagePromptTemplate.from_template(system),
+        HumanMessagePromptTemplate.from_template(template=template)
+    ])
+    return prompt_template | llm
+
+
+def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict | None:
+    default_ai = {
+        "tldr": "", "motivation": "", "method": "", "result": "", "conclusion": "",
+        "title_zh": "", "summary_zh": "",
+        "quality_score": 0, "relevance_score": 0, "recommendation": "skip",
+    }
+    try:
+        response: Structure = chain.invoke({
+            "language": language,
+            "content": paper.get("summary", ""),
+            "title": paper.get("title", ""),
+            "research_direction": profile.get("direction", ""),
+            "keywords": ", ".join(profile.get("keywords", [])),
+        })
+        paper["AI"] = response.model_dump()
+    except langchain_core.exceptions.OutputParserException as e:
+        error_msg = str(e)
+        partial = {}
+        try:
+            if "Function Structure arguments:" in error_msg:
+                json_str = error_msg.split("Function Structure arguments:", 1)[1].strip().split("are not valid JSON")[0].strip()
+            else:
+                start = error_msg.find('{')
+                end = error_msg.rfind('}')
+                if start != -1 and end != -1:
+                    json_str = error_msg[start:end+1]
+                else:
+                    json_str = ""
+            if json_str:
+                partial = json.loads(json_str)
+        except Exception:
+            pass
+        paper["AI"] = {**default_ai, **partial}
+    except Exception as e:
+        logger.error(f"Enhance error for {paper.get('id','?')}: {e}")
+        paper["AI"] = default_ai
+    for k in default_ai:
+        if k not in paper["AI"]:
+            paper["AI"][k] = default_ai[k]
+    return paper
+
+
 logger = logging.getLogger(__name__)
 
 # Ctrl+C 中断标志
@@ -165,7 +225,10 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     try:
         response: Structure = chain.invoke({
             "language": language,
-            "content": item['summary']
+            "content": item.get('summary', ''),
+            "title": item.get('title', ''),
+            "research_direction": "",
+            "keywords": "",
         })
         item['AI'] = response.model_dump()
     except langchain_core.exceptions.OutputParserException as e:
@@ -235,15 +298,8 @@ def process_all_items(data: List[Dict], model_name: str, language: str, max_work
                       output_file: str, existing_count: int) -> int:
     """处理所有数据项，每完成一篇立即追加到文件"""
     global _shutdown
-    llm = ChatOpenAI(model=model_name).with_structured_output(Structure, method="json_mode")
+    chain = build_chain(model_name)
     logger.info(f"Connect to: {model_name}")
-
-    prompt_template = ChatPromptTemplate.from_messages([
-        SystemMessagePromptTemplate.from_template(system),
-        HumanMessagePromptTemplate.from_template(template=template)
-    ])
-
-    chain = prompt_template | llm
     saved_count = 0
     pbar = tqdm(total=len(data), desc="AI 增强处理", unit="篇", ncols=100)
 
