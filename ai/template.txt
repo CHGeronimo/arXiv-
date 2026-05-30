@@ -1,4 +1,9 @@
-Please analyze the following abstract of papers.
+Research direction: {research_direction}
+Keywords: {keywords}
 
-Content:
+Analyze this paper:
+
+Title: {title}
+
+Abstract:
 {content}
