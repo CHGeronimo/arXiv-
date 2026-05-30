@@ -1,0 +1,115 @@
+// js/modal.js — paper detail and profile modals
+
+import { markRead, escAttr, showToast } from './state.js';
+import { exportBibtex } from './api.js';
+
+export function openPaperDetail(paper) {
+    markRead(paper.id);
+    const modal = document.getElementById('paper-modal');
+    const detail = document.getElementById('paper-detail');
+
+    const aiTitle = (paper.AI || {}).title_zh || '';
+    const titleZh = aiTitle || paper.title_zh || '';
+    const titleEn = paper.title || '';
+    const title = titleZh || titleEn;
+    const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
+    const sourceBadge = paper.source === 'crossref'
+        ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
+        : paper.source === 'dblp'
+        ? `<span class="source-badge dblp">DBLP</span>`
+        : paper.source === 'semantic_scholar'
+        ? `<span class="source-badge s2">S2</span>`
+        : `<span class="source-badge arxiv">arXiv</span>`;
+    const venueInfo = paper.venue ? ` <span class="venue-badge">${paper.venue}</span>` : '';
+    const accInfo = paper.acceptance ? ` <span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
+    const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary)">&#9733; ${paper.citation_count} citations</div>` : '';
+
+    const aiFields = paper.AI || {};
+    const sections = [];
+    const aiParts = [];
+    if (aiFields.tldr) aiParts.push(`<b>TL;DR</b> ${aiFields.tldr}`);
+    if (aiFields.motivation) aiParts.push(`<b>Motivation</b> ${aiFields.motivation}`);
+    if (aiFields.method) aiParts.push(`<b>Method</b> ${aiFields.method}`);
+    if (aiFields.result) aiParts.push(`<b>Result</b> ${aiFields.result}`);
+    if (aiFields.conclusion) aiParts.push(`<b>Conclusion</b> ${aiFields.conclusion}`);
+    if (aiParts.length) sections.push(`<h3>AI 解读</h3><p>${aiParts.join('<br><br>')}</p>`);
+
+    if (!aiParts.length) {
+        const fallbackParts = [];
+        if (paper.tldr) fallbackParts.push(`<b>TL;DR</b> ${paper.tldr}`);
+        if (paper.motivation) fallbackParts.push(`<b>Motivation</b> ${paper.motivation}`);
+        if (paper.method) fallbackParts.push(`<b>Method</b> ${paper.method}`);
+        if (paper.result) fallbackParts.push(`<b>Result</b> ${paper.result}`);
+        if (paper.conclusion) fallbackParts.push(`<b>Conclusion</b> ${paper.conclusion}`);
+        if (fallbackParts.length) sections.push(`<h3>解读</h3><p>${fallbackParts.join('<br><br>')}</p>`);
+    }
+
+    const summaryZh = aiFields.summary_zh || paper.summary_zh || '';
+    if (summaryZh) sections.push(`<h3>中文摘要</h3><p>${summaryZh}</p>`);
+    const abstractEn = paper.summary || '';
+    if (abstractEn) sections.push(`<h3>Abstract</h3><p>${abstractEn}</p>`);
+    if (!sections.length) sections.push(`<p style="color:var(--text-secondary)">暂无摘要</p>`);
+
+    const codeUrl = paper.code_url || '';
+    const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
+
+    detail.innerHTML = `
+        <div class="paper-header">${sourceBadge}${venueInfo}${accInfo}
+            <span class="paper-cat">${paper.published_date || ''}</span>
+        </div>
+        <h2 style="margin:12px 0">${title}</h2>
+        ${origTitle}
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
+            ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`).join(', ')}
+        </p>
+        ${citeInfo}
+        ${sections.join('')}
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+            ${paper.url ? `<a href="${paper.url}" target="_blank" class="follow-btn">论文链接</a>` : ''}
+            ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="follow-btn">PDF</a>` : ''}
+            ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="follow-btn">DOI</a>` : ''}
+            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="follow-btn" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
+            <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
+        </div>`;
+
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+export function closePaperModal() {
+    document.getElementById('paper-modal').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+export async function openProfileModal() {
+    try {
+        const resp = await fetch('/api/profile');
+        if (resp.ok) {
+            const data = await resp.json();
+            document.getElementById('profile-direction').value = data.direction || '';
+            document.getElementById('profile-keywords').value = (data.keywords || []).join(', ');
+            document.getElementById('profile-quality').value = data.quality_criteria || '';
+        }
+    } catch {}
+    document.getElementById('profile-modal').classList.add('active');
+}
+
+export function closeProfileModal() {
+    document.getElementById('profile-modal').classList.remove('active');
+}
+
+export async function saveProfile() {
+    const direction = document.getElementById('profile-direction').value;
+    const keywords = document.getElementById('profile-keywords').value.split(',').map(k => k.trim()).filter(k => k);
+    const quality_criteria = document.getElementById('profile-quality').value;
+    try {
+        await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction, keywords, quality_criteria }),
+        });
+        closeProfileModal();
+    } catch (e) {
+        console.error('Failed to save profile:', e);
+    }
+}
