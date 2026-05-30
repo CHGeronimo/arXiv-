@@ -3,7 +3,7 @@
 import {
     setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
     refreshTimer, toggleBookmark, showToast,
-    filteredPapers, currentPage,
+    filteredPapers, currentPage, setCurrentTheme, currentTheme,
 } from './state.js';
 import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex } from './api.js';
 import { buildFilterOptions, toggleFilter, toggleDropdown, clearAllFilters, closeAllDropdowns } from './filters.js';
@@ -11,17 +11,22 @@ import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
 
 // Theme
+const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色' };
+const THEME_ICONS = { dark: '🌙', light: '☀️', academic: '📖', warm: '🔥' };
+
 function _initTheme() {
-    const saved = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.textContent = THEME_ICONS[currentTheme] || '🌙';
 }
-function toggleTheme() {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    document.getElementById('btn-theme').textContent = next === 'dark' ? '🌙' : '☀️';
+function cycleTheme() {
+    const themes = ['dark', 'light', 'academic', 'warm'];
+    const idx = themes.indexOf(currentTheme);
+    const next = themes[(idx + 1) % themes.length];
+    setCurrentTheme(next);
+    const btn = document.getElementById('btn-theme');
+    if (btn) btn.textContent = THEME_ICONS[next] || '🌙';
+    showToast(`主题：${THEME_LABELS[next]}`);
 }
 _initTheme();
 
@@ -77,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('btn-profile').addEventListener('click', openProfileModal);
-    document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+    document.getElementById('btn-theme').addEventListener('click', cycleTheme);
     document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
     document.getElementById('btn-clear-filters').addEventListener('click', () => { clearAllFilters(); renderPapers(); });
     document.getElementById('search-input').addEventListener('input', () => renderPapers());

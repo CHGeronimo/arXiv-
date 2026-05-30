@@ -17,6 +17,14 @@ export let refreshTimer = null;
 export let currentPage = 1;
 export const PAGE_SIZE = 40;
 
+export let currentTheme = localStorage.getItem('theme') || 'dark';
+
+export function setCurrentTheme(t) {
+    currentTheme = t;
+    localStorage.setItem('theme', t);
+    document.documentElement.setAttribute('data-theme', t);
+}
+
 export const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
 export const _readPapers = new Set(JSON.parse(localStorage.getItem('readPapers') || '[]'));
 
