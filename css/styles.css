@@ -588,9 +588,20 @@ header h1 {
 
 @media (max-width: 1024px) {
     #paper-container {
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     }
-    .header-right { gap: 8px; }
+    #paper-container.sidebar-open {
+        margin-left: 0;
+    }
+    header.sidebar-open {
+        padding-left: 24px;
+    }
+    .filter-sidebar {
+        width: 260px;
+    }
+    .sidebar-toggle.open {
+        left: 260px;
+    }
 }
 
 @media (max-width: 768px) {
@@ -601,31 +612,30 @@ header h1 {
     }
     .header-right {
         width: 100%;
-        flex-wrap: wrap;
+        justify-content: flex-end;
     }
-    .search-bar {
+    .filter-sidebar {
         width: 100%;
-        order: -1;
     }
-    .filter-bar {
-        padding: 6px 12px;
-        gap: 6px;
-        flex-wrap: wrap;
-    }
-    .filter-dropdown-panel {
-        min-width: 160px;
-    }
-    .date-filter, .sort-btn {
-        font-size: 0.78rem;
+    .sidebar-toggle.open {
+        left: 0;
+        top: auto;
+        bottom: 16px;
+        right: 16px;
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
     }
     #paper-container {
         grid-template-columns: 1fr;
         padding: 12px;
+    }
+    #paper-container.sidebar-open {
+        margin-left: 0;
     }
 }
 
 @media (max-width: 480px) {
     header h1 { font-size: 1.1rem; }
     .paper-title { font-size: 0.9rem; }
-    .paper-summary { font-size: 0.78rem; }
 }
