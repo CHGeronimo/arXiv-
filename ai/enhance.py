@@ -23,12 +23,15 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-from structure import Structure
+from .structure import Structure
 
-if os.path.exists('.env'):
-    dotenv.load_dotenv()
-template = open("template.txt", "r").read()
-system = open("system.txt", "r").read()
+_AI_DIR = os.path.dirname(os.path.abspath(__file__))
+
+_env_path = os.path.join(_AI_DIR, '.env')
+if os.path.exists(_env_path):
+    dotenv.load_dotenv(_env_path)
+template = open(os.path.join(_AI_DIR, "template.txt"), "r").read()
+system = open(os.path.join(_AI_DIR, "system.txt"), "r").read()
 
 
 def load_research_profile() -> dict:

@@ -4,6 +4,7 @@
 import argparse
 import json
 import logging
+import os
 import signal
 import sys
 import threading
@@ -12,6 +13,8 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory
 
+from ai.digest import generate_digest
+from ai.enhance import enhance_single, build_chain, load_research_profile
 from crawler.arxiv_crawler import ArxivCrawler
 from crawler.crossref_crawler import CrossrefCrawler
 from crawler.models import Paper
@@ -145,6 +148,25 @@ def trigger_job(job: str):
     ).start()
     logger.info(f"Manually triggered {job} job")
     return jsonify({"status": "triggered", "job": job})
+
+
+@app.route("/api/digest/<date_str>", methods=["GET"])
+def get_digest(date_str: str):
+    digest_path = Path("digests") / f"{date_str}.md"
+    if digest_path.exists():
+        return digest_path.read_text(encoding="utf-8"), 200, {"Content-Type": "text/markdown"}
+    return jsonify({"error": "digest not found"}), 404
+
+
+@app.route("/api/digests", methods=["GET"])
+def list_digests():
+    digest_dir = Path("digests")
+    if not digest_dir.exists():
+        return jsonify({"digests": []})
+    digests = sorted(digest_dir.glob("*.md"), reverse=True)
+    return jsonify({"digests": [d.stem for d in digests]})
+
+
     try:
         cats = data.get("arxiv", {}).get("categories", [])
         journals_data = data.get("crossref", {}).get("journals", [])
@@ -166,6 +188,19 @@ def trigger_job(job: str):
 
 
 # ── Crawl Logic ────────────────────────────────────────────────────
+
+_ai_chain = None
+_ai_profile = None
+_ai_language = "Chinese"
+
+def _get_ai_chain():
+    global _ai_chain, _ai_profile
+    if _ai_chain is None:
+        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
+        _ai_chain = build_chain(model_name)
+        _ai_profile = load_research_profile()
+        logger.info(f"AI chain initialized: {model_name}")
+    return _ai_chain, _ai_profile
 
 _written_ids: set[str] = set()
 
@@ -192,7 +227,7 @@ def _load_existing_ids() -> set[str]:
     return existing
 
 
-def _append_paper(paper: Paper, date_str: str | None = None) -> bool:
+def _append_paper(paper: Paper, date_str: str | None = None, enhance: bool = False) -> bool:
     """Append a single paper to JSONL. Returns True if written (new)."""
     global _written_ids
     if paper.id in _written_ids:
@@ -200,8 +235,22 @@ def _append_paper(paper: Paper, date_str: str | None = None) -> bool:
 
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     DATA_DIR.mkdir(exist_ok=True)
-    filepath = DATA_DIR / f"{date_str}.jsonl"
 
+    if enhance:
+        try:
+            chain, profile = _get_ai_chain()
+            paper_dict = json.loads(paper.to_jsonl())
+            enhanced = enhance_single(paper_dict, chain, profile, _ai_language)
+            if enhanced:
+                ai_path = DATA_DIR / f"{date_str}_AI_enhanced_{_ai_language}.jsonl"
+                with open(ai_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(enhanced, ensure_ascii=False) + "\n")
+                _written_ids.add(paper.id)
+                return True
+        except Exception as e:
+            logger.warning(f"AI enhance failed for {paper.id}: {e}")
+
+    filepath = DATA_DIR / f"{date_str}.jsonl"
     with open(filepath, "a", encoding="utf-8") as f:
         f.write(paper.to_jsonl() + "\n")
     _written_ids.add(paper.id)
@@ -233,7 +282,7 @@ def run_arxiv_job():
         fetched, written = 0, 0
         for paper in crawler.crawl_iter():
             fetched += 1
-            if _append_paper(paper):
+            if _append_paper(paper, enhance=True):
                 written += 1
             if fetched % 20 == 0:
                 logger.info(f"arXiv progress: {fetched} fetched, {written} written")
@@ -256,7 +305,7 @@ def run_crossref_job():
             fetched += 1
             if paper.journal_title:
                 fetched_journals.add(paper.journal_title)
-            if _append_paper(paper):
+            if _append_paper(paper, enhance=True):
                 written += 1
             if fetched % 20 == 0:
                 logger.info(f"Crossref progress: {fetched} fetched, {written} written")
@@ -293,6 +342,18 @@ def run_enhance_job():
             logger.info("AI enhance job done")
     except Exception as e:
         logger.error(f"Enhance job failed: {e}", exc_info=True)
+
+
+def run_digest_job():
+    logger.info("Starting digest generation")
+    try:
+        path = generate_digest()
+        if path:
+            logger.info(f"Digest generated: {path}")
+        else:
+            logger.info("No papers to digest today")
+    except Exception as e:
+        logger.error(f"Digest job failed: {e}", exc_info=True)
 
 
 # ── Scheduler ──────────────────────────────────────────────────────
