@@ -288,12 +288,12 @@ def main():
         _save_subs(Subscriptions())
         logger.info(f"Created default {SUBS_PATH}")
 
+    sched = Scheduler()
+
     def _signal_handler(sig, frame):
         logger.info("Shutting down...")
         sched.stop()
         sys.exit(0)
-
-    sched = Scheduler()
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
