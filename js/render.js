@@ -42,21 +42,8 @@ export function renderPapers() {
         const aiBadge = hasAi ? '<span class="ai-badge">AI</span>' : '';
         const rec = ai.recommendation || '';
         const recBadge = rec ? `<span class="rec-badge ${rec}">${rec}</span>` : '';
-        const qScore = ai.quality_score || 0;
-        const rScore = ai.relevance_score || 0;
-        const scoreBar = (qScore || rScore) ? `
-            <div class="score-bar">
-                <span class="score-item">Q<span class="score-fill" style="width:${qScore * 8}px;background:#3b82f6"></span>${qScore}</span>
-                <span class="score-item">R<span class="score-fill" style="width:${rScore * 8}px;background:#22c55e"></span>${rScore}</span>
-            </div>` : '';
-        // AI解读：合并所有AI字段
-        const aiParts = [];
-        if (ai.tldr) aiParts.push(`<b>TL;DR</b> ${ai.tldr}`);
-        if (ai.motivation) aiParts.push(`<b>Motivation</b> ${ai.motivation}`);
-        if (ai.method) aiParts.push(`<b>Method</b> ${ai.method}`);
-        if (ai.result) aiParts.push(`<b>Result</b> ${ai.result}`);
-        if (ai.conclusion) aiParts.push(`<b>Conclusion</b> ${ai.conclusion}`);
-        const cardAi = aiParts.length ? `<div class="card-tldr">${aiParts.join('<br>')}</div>` : '';
+        const tldr = ai.tldr || paper.tldr || '';
+        const cardTldr = tldr ? `<div class="card-tldr">${tldr}</div>` : '';
         const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');
         const authorList = (paper.authors || []).slice(0, 3).map(a =>
             `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`
@@ -73,16 +60,12 @@ export function renderPapers() {
                     ${sourceBadge}${venueBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
-                    <button class="feedback-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" title="有用">👍</button>
-                    <button class="feedback-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" title="没用">👎</button>
                 </div>
                 <div class="paper-title">${title}</div>
-                ${cardAi}
-                <div class="paper-authors">${authors}</div>
-                ${scoreBar}
-                <div class="paper-meta">
-                    <span>${paper.published_date || ''}</span>
-                    <span>${citeBadge || (paper.publisher || '')}</span>
+                ${cardTldr}
+                <div class="paper-footer">
+                    <span class="paper-authors">${authors}</span>
+                    <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                 </div>
             </div>`;
     }).join('');

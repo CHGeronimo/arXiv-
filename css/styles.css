@@ -207,43 +207,41 @@ header h1 {
     color: var(--accent-light);
 }
 
+.paper-cat.code-badge {
+    background: rgba(34,197,94,0.15);
+    color: #22c55e;
+}
+
 .paper-title {
     font-size: 0.95rem;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     line-height: 1.4;
 }
 
 .paper-authors {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1;
+    min-width: 0;
 }
 
-.paper-summary {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-}
-
-.paper-meta {
+.paper-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 8px;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
+    margin-top: 6px;
+    gap: 8px;
 }
 
-.paper-tldr {
-    margin-top: 8px;
-    padding: 8px;
-    background: var(--accent-bg);
-    border-radius: 4px;
-    font-size: 0.8rem;
-    border-left: 3px solid var(--accent);
+.paper-meta-date {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .ai-badge {
@@ -531,26 +529,6 @@ header h1 {
 .paper-card[data-rec="skim"] { border-left: 3px solid #eab308; }
 .paper-card[data-rec="skip"] { border-left: 3px solid #6b7280; }
 
-.score-bar {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    margin-top: 4px;
-}
-.score-item {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-}
-.score-fill {
-    display: inline-block;
-    height: 4px;
-    border-radius: 2px;
-    transition: width 0.3s;
-}
-
 .rec-badge {
     display: inline-block;
     padding: 1px 6px;
@@ -565,10 +543,13 @@ header h1 {
 .rec-badge.skip { background: rgba(107,114,128,0.2); color: #6b7280; }
 
 .card-tldr {
-    margin-top: 4px;
+    margin: 4px 0;
+    padding: 6px 8px;
+    background: var(--accent-bg);
+    border-radius: 4px;
     font-size: 0.78rem;
-    color: var(--accent-light);
-    font-style: italic;
+    color: var(--text-secondary);
+    line-height: 1.5;
 }
 
 .bookmark-btn {
@@ -584,20 +565,6 @@ header h1 {
 }
 .bookmark-btn:hover { transform: scale(1.2); }
 .bookmark-btn.active { color: #eab308; }
-
-.feedback-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 0.75rem;
-    opacity: 0.4;
-    padding: 2px 4px;
-    transition: opacity 0.2s;
-}
-.feedback-btn:hover { opacity: 1; }
-.feedback-btn.voted { opacity: 1; }
-.feedback-btn.voted[data-feedback-rating="useful"] { opacity: 1; filter: none; }
-.feedback-btn.voted[data-feedback-rating="not_useful"] { opacity: 1; filter: none; }
 
 .author-link {
     cursor: pointer;
