@@ -94,6 +94,10 @@ header {
     position: sticky;
     top: 0;
     z-index: 100;
+    transition: padding-left 0.25s ease;
+}
+header.sidebar-open {
+    padding-left: 280px;
 }
 header h1 {
     font-size: 1.3rem;
@@ -125,6 +129,10 @@ header h1 {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 12px;
+    transition: margin-left 0.25s ease;
+}
+#paper-container.sidebar-open {
+    margin-left: 280px;
 }
 
 .paper-card {

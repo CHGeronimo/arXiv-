@@ -6,6 +6,7 @@
     <title>arxivSCI-daily</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/subscriptions.css">
+    <link rel="stylesheet" href="css/sidebar.css">
 </head>
 <body>
     <header>
@@ -13,20 +14,6 @@
             <h1>arxivSCI-daily</h1>
         </div>
         <div class="header-right">
-            <input id="search-input" type="text" placeholder="搜索... 支持 title: abstract: author:" class="search-bar">
-            <input id="date-filter" type="date" class="date-filter" title="按日期筛选">
-            <div class="filter-dropdown" id="dd-sort">
-                <button class="sort-btn" id="sort-btn" data-dropdown="sort" title="排序方式">↓ 新→旧 <span class="arrow">▼</span></button>
-                <div class="filter-dropdown-panel" id="panel-sort" style="min-width:140px;right:0;left:auto">
-                    <div class="filter-option active" data-sort="desc">↓ 日期：新→旧</div>
-                    <div class="filter-option" data-sort="asc">↑ 日期：旧→新</div>
-                    <div class="filter-option" data-sort="relevance">★ 相关性</div>
-                    <div class="filter-option" data-sort="quality">✦ AI 质量评分</div>
-                    <div class="filter-option" data-sort="citations">✱ 引用数</div>
-                    <div class="filter-option" data-sort="rec">✓ AI 推荐优先</div>
-                    <div class="filter-option" data-sort="source">◉ 按来源分组</div>
-                </div>
-            </div>
             <span id="paper-count" class="paper-count"></span>
             <div class="filter-dropdown" id="dd-crawl">
                 <button class="gear-btn" data-dropdown="crawl" title="手动爬取">🔄</button>
@@ -46,45 +33,21 @@
         </div>
     </header>
 
-    <div class="filter-bar">
-        <div class="filter-dropdown" id="dd-source">
-            <button class="filter-dropdown-btn" data-dropdown="source">
-                来源 <span class="badge" id="badge-source" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-source"></div>
+    <button id="sidebar-toggle" class="sidebar-toggle" title="筛选面板">☰</button>
+    <aside id="filter-sidebar" class="filter-sidebar">
+        <div class="filter-sidebar-header">
+            <h3>筛选</h3>
+            <button id="sidebar-clear">清除全部</button>
         </div>
-        <div class="filter-dropdown" id="dd-journal">
-            <button class="filter-dropdown-btn" data-dropdown="journal">
-                期刊 <span class="badge" id="badge-journal" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-journal"></div>
+        <div class="sidebar-search">
+            <input id="sidebar-search-input" type="text" placeholder="搜索... title: abstract: author:">
         </div>
-        <div class="filter-dropdown" id="dd-venue">
-            <button class="filter-dropdown-btn" data-dropdown="venue">
-                会议 <span class="badge" id="badge-venue" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-venue"></div>
+        <div class="sidebar-date">
+            <input id="sidebar-date-filter" type="date" title="按日期筛选">
         </div>
-        <div class="filter-dropdown" id="dd-category">
-            <button class="filter-dropdown-btn" data-dropdown="category">
-                领域 <span class="badge" id="badge-category" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-category"></div>
-        </div>
-        <div class="filter-dropdown" id="dd-type">
-            <button class="filter-dropdown-btn" data-dropdown="type">
-                类型 <span class="badge" id="badge-type" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-type"></div>
-        </div>
-        <div class="filter-dropdown" id="dd-bookmarked">
-            <button class="filter-dropdown-btn" data-dropdown="bookmarked">
-                收藏 <span class="badge" id="badge-bookmarked" style="display:none">0</span> <span class="arrow">▼</span>
-            </button>
-            <div class="filter-dropdown-panel" id="panel-bookmarked"></div>
-        </div>
-        <button id="btn-clear-filters" class="clear-filters-btn">清除筛选</button>
-    </div>
+        <div class="sidebar-sort" id="sidebar-sort"></div>
+        <div id="sidebar-filter-groups"></div>
+    </aside>
 
     <main id="paper-container">
         <div id="loading" class="loading-state">
