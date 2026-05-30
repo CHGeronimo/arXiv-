@@ -33,7 +33,6 @@ const ARXIV_CATEGORIES = [
 const QUICK_JOURNALS = [
     { issn: "0028-0836", name: "Nature" },
     { issn: "0036-8075", name: "Science" },
-    { issn: "0036-8075", name: "Science" },
     { issn: "0027-8424", name: "PNAS" },
     { issn: "0092-8674", name: "Cell" },
     { issn: "0140-6736", name: "The Lancet" },
@@ -45,33 +44,19 @@ const QUICK_JOURNALS = [
     { issn: "2051-5874", name: "Nature Machine Intelligence" },
 ];
 
-const CONFERENCES = [
-    // CV
-    { venue: "CVPR", label: "CVPR", group: "计算机视觉" },
-    { venue: "ICCV", label: "ICCV", group: "计算机视觉" },
-    { venue: "ECCV", label: "ECCV", group: "计算机视觉" },
-    { venue: "WACV", label: "WACV", group: "计算机视觉" },
-    // ML
-    { venue: "NeurIPS", label: "NeurIPS", group: "机器学习" },
-    { venue: "ICML", label: "ICML", group: "机器学习" },
-    { venue: "ICLR", label: "ICLR", group: "机器学习" },
-    { venue: "AAAI", label: "AAAI", group: "机器学习" },
-    { venue: "IJCAI", label: "IJCAI", group: "机器学习" },
-    // NLP
-    { venue: "ACL", label: "ACL", group: "自然语言处理" },
-    { venue: "EMNLP", label: "EMNLP", group: "自然语言处理" },
-    { venue: "NAACL", label: "NAACL", group: "自然语言处理" },
-    { venue: "COLING", label: "COLING", group: "自然语言处理" },
-    // Data Mining / IR
-    { venue: "KDD", label: "KDD", group: "数据挖掘/信息检索" },
-    { venue: "SIGIR", label: "SIGIR", group: "数据挖掘/信息检索" },
-    { venue: "WWW", label: "TheWebConf", group: "数据挖掘/信息检索" },
-    { venue: "WSDM", label: "WSDM", group: "数据挖掘/信息检索" },
-    // Speech
-    { venue: "INTERSPEECH", label: "INTERSPEECH", group: "语音" },
-    { venue: "ICASSP", label: "ICASSP", group: "语音" },
-    // Medical
-    { venue: "MICCAI", label: "MICCAI", group: "医学影像" },
+// CONFERENCES now derived from CCF_CONFERENCES (ccf-data.js)
+// Keep backward compat: build from CCF data if available
+const CONFERENCES = (typeof CCF_CONFERENCES !== 'undefined') ? CCF_CONFERENCES.map(c => ({
+    venue: c.venue,
+    label: c.venue,
+    group: c.domain,
+    tier: c.tier,
+})) : [
+    { venue: "CVPR", label: "CVPR", group: "人工智能" },
+    { venue: "NeurIPS", label: "NeurIPS", group: "人工智能" },
+    { venue: "ACL", label: "ACL", group: "人工智能" },
+    { venue: "ICML", label: "ICML", group: "人工智能" },
+    { venue: "ICLR", label: "ICLR", group: "人工智能" },
 ];
 
 async function loadSubscriptions() {
@@ -114,6 +99,7 @@ async function saveSubscriptions(newSubs, changedSource) {
 
 function renderSubscriptionUI() {
     renderArxivCategories();
+    renderCCFJournals();
     renderQuickJournals();
     renderCrossrefJournals();
     renderConferenceChips();
@@ -128,7 +114,66 @@ function renderSubStats() {
     const confs = (subscriptions.conferences || []).length;
     const keywords = subscriptions.search?.keywords?.length || 0;
     const useProfile = subscriptions.search?.useProfile !== false;
-    el.innerHTML = `订阅统计：${cats} arXiv 分类 · ${journals} 期刊 · ${confs} 会议 · ${keywords || (useProfile ? '使用研究方向' : 0)} 搜索关键词`;
+    // Count CCF-tiered subscribed conferences
+    let ccfA = 0, ccfB = 0, ccfC = 0;
+    const subVenues = new Set((subscriptions.conferences || []).map(c => c.venue));
+    for (const venue of subVenues) {
+        const info = CCF_CONF_MAP[venue];
+        if (info) {
+            if (info.tier === 'A') ccfA++;
+            else if (info.tier === 'B') ccfB++;
+            else ccfC++;
+        }
+    }
+    el.innerHTML = `订阅统计：${cats} arXiv 分类 · ${journals} 期刊 · ${confs} 会议 (CCF A:${ccfA} B:${ccfB} C:${ccfC}) · ${keywords || (useProfile ? '使用研究方向' : 0)} 搜索关键词`;
+}
+
+function renderCCFJournals() {
+    const container = document.getElementById('ccf-journal-section');
+    if (!container || typeof CCF_JOURNALS === 'undefined') return;
+
+    const subscribedIssns = new Set((subscriptions.crossref?.journals || []).map(j => j.issn));
+
+    // Group by domain
+    const byDomain = {};
+    for (const j of CCF_JOURNALS) {
+        if (!byDomain[j.domain]) byDomain[j.domain] = [];
+        byDomain[j.domain].push(j);
+    }
+
+    let html = '';
+
+    // Tier filter
+    html += '<div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">';
+    ['all', 'A', 'B', 'C'].forEach(t => {
+        const active = t === 'all' ? ' active' : '';
+        html += `<button class="ccf-tier-filter${active}" data-ccf-jfilter="${t}">${t === 'all' ? '全部' : 'CCF-' + t}</button>`;
+    });
+    html += '</div>';
+
+    for (const [domain, journals] of Object.entries(byDomain)) {
+        html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin:8px 0 4px;font-weight:500">${domain}</div>`;
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+        for (const j of journals) {
+            const tierTag = `<span class="ccf-badge ${ccfTierClass(j.tier)}">${j.tier}</span>`;
+            html += `<span class="sub-chip" data-ccf-jtier="${j.tier}" title="${j.name} (${j.publisher})" style="display:inline-flex;align-items:center;gap:3px;cursor:default">${tierTag}<span style="font-size:0.8rem">${j.abbr}</span></span>`;
+        }
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+
+    // Tier filter
+    container.querySelectorAll('.ccf-tier-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('.ccf-tier-filter').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const tier = btn.dataset.ccfJfilter;
+            container.querySelectorAll('[data-ccf-jtier]').forEach(el => {
+                el.style.display = (tier === 'all' || el.dataset.ccfJtier === tier) ? '' : 'none';
+            });
+        });
+    });
 }
 
 function renderQuickJournals() {
@@ -196,21 +241,50 @@ function renderConferenceChips() {
     const container = document.getElementById('conference-chips');
     if (!container) return;
     const selected = new Set((subscriptions.conferences || []).map(c => c.venue));
-    let html = '';
+
+    // Add tier filter bar
+    let html = '<div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap">';
+    ['all', 'A', 'B', 'C'].forEach(t => {
+        const active = t === 'all' ? ' active' : '';
+        html += `<button class="ccf-tier-filter${active}" data-ccf-filter="${t}">${t === 'all' ? '全部' : 'CCF-' + t}</button>`;
+    });
+    html += '</div>';
+
     let currentGroup = '';
-    for (const conf of CONFERENCES) {
+    const sorted = [...CONFERENCES].sort((a, b) => {
+        const dComp = a.group.localeCompare(b.group);
+        if (dComp !== 0) return dComp;
+        const tOrder = { A: 0, B: 1, C: 2 };
+        return (tOrder[a.tier] ?? 3) - (tOrder[b.tier] ?? 3);
+    });
+
+    for (const conf of sorted) {
         if (conf.group !== currentGroup) {
             if (currentGroup) html += '<div style="height:8px"></div>';
-            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px">${conf.group}</div>`;
+            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin:6px 0 4px;font-weight:500">${conf.group}</div>`;
             currentGroup = conf.group;
         }
         const sel = selected.has(conf.venue);
-        html += `<label class="sub-chip ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px">
+        const tierCls = conf.tier ? ` ${ccfTierClass(conf.tier)}` : '';
+        const tierTag = conf.tier ? `<span class="ccf-badge ${ccfTierClass(conf.tier)}">${conf.tier}</span>` : '';
+        html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 4px" data-ccf-tier="${conf.tier || ''}">
             <input type="checkbox" ${sel ? 'checked' : ''} data-conf-venue="${conf.venue}">
-            ${conf.label}
+            ${tierTag}${conf.label}
         </label>`;
     }
     container.innerHTML = html;
+
+    // Tier filter buttons
+    container.querySelectorAll('.ccf-tier-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('.ccf-tier-filter').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const tier = btn.dataset.ccfFilter;
+            container.querySelectorAll('.sub-chip[data-ccf-tier]').forEach(chip => {
+                chip.style.display = (tier === 'all' || chip.dataset.ccfTier === tier) ? '' : 'none';
+            });
+        });
+    });
 
     container.addEventListener('change', (e) => {
         const cb = e.target.closest('[data-conf-venue]');

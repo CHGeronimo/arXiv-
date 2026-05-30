@@ -15,26 +15,37 @@ DBLP_BASE = "https://dblp.uni-trier.de/search/publ/api"
 OPENALEX_BASE = "https://api.openalex.org/works"
 
 VENUE_MAP = {
-    "CVPR": "CVPR",
-    "ICCV": "ICCV",
-    "ECCV": "ECCV",
-    "WACV": "WACV",
-    "NeurIPS": "NeurIPS",
-    "ICML": "ICML",
-    "ICLR": "ICLR",
-    "AAAI": "AAAI",
-    "IJCAI": "IJCAI",
-    "ACL": "ACL",
-    "EMNLP": "EMNLP",
-    "NAACL": "NAACL",
-    "COLING": "COLING",
-    "KDD": "KDD",
-    "SIGIR": "SIGIR",
-    "WWW": "TheWebConf",
-    "WSDM": "WSDM",
-    "INTERSPEECH": "INTERSPEECH",
-    "ICASSP": "ICASSP",
+    # AI
+    "CVPR": "CVPR", "ICCV": "ICCV", "ECCV": "ECCV",
+    "NeurIPS": "NeurIPS", "ICML": "ICML", "ICLR": "ICLR",
+    "AAAI": "AAAI", "IJCAI": "IJCAI",
+    "ACL": "ACL", "EMNLP": "EMNLP", "NAACL": "NAACL", "COLING": "COLING",
+    "UAI": "UAI", "ECAI": "ECAI", "AAMAS": "AAMAS",
+    "ICRA": "ICRA", "IROS": "IROS",
     "MICCAI": "MICCAI",
+    # Data/IR
+    "SIGMOD": "SIGMOD", "SIGKDD": "KDD", "ICDE": "ICDE",
+    "SIGIR": "SIGIR", "VLDB": "VLDB",
+    "WWW": "TheWebConf", "WSDM": "WSDM",
+    "CIKM": "CIKM", "ICDM": "ICDM", "RecSys": "RecSys",
+    # Graphics/Multimedia
+    "ACMMM": "ACMMM", "SIGGRAPH": "SIGGRAPH",
+    "INTERSPEECH": "INTERSPEECH", "ICASSP": "ICASSP",
+    "ICME": "ICME",
+    # Theory
+    "STOC": "STOC", "FOCS": "FOCS", "SODA": "SODA",
+    # SE
+    "ICSE": "ICSE", "FSE": "FSE", "ASE": "ASE",
+    "SOSP": "SOSP", "OSDI": "OSDI",
+    # Network
+    "SIGCOMM": "SIGCOMM", "NSDI": "NSDI", "INFOCOM": "INFOCOM",
+    # Security
+    "CCS": "CCS", "NDSS": "NDSS",
+    # Architecture
+    "ISCA": "ISCA", "MICRO": "MICRO", "HPCA": "HPCA",
+    "ASPLOS": "ASPLOS", "SC": "SC", "DAC": "DAC",
+    # HCI
+    "CHI": "CHI", "CSCW": "CSCW", "UbiComp": "UbiComp",
 }
 
 

@@ -72,8 +72,6 @@
             </button>
             <div class="filter-dropdown-panel" id="panel-bookmarked"></div>
         </div>
-            <div class="filter-dropdown-panel" id="panel-type"></div>
-        </div>
         <button id="btn-clear-filters" class="clear-filters-btn">清除筛选</button>
     </div>
 
@@ -131,6 +129,11 @@
 
             <div id="sub-tab-journals" style="display:none">
                 <div style="margin-bottom:12px">
+                    <h3 style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px">CCF 推荐期刊</h3>
+                    <div id="ccf-journal-section"></div>
+                </div>
+                <hr style="margin:12px 0">
+                <div style="margin-bottom:12px">
                     <h3 style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px">快捷订阅</h3>
                     <div id="quick-journal-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
                 </div>
@@ -178,6 +181,7 @@
         </div>
     </div>
 
+    <script src="js/ccf-data.js"></script>
     <script src="js/subscriptions.js"></script>
     <script src="js/crossref-search.js"></script>
     <script src="js/app.js"></script>
