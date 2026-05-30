@@ -79,23 +79,44 @@ def get_papers():
 
     papers = []
     if DATA_DIR.exists():
+        seen_ids: set[str] = set()
+        seen_dois: set[str] = set()
+        # AI-enhanced files first (preferred)
         for f in sorted(DATA_DIR.glob("*.jsonl"), reverse=True):
             if "_AI_" in f.name:
                 with open(f, "r", encoding="utf-8") as fh:
                     for line in fh:
                         try:
-                            papers.append(json.loads(line.strip()))
+                            p = json.loads(line.strip())
+                            pid = p.get("id", "")
+                            doi = p.get("doi", "")
+                            if pid in seen_ids:
+                                continue
+                            if doi and doi in seen_dois:
+                                continue
+                            seen_ids.add(pid)
+                            if doi:
+                                seen_dois.add(doi)
+                            papers.append(p)
                         except json.JSONDecodeError:
                             pass
-        ai_ids = {p.get("id") for p in papers}
+        # Raw files (only add if not already seen)
         for f in sorted(DATA_DIR.glob("*.jsonl"), reverse=True):
             if "_AI_" not in f.name:
                 with open(f, "r", encoding="utf-8") as fh:
                     for line in fh:
                         try:
                             p = json.loads(line.strip())
-                            if p.get("id") not in ai_ids:
-                                papers.append(p)
+                            pid = p.get("id", "")
+                            doi = p.get("doi", "")
+                            if pid in seen_ids:
+                                continue
+                            if doi and doi in seen_dois:
+                                continue
+                            seen_ids.add(pid)
+                            if doi:
+                                seen_dois.add(doi)
+                            papers.append(p)
                         except json.JSONDecodeError:
                             pass
 
@@ -217,6 +238,11 @@ def trigger_enhance():
     return jsonify({"status": "triggered", "job": "enhance"})
 
 
+@app.route("/api/jobs", methods=["GET"])
+def get_job_status():
+    return jsonify(_job_status)
+
+
 @app.route("/api/digest/<date_str>", methods=["GET"])
 def get_digest(date_str: str):
     digest_path = Path("digests") / f"{date_str}.md"
@@ -232,6 +258,53 @@ def list_digests():
         return jsonify({"digests": []})
     digests = sorted(digest_dir.glob("*.md"), reverse=True)
     return jsonify({"digests": [d.stem for d in digests]})
+
+
+def _bibtex_for(paper: dict) -> str:
+    authors = " and ".join(paper.get("authors") or [])
+    year = (paper.get("published_date") or "")[:4]
+    key = (paper.get("id") or "unknown").replace("/", "_").replace(":", "_")[:40]
+    title = paper.get("title") or ""
+    venue = paper.get("venue") or paper.get("journal_title") or ""
+    doi = paper.get("doi") or ""
+    lines = [f"@article{{{key},"]
+    if title: lines.append(f"  title = {{{title}}},")
+    if authors: lines.append(f"  author = {{{authors}}},")
+    if year: lines.append(f"  year = {{{year}}},")
+    if venue: lines.append(f"  journal = {{{venue}}},")
+    if doi: lines.append(f"  doi = {{{doi}}},")
+    url = paper.get("url") or ""
+    if url: lines.append(f"  url = {{{url}}},")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+@app.route("/api/export/bibtex", methods=["POST"])
+def export_bibtex():
+    data = request.get_json()
+    ids = data.get("ids", []) if data else []
+    if not ids:
+        return jsonify({"error": "no ids provided"}), 400
+    papers_map: dict[str, dict] = {}
+    if DATA_DIR.exists():
+        for f in DATA_DIR.glob("*.jsonl"):
+            with open(f, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        p = json.loads(line.strip())
+                        pid = p.get("id", "")
+                        if pid and pid in ids:
+                            papers_map[pid] = p
+                    except json.JSONDecodeError:
+                        pass
+    entries = []
+    for pid in ids:
+        p = papers_map.get(pid)
+        if p:
+            entries.append(_bibtex_for(p))
+    if not entries:
+        return jsonify({"error": "no papers found"}), 404
+    return "\n\n".join(entries), 200, {"Content-Type": "application/x-bibtex"}
 
 
 
@@ -252,6 +325,11 @@ def _get_ai_chain():
 
 _written_ids: set[str] = set()
 _ids_lock = threading.Lock()
+_job_status: dict[str, dict] = {}
+
+
+def _set_job_status(job: str, status: str, msg: str = ""):
+    _job_status[job] = {"status": status, "message": msg, "updated": datetime.now(timezone.utc).isoformat()}
 
 
 def _load_existing_ids() -> set[str]:
@@ -319,11 +397,13 @@ def _write_papers(papers: list, date_str: str | None = None) -> int:
 
 
 def run_arxiv_job():
+    _set_job_status("arxiv", "running")
     logger.info("Starting arXiv crawl job (streaming)")
     try:
         subs = _load_subs()
         if not subs.arxiv_categories:
             logger.info("No arXiv categories subscribed, skipping")
+            _set_job_status("arxiv", "skipped", "no categories")
             return
         existing = _load_existing_ids()
         crawler = ArxivCrawler(
@@ -338,16 +418,20 @@ def run_arxiv_job():
             if fetched % 20 == 0:
                 logger.info(f"arXiv progress: {fetched} fetched, {written} written")
         logger.info(f"arXiv job done: {fetched} fetched, {written} new written")
+        _set_job_status("arxiv", "done", f"{fetched} fetched, {written} written")
     except Exception as e:
         logger.error(f"arXiv job failed: {e}", exc_info=True)
+        _set_job_status("arxiv", "error", str(e))
 
 
 def run_crossref_job():
+    _set_job_status("crossref", "running")
     logger.info("Starting Crossref crawl job (streaming)")
     try:
         subs = _load_subs()
         if not subs.crossref_journals:
             logger.info("No Crossref journals subscribed, skipping")
+            _set_job_status("crossref", "skipped", "no journals")
             return
         crawler = CrossrefCrawler(journals=subs.crossref_journals)
         fetched, written = 0, 0
@@ -367,16 +451,20 @@ def run_crossref_job():
                     j.last_updated = now
             _save_subs(subs)
         logger.info(f"Crossref job done: {fetched} fetched, {written} new written")
+        _set_job_status("crossref", "done", f"{fetched} fetched, {written} written")
     except Exception as e:
         logger.error(f"Crossref job failed: {e}", exc_info=True)
+        _set_job_status("crossref", "error", str(e))
 
 
 def run_dblp_job():
+    _set_job_status("dblp", "running")
     logger.info("Starting DBLP crawl job")
     try:
         subs = _load_subs()
         if not subs.conferences:
             logger.info("No conferences subscribed, skipping DBLP")
+            _set_job_status("dblp", "skipped", "no conferences")
             return
         crawler = DblpCrawler(conferences=subs.conferences)
         fetched, written = 0, 0
@@ -395,11 +483,14 @@ def run_dblp_job():
                     c.last_updated = now
             _save_subs(subs)
         logger.info(f"DBLP job done: {fetched} fetched, {written} new written")
+        _set_job_status("dblp", "done", f"{fetched} fetched, {written} written")
     except Exception as e:
         logger.error(f"DBLP job failed: {e}", exc_info=True)
+        _set_job_status("dblp", "error", str(e))
 
 
 def run_s2_job():
+    _set_job_status("s2", "running")
     logger.info("Starting S2 search job")
     try:
         subs = _load_subs()
@@ -409,6 +500,7 @@ def run_s2_job():
             keywords = profile.get("keywords", [])
         if not keywords:
             logger.info("No search keywords, skipping S2")
+            _set_job_status("s2", "skipped", "no keywords")
             return
         crawler = S2Crawler(keywords=keywords, max_per_keyword=20)
         fetched, written = 0, 0
@@ -419,8 +511,10 @@ def run_s2_job():
             if fetched % 20 == 0:
                 logger.info(f"S2 progress: {fetched} fetched, {written} written")
         logger.info(f"S2 job done: {fetched} fetched, {written} new written")
+        _set_job_status("s2", "done", f"{fetched} fetched, {written} written")
     except Exception as e:
         logger.error(f"S2 search job failed: {e}", exc_info=True)
+        _set_job_status("s2", "error", str(e))
 
 
 def run_retro_enhance():

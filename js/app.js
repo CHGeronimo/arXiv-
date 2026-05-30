@@ -7,6 +7,7 @@ let activeFilters = {
     category: new Set(),  // arXiv categories
     venue: new Set(),     // conference venues
     type: new Set(),      // 'research', 'news'
+    bookmarked: new Set(), // 'yes' — filter bookmarked
 };
 let searchQuery = '';
 let dateFilter = '';
@@ -14,6 +15,38 @@ let sortOrder = 'desc';
 let refreshTimer = null;
 let currentPage = 1;
 const PAGE_SIZE = 30;
+
+const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
+function _saveBookmarks() { localStorage.setItem('bookmarks', JSON.stringify([..._bookmarks])); }
+function toggleBookmark(id) { _bookmarks.has(id) ? _bookmarks.delete(id) : _bookmarks.add(id); _saveBookmarks(); }
+
+const _readPapers = new Set(JSON.parse(localStorage.getItem('readPapers') || '[]'));
+function _markRead(id) { if (!_readPapers.has(id)) { _readPapers.add(id); localStorage.setItem('readPapers', JSON.stringify([..._readPapers])); } }
+
+function showToast(msg, duration = 2000) {
+    let el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+    el.textContent = msg;
+    el.className = 'toast show';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = 'toast'; }, duration);
+}
+
+function _initTheme() {
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = saved || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+    return theme;
+}
+function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    document.getElementById('btn-theme').textContent = next === 'dark' ? '🌙' : '☀️';
+}
+_initTheme();
 
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
@@ -24,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('date-filter').addEventListener('change', handleDateFilter);
     document.getElementById('sort-btn').addEventListener('click', toggleSort);
     document.getElementById('btn-profile').addEventListener('click', openProfileModal);
+    document.getElementById('btn-theme').addEventListener('click', toggleTheme);
     document.getElementById('btn-subs').addEventListener('click', openSubscriptionModal);
     document.getElementById('btn-clear-filters').addEventListener('click', clearAllFilters);
 
@@ -40,7 +74,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Modal close buttons
     document.getElementById('close-paper-modal').addEventListener('click', closePaperModal);
-    document.getElementById('paper-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closePaperModal(); });
+    document.getElementById('paper-modal').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) { closePaperModal(); return; }
+        const bibtexBtn = e.target.closest('[data-export-bibtex]');
+        if (bibtexBtn) {
+            const pid = bibtexBtn.dataset.exportBibtex;
+            fetch('/api/export/bibtex', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [pid]}) })
+                .then(r => r.ok ? r.text() : Promise.reject('failed'))
+                .then(text => { navigator.clipboard.writeText(text).then(() => showToast('BibTeX 已复制到剪贴板')); })
+                .catch(() => showToast('导出失败'));
+        }
+    });
     document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
     document.getElementById('profile-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeProfileModal(); });
     document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
@@ -61,6 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('use-profile-keywords').addEventListener('change', toggleCustomKeywords);
 
     document.getElementById('paper-container').addEventListener('click', (e) => {
+        const bmBtn = e.target.closest('.bookmark-btn');
+        if (bmBtn) {
+            e.stopPropagation();
+            toggleBookmark(bmBtn.dataset.bmId);
+            renderPapers();
+            return;
+        }
         const card = e.target.closest('.paper-card[data-idx]');
         if (card) {
             const idx = parseInt(card.dataset.idx);
@@ -69,12 +120,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', (e) => {
+        const active = document.activeElement;
+        const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
         if (e.key === 'Escape') {
             closePaperModal();
             closeSubscriptionModal();
             closeProfileModal();
             closeAllDropdowns();
+            return;
         }
+        if (typing) return;
+        if (e.key === 'j') { changePage(1); }
+        else if (e.key === 'k') { changePage(-1); }
+        else if (e.key === 'f') {
+            const first = filteredPapers[currentPage - 1];
+            if (first) { toggleBookmark(first.id); renderPapers(); }
+        }
+        else if (e.key === '/') { e.preventDefault(); document.getElementById('search-input').focus(); }
+        else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
     });
 
     // Close dropdowns when clicking outside
@@ -160,6 +223,10 @@ function buildFilterOptions() {
         { value: 'must-read', label: 'Must Read' },
         { value: 'worth-reading', label: 'Worth Reading' },
         { value: 'skim', label: 'Skim' },
+        { value: 'unread', label: '未读' },
+    ]);
+    renderFilterDropdown('bookmarked', [
+        { value: 'yes', label: '⭐ 已收藏' },
     ]);
     updateFilterBadges();
 }
@@ -244,8 +311,8 @@ function handleDateFilter() {
 }
 
 function toggleSort() {
-    const modes = ['desc', 'asc', 'relevance', 'quality'];
-    const labels = ['↓ 新→旧', '↑ 旧→新', '★ 相关性', '✦ 质量'];
+    const modes = ['desc', 'asc', 'relevance', 'quality', 'citations'];
+    const labels = ['↓ 新→旧', '↑ 旧→新', '★ 相关性', '✦ 质量', '✱ 引用'];
     const idx = (modes.indexOf(sortOrder) + 1) % modes.length;
     sortOrder = modes[idx];
     document.getElementById('sort-btn').textContent = labels[idx];
@@ -290,21 +357,43 @@ function renderPapers() {
         );
     }
 
-    // Type filter
+    // Type filter (includes unread)
     const typeSet = activeFilters.type;
     if (typeSet.size > 0) {
         filteredPapers = filteredPapers.filter(p => {
+            if (typeSet.has('unread')) return !_readPapers.has(p.id);
             const at = p.article_type || _inferType(p);
             const rec = (p.AI || {}).recommendation || '';
             return typeSet.has(at) || typeSet.has(rec);
         });
     }
 
-    // Search
+    // Bookmark filter
+    const bmSet = activeFilters.bookmarked;
+    if (bmSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p => _bookmarks.has(p.id));
+    }
+
+    // Search (supports title: abstract: author: prefix)
     if (searchQuery) {
+        const prefixFields = { 'title:': 'title', 'abstract:': 'summary', 'author:': 'authors' };
+        const terms = searchQuery.split(/\s+/);
         filteredPapers = filteredPapers.filter(p => {
-            const text = ((p.title_zh || p.title || '') + ' ' + (p.summary_zh || p.summary || '') + ' ' + (p.authors || []).join(' ')).toLowerCase();
-            return text.includes(searchQuery);
+            return terms.every(term => {
+                for (const [prefix, field] of Object.entries(prefixFields)) {
+                    if (term.startsWith(prefix)) {
+                        const q = term.slice(prefix.length);
+                        if (!q) return true;
+                        if (field === 'authors') return (p.authors || []).some(a => a.toLowerCase().includes(q));
+                        const val = ((p.AI || {})[field === 'summary' ? 'summary_zh' : 'title_zh'] || p[field] || '').toLowerCase();
+                        return val.includes(q);
+                    }
+                }
+                const allText = ((p.AI || {}).title_zh || p.title_zh || p.title || '') + ' ' +
+                    ((p.AI || {}).summary_zh || p.summary_zh || p.summary || '') + ' ' +
+                    (p.authors || []).join(' ');
+                return allText.toLowerCase().includes(term);
+            });
         });
     }
 
@@ -320,6 +409,9 @@ function renderPapers() {
         }
         if (sortOrder === 'quality') {
             return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
+        }
+        if (sortOrder === 'citations') {
+            return (b.citation_count || 0) - (a.citation_count || 0);
         }
         const da = a.published_date || '';
         const db = b.published_date || '';
@@ -380,11 +472,14 @@ function renderPapers() {
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
 
         const idx = start + i;
+        const isBookmarked = _bookmarks.has(paper.id);
+        const isRead = _readPapers.has(paper.id);
         return `
-            <div class="paper-card" data-idx="${idx}" data-rec="${rec}">
+            <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
                     ${sourceBadge}${venueBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
+                    <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${_escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
                 </div>
                 <div class="paper-title">${title}</div>
                 ${cardTldr}
@@ -417,6 +512,7 @@ function changePage(delta) {
 }
 
 function openPaperDetail(paper) {
+    _markRead(paper.id);
     const modal = document.getElementById('paper-modal');
     const detail = document.getElementById('paper-detail');
 
@@ -499,6 +595,7 @@ function openPaperDetail(paper) {
             ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="follow-btn">PDF</a>` : ''}
             ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="follow-btn">DOI</a>` : ''}
             ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="follow-btn" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
+            <button class="follow-btn" data-export-bibtex="${_escAttr(paper.id)}">BibTeX</button>
         </div>
     `;
 
@@ -563,8 +660,8 @@ async function triggerCrawl(job) {
     if (job === 'enhance') {
         try {
             const resp = await fetch('/api/trigger/enhance', { method: 'POST' });
-            alert(resp.ok ? '补 AI 增强已启动，请稍等片刻后刷新页面' : '启动失败');
-        } catch { alert('启动失败'); }
+            showToast(resp.ok ? '补 AI 增强已启动' : '启动失败');
+        } catch { showToast('启动失败'); }
         setTimeout(loadPapers, 30000);
         return;
     }
@@ -574,16 +671,33 @@ async function triggerCrawl(job) {
         if (el) el.textContent = '...';
         try {
             const resp = await fetch(`/api/trigger/${j}`, { method: 'POST' });
-            if (el) el.textContent = resp.ok ? '✓' : '✗';
+            if (el) el.textContent = resp.ok ? '⏳' : '✗';
         } catch {
             if (el) el.textContent = '✗';
         }
     }
-    setTimeout(() => {
-        loadPapers();
-        jobs.forEach(j => {
-            const el = document.getElementById(`crawl-${j}`);
-            if (el) el.textContent = '—';
-        });
-    }, 15000);
+    // Poll job status
+    const pollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch('/api/jobs');
+            if (!resp.ok) return;
+            const status = await resp.json();
+            let allDone = true;
+            for (const j of jobs) {
+                const s = status[j];
+                const el = document.getElementById(`crawl-${j}`);
+                if (!s || s.status === 'running') { allDone = false; if (el) el.textContent = '⏳'; }
+                else if (s.status === 'done') { if (el) el.textContent = `✓ ${s.message || ''}`; }
+                else if (s.status === 'error') { if (el) el.textContent = '✗'; }
+                else { if (el) el.textContent = '—'; }
+            }
+            if (allDone) {
+                clearInterval(pollInterval);
+                loadPapers();
+                setTimeout(() => {
+                    jobs.forEach(j => { const el = document.getElementById(`crawl-${j}`); if (el) el.textContent = '—'; });
+                }, 10000);
+            }
+        } catch { clearInterval(pollInterval); }
+    }, 3000);
 }
