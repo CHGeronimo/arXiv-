@@ -149,6 +149,34 @@ header h1 {
     border-left: 3px solid var(--accent);
 }
 
+.ai-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #7b2ff7, #a855f7);
+    color: #fff;
+    margin-left: 4px;
+}
+
+.follow-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.2s;
+}
+.follow-btn:hover {
+    background: var(--accent);
+    color: #fff;
+}
+
 /* Modal */
 .modal {
     display: none;

@@ -4,6 +4,8 @@ let filteredPapers = [];
 let currentSourceFilter = 'all';
 let searchQuery = '';
 let refreshTimer = null;
+let currentPage = 1;
+const PAGE_SIZE = 30;
 
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
@@ -112,11 +114,18 @@ function renderPapers() {
 
     updatePaperCount();
 
-    container.innerHTML = filteredPapers.map(paper => {
+    const totalPages = Math.ceil(filteredPapers.length / PAGE_SIZE);
+    if (currentPage > totalPages) currentPage = totalPages || 1;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pagePapers = filteredPapers.slice(start, start + PAGE_SIZE);
+
+    container.innerHTML = pagePapers.map(paper => {
         const ai = paper.AI || {};
+        const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
             ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
             : `<span class="source-badge arxiv">arXiv</span>`;
+        const aiBadge = hasAi ? '<span class="ai-badge">AI</span>' : '';
 
         const categories = (paper.categories || []).map(c =>
             `<span class="paper-cat">${c}</span>`
@@ -134,7 +143,7 @@ function renderPapers() {
         return `
             <div class="paper-card" onclick='openPaperDetail(${JSON.stringify(paper).replace(/'/g, "&#39;")})'>
                 <div class="paper-header">
-                    ${sourceBadge}
+                    ${sourceBadge}${aiBadge}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                 </div>
                 <div class="paper-title">${title}</div>
@@ -148,6 +157,23 @@ function renderPapers() {
             </div>
         `;
     }).join('');
+
+    // Pagination
+    if (totalPages > 1) {
+        container.innerHTML += `
+            <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:16px">
+                <button class="follow-btn" onclick="changePage(-1)" ${currentPage <= 1 ? 'disabled style="opacity:0.5"' : ''}>上一页</button>
+                <span style="padding:6px 12px;color:var(--text-secondary)">${currentPage}/${totalPages}</span>
+                <button class="follow-btn" onclick="changePage(1)" ${currentPage >= totalPages ? 'disabled style="opacity:0.5"' : ''}>下一页</button>
+            </div>
+        `;
+    }
+}
+
+function changePage(delta) {
+    currentPage += delta;
+    renderPapers();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function openPaperDetail(paper) {

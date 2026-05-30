@@ -58,6 +58,10 @@ def get_subscriptions():
 
 @app.route("/api/papers", methods=["GET"])
 def get_papers():
+    source_filter = request.args.get("source", "all")
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+
     papers = []
     if DATA_DIR.exists():
         for f in sorted(DATA_DIR.glob("*.jsonl"), reverse=True):
@@ -68,7 +72,6 @@ def get_papers():
                             papers.append(json.loads(line.strip()))
                         except json.JSONDecodeError:
                             pass
-        # Also load raw (non-AI) files for papers not yet enhanced
         ai_ids = {p.get("id") for p in papers}
         for f in sorted(DATA_DIR.glob("*.jsonl"), reverse=True):
             if "_AI_" not in f.name:
@@ -80,7 +83,18 @@ def get_papers():
                                 papers.append(p)
                         except json.JSONDecodeError:
                             pass
-    return jsonify({"papers": papers[:500]})
+
+    if source_filter != "all":
+        papers = [p for p in papers if p.get("source") == source_filter]
+
+    total = len(papers)
+    start = (page - 1) * per_page
+    return jsonify({
+        "papers": papers[start:start + per_page],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    })
 
 
 @app.route("/api/stats")
