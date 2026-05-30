@@ -15,7 +15,7 @@ export let dateFilter = '';
 export let sortOrder = 'desc';
 export let refreshTimer = null;
 export let currentPage = 1;
-export const PAGE_SIZE = 30;
+export const PAGE_SIZE = 40;
 
 export const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
 export const _readPapers = new Set(JSON.parse(localStorage.getItem('readPapers') || '[]'));

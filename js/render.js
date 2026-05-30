@@ -49,13 +49,19 @@ export function renderPapers() {
                 <span class="score-item">Q<span class="score-fill" style="width:${qScore * 8}px;background:#3b82f6"></span>${qScore}</span>
                 <span class="score-item">R<span class="score-fill" style="width:${rScore * 8}px;background:#22c55e"></span>${rScore}</span>
             </div>` : '';
-        const cardTldr = ai.tldr ? `<div class="card-tldr">${ai.tldr}</div>` : '';
+        // AI解读：合并所有AI字段
+        const aiParts = [];
+        if (ai.tldr) aiParts.push(`<b>TL;DR</b> ${ai.tldr}`);
+        if (ai.motivation) aiParts.push(`<b>Motivation</b> ${ai.motivation}`);
+        if (ai.method) aiParts.push(`<b>Method</b> ${ai.method}`);
+        if (ai.result) aiParts.push(`<b>Result</b> ${ai.result}`);
+        if (ai.conclusion) aiParts.push(`<b>Conclusion</b> ${ai.conclusion}`);
+        const cardAi = aiParts.length ? `<div class="card-tldr">${aiParts.join('<br>')}</div>` : '';
         const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');
         const authorList = (paper.authors || []).slice(0, 3).map(a =>
             `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`
         ).join(', ');
         const authors = authorList + ((paper.authors || []).length > 3 ? ' et al.' : '');
-        const summary = ai.summary_zh || paper.summary_zh || paper.summary || '';
         const title = ai.title_zh || paper.title_zh || paper.title || '';
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
         const idx = start + i;
@@ -71,9 +77,8 @@ export function renderPapers() {
                     <button class="feedback-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" title="没用">👎</button>
                 </div>
                 <div class="paper-title">${title}</div>
-                ${cardTldr}
+                ${cardAi}
                 <div class="paper-authors">${authors}</div>
-                <div class="paper-summary">${summary}</div>
                 ${scoreBar}
                 <div class="paper-meta">
                     <span>${paper.published_date || ''}</span>
