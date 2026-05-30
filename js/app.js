@@ -55,13 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('search-input').addEventListener('input', handleSearch);
     document.getElementById('date-filter').addEventListener('change', handleDateFilter);
-    document.getElementById('sort-btn').addEventListener('click', toggleSort);
     document.getElementById('panel-sort')?.addEventListener('click', (e) => {
         const opt = e.target.closest('[data-sort]');
         if (!opt) return;
         sortOrder = opt.dataset.sort;
         // Update button label
-        const btn = document.getElementById('sort-btn');
+        const btn = document.querySelector('#dd-sort .sort-btn');
         btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
         // Highlight active
         document.querySelectorAll('#panel-sort .filter-option').forEach(o => o.classList.remove('active'));
@@ -345,7 +344,7 @@ function toggleSort() {
     sortOrder = modes[idx];
     const opt = document.querySelector(`[data-sort="${sortOrder}"]`);
     if (opt) {
-        const btn = document.getElementById('sort-btn');
+        const btn = document.querySelector('#dd-sort .sort-btn');
         btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
         document.querySelectorAll('#panel-sort .filter-option').forEach(o => o.classList.remove('active'));
         opt.classList.add('active');
