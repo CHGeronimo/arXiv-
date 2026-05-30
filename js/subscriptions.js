@@ -427,12 +427,14 @@ async function searchAuthors(query) {
         resultsEl.innerHTML = authors.map(a => {
             const subbed = subscribedIds.has(a.authorId);
             const aff = a.affiliations?.[0] || '';
+            const orcid = a.externalIds?.ORCID || a._orcid || '';
+            const orcidTag = orcid ? `<span style="font-size:0.7rem;background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 5px;border-radius:3px;margin-left:4px">ORCID</span>` : '';
             return `<div class="author-search-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color)">
-                <div>
-                    <div style="font-size:0.88rem;font-weight:500">${a.name}</div>
-                    <div style="font-size:0.75rem;color:var(--text-secondary)">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文</div>
+                <div style="min-width:0;flex:1">
+                    <div style="font-size:0.88rem;font-weight:500">${a.name}${orcidTag}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文${orcid ? ' · ' + orcid : ''}</div>
                 </div>
-                <button class="follow-btn ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px">${subbed ? '✓ 已关注' : '+ 关注'}</button>
+                <button class="follow-btn ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px;flex-shrink:0">${subbed ? '✓ 已关注' : '+ 关注'}</button>
             </div>`;
         }).join('');
     } catch (e) {

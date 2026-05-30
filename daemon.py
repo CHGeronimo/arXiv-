@@ -359,7 +359,11 @@ def search_author_api():
     query = request.args.get("query", "").strip()
     if not query or len(query) < 2:
         return jsonify({"authors": []})
-    from crawler.author_crawler import search_authors
+    from crawler.author_crawler import search_authors, resolve_orcid_to_author
+    # If query looks like an ORCID, resolve it
+    if query.startswith("0000-") or "orcid.org" in query:
+        author = resolve_orcid_to_author(query)
+        return jsonify({"authors": [author] if author else []})
     results = search_authors(query, limit=10)
     return jsonify({"authors": results})
 

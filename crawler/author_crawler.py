@@ -17,7 +17,7 @@ S2_PAPER_FIELDS = "title,abstract,authors,year,venue,citationCount,externalIds,p
 
 def search_authors(query: str, limit: int = 10) -> List[dict]:
     """Search S2 for authors matching query. Returns list of author dicts."""
-    params = {"query": query, "limit": limit, "fields": "name,affiliations,paperCount"}
+    params = {"query": query, "limit": limit, "fields": "name,affiliations,paperCount,externalIds"}
     for attempt in range(3):
         try:
             resp = httpx.get(S2_AUTHOR_SEARCH, params=params, timeout=15)
@@ -146,3 +146,49 @@ class AuthorCrawler:
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())
+
+
+def resolve_orcid_to_author(orcid_id: str) -> dict | None:
+    """Resolve an ORCID ID to an S2 author via name lookup.
+
+    Fetches name from ORCID public API, then searches S2 for matching author.
+    Returns S2 author dict or None.
+    """
+    orcid_id = orcid_id.strip().replace("https://orcid.org/", "")
+    try:
+        resp = httpx.get(
+            f"https://pub.orcid.org/v3.0/{orcid_id}",
+            headers={"Accept": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.warning(f"ORCID lookup failed for {orcid_id}: {resp.status_code}")
+            return None
+        data = resp.json()
+        person = data.get("person", {}).get("name", {})
+        given = person.get("given-names", {}).get("value", "")
+        family = person.get("family-name", {}).get("value", "")
+        full_name = f"{given} {family}".strip()
+        if not full_name:
+            return None
+
+        # Search S2 with the name
+        results = search_authors(full_name, limit=5)
+        for r in results:
+            ext = r.get("externalIds") or {}
+            if ext.get("ORCID") == orcid_id:
+                r["_orcid"] = orcid_id
+                return r
+            if ext.get("DBLP"):
+                for dblp_name in ext["DBLP"]:
+                    if dblp_name.lower() == full_name.lower():
+                        r["_orcid"] = orcid_id
+                        return r
+        # Fallback: return first result if only one good match
+        if results:
+            best = results[0]
+            best["_orcid"] = orcid_id
+            return best
+    except Exception as e:
+        logger.warning(f"ORCID resolution failed: {e}")
+    return None
