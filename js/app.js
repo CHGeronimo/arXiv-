@@ -18,6 +18,47 @@ const PAGE_SIZE = 30;
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
     startAutoRefresh();
+    window.addEventListener('beforeunload', () => { if (refreshTimer) clearInterval(refreshTimer); });
+
+    document.getElementById('search-input').addEventListener('input', handleSearch);
+    document.getElementById('date-filter').addEventListener('change', handleDateFilter);
+    document.getElementById('sort-btn').addEventListener('click', toggleSort);
+    document.getElementById('btn-profile').addEventListener('click', openProfileModal);
+    document.getElementById('btn-subs').addEventListener('click', openSubscriptionModal);
+    document.getElementById('btn-clear-filters').addEventListener('click', clearAllFilters);
+
+    // Dropdown toggle delegation
+    document.querySelectorAll('[data-dropdown]').forEach(btn => {
+        btn.addEventListener('click', () => toggleDropdown(btn.dataset.dropdown));
+    });
+
+    // Crawl trigger delegation
+    document.getElementById('panel-crawl').addEventListener('click', (e) => {
+        const item = e.target.closest('[data-crawl]');
+        if (item) triggerCrawl(item.dataset.crawl);
+    });
+
+    // Modal close buttons
+    document.getElementById('close-paper-modal').addEventListener('click', closePaperModal);
+    document.getElementById('paper-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closePaperModal(); });
+    document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
+    document.getElementById('profile-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeProfileModal(); });
+    document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
+
+    // Subscription modal
+    document.getElementById('close-subs-modal').addEventListener('click', closeSubscriptionModal);
+    document.getElementById('subscription-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSubscriptionModal(); });
+    document.getElementById('btn-save-keywords').addEventListener('click', () => saveSearchKeywords());
+
+    // Sub tabs delegation
+    document.getElementById('sub-tabs-container').addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-tab]');
+        if (tab) switchSubTab(tab.dataset.tab, tab);
+    });
+
+    // Journal search
+    document.getElementById('journal-search-input').addEventListener('input', handleJournalSearch);
+    document.getElementById('use-profile-keywords').addEventListener('change', toggleCustomKeywords);
 
     document.getElementById('paper-container').addEventListener('click', (e) => {
         const card = e.target.closest('.paper-card[data-idx]');
@@ -123,6 +164,8 @@ function buildFilterOptions() {
     updateFilterBadges();
 }
 
+function _escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
+
 function renderFilterDropdown(name, options) {
     const panel = document.getElementById(`panel-${name}`);
     if (!panel) return;
@@ -130,7 +173,7 @@ function renderFilterDropdown(name, options) {
     panel.innerHTML = options.map(o => `
         <label class="filter-option">
             <input type="checkbox" ${active.has(o.value) ? 'checked' : ''}
-                   onchange="toggleFilter('${name}', '${o.value}')">
+                   onchange="toggleFilter('${_escAttr(name)}', '${_escAttr(o.value)}')">
             <span>${o.label}</span>
             ${o.count != null ? `<span class="count">${o.count}</span>` : ''}
         </label>
@@ -292,7 +335,7 @@ function renderPapers() {
     updatePaperCount();
 
     const totalPages = Math.ceil(filteredPapers.length / PAGE_SIZE);
-    if (currentPage > totalPages) currentPage = totalPages || 1;
+    currentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
     const start = (currentPage - 1) * PAGE_SIZE;
     const pagePapers = filteredPapers.slice(start, start + PAGE_SIZE);
 

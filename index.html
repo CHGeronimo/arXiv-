@@ -13,59 +13,59 @@
             <h1>arxivSCI-daily</h1>
         </div>
         <div class="header-right">
-            <input id="search-input" type="text" placeholder="搜索论文..." oninput="handleSearch()" class="search-bar">
-            <input id="date-filter" type="date" class="date-filter" onchange="handleDateFilter()" title="按日期筛选">
-            <button id="sort-btn" class="sort-btn" onclick="toggleSort()" title="按日期排序">↓ 新→旧</button>
+            <input id="search-input" type="text" placeholder="搜索论文..." class="search-bar">
+            <input id="date-filter" type="date" class="date-filter" title="按日期筛选">
+            <button id="sort-btn" class="sort-btn" title="按日期排序">↓ 新→旧</button>
             <span id="paper-count" class="paper-count"></span>
             <div class="filter-dropdown" id="dd-crawl">
-                <button class="gear-btn" onclick="toggleDropdown('crawl')" title="手动爬取">🔄</button>
+                <button class="gear-btn" data-dropdown="crawl" title="手动爬取">🔄</button>
                 <div class="filter-dropdown-panel" id="panel-crawl" style="min-width:160px;right:0;left:auto">
-                    <div class="filter-option" onclick="triggerCrawl('arxiv')"><span>arXiv</span><span class="count" id="crawl-arxiv">—</span></div>
-                    <div class="filter-option" onclick="triggerCrawl('crossref')"><span>期刊</span><span class="count" id="crawl-crossref">—</span></div>
-                    <div class="filter-option" onclick="triggerCrawl('dblp')"><span>DBLP</span><span class="count" id="crawl-dblp">—</span></div>
-                    <div class="filter-option" onclick="triggerCrawl('s2')"><span>S2 搜索</span><span class="count" id="crawl-s2">—</span></div>
+                    <div class="filter-option" data-crawl="arxiv"><span>arXiv</span><span class="count" id="crawl-arxiv">—</span></div>
+                    <div class="filter-option" data-crawl="crossref"><span>期刊</span><span class="count" id="crawl-crossref">—</span></div>
+                    <div class="filter-option" data-crawl="dblp"><span>DBLP</span><span class="count" id="crawl-dblp">—</span></div>
+                    <div class="filter-option" data-crawl="s2"><span>S2 搜索</span><span class="count" id="crawl-s2">—</span></div>
                     <hr style="border-color:var(--border-color);margin:4px 0">
-                    <div class="filter-option" onclick="triggerCrawl('all')"><span>全部爬取</span></div>
-                    <div class="filter-option" onclick="triggerCrawl('enhance')"><span>补 AI 增强</span></div>
+                    <div class="filter-option" data-crawl="all"><span>全部爬取</span></div>
+                    <div class="filter-option" data-crawl="enhance"><span>补 AI 增强</span></div>
                 </div>
             </div>
-            <button onclick="openProfileModal()" class="gear-btn" title="研究方向">🎯</button>
-            <button onclick="openSubscriptionModal()" class="gear-btn" title="订阅管理">⚙️</button>
+            <button id="btn-profile" class="gear-btn" title="研究方向">🎯</button>
+            <button id="btn-subs" class="gear-btn" title="订阅管理">⚙️</button>
         </div>
     </header>
 
     <div class="filter-bar">
         <div class="filter-dropdown" id="dd-source">
-            <button class="filter-dropdown-btn" onclick="toggleDropdown('source')">
+            <button class="filter-dropdown-btn" data-dropdown="source">
                 来源 <span class="badge" id="badge-source" style="display:none">0</span> <span class="arrow">▼</span>
             </button>
             <div class="filter-dropdown-panel" id="panel-source"></div>
         </div>
         <div class="filter-dropdown" id="dd-journal">
-            <button class="filter-dropdown-btn" onclick="toggleDropdown('journal')">
+            <button class="filter-dropdown-btn" data-dropdown="journal">
                 期刊 <span class="badge" id="badge-journal" style="display:none">0</span> <span class="arrow">▼</span>
             </button>
             <div class="filter-dropdown-panel" id="panel-journal"></div>
         </div>
         <div class="filter-dropdown" id="dd-venue">
-            <button class="filter-dropdown-btn" onclick="toggleDropdown('venue')">
+            <button class="filter-dropdown-btn" data-dropdown="venue">
                 会议 <span class="badge" id="badge-venue" style="display:none">0</span> <span class="arrow">▼</span>
             </button>
             <div class="filter-dropdown-panel" id="panel-venue"></div>
         </div>
         <div class="filter-dropdown" id="dd-category">
-            <button class="filter-dropdown-btn" onclick="toggleDropdown('category')">
+            <button class="filter-dropdown-btn" data-dropdown="category">
                 领域 <span class="badge" id="badge-category" style="display:none">0</span> <span class="arrow">▼</span>
             </button>
             <div class="filter-dropdown-panel" id="panel-category"></div>
         </div>
         <div class="filter-dropdown" id="dd-type">
-            <button class="filter-dropdown-btn" onclick="toggleDropdown('type')">
+            <button class="filter-dropdown-btn" data-dropdown="type">
                 类型 <span class="badge" id="badge-type" style="display:none">0</span> <span class="arrow">▼</span>
             </button>
             <div class="filter-dropdown-panel" id="panel-type"></div>
         </div>
-        <button class="clear-filters-btn" onclick="clearAllFilters()">清除筛选</button>
+        <button id="btn-clear-filters" class="clear-filters-btn">清除筛选</button>
     </div>
 
     <main id="paper-container">
@@ -76,17 +76,17 @@
     </main>
 
     <!-- Paper Detail Modal -->
-    <div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
+    <div id="paper-modal" class="modal">
         <div class="modal-content">
-            <button class="close-btn" onclick="closePaperModal()">&times;</button>
+            <button class="close-btn" id="close-paper-modal">&times;</button>
             <div id="paper-detail"></div>
         </div>
     </div>
 
     <!-- Profile Modal -->
-    <div id="profile-modal" class="modal" onclick="if(event.target===this)closeProfileModal()">
+    <div id="profile-modal" class="modal">
         <div class="modal-content">
-            <button class="close-btn" onclick="closeProfileModal()">&times;</button>
+            <button class="close-btn" id="close-profile-modal">&times;</button>
             <h2 style="margin-bottom:12px">研究方向设置</h2>
             <label style="font-size:0.85rem;color:var(--text-secondary)">研究方向描述</label>
             <textarea id="profile-direction" rows="3" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;resize:vertical" placeholder="描述你的研究方向..."></textarea>
@@ -94,25 +94,25 @@
             <input id="profile-keywords" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="neural rendering, 3D reconstruction...">
             <label style="font-size:0.85rem;color:var(--text-secondary)">质量标准（可选）</label>
             <input id="profile-quality" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="Prioritize papers with strong results...">
-            <button onclick="saveProfile()" class="follow-btn" style="width:100%">保存</button>
+            <button id="btn-save-profile" class="follow-btn" style="width:100%">保存</button>
         </div>
     </div>
 
     <!-- Subscription Modal -->
-    <div id="subscription-modal" class="subscription-modal" onclick="if(event.target===this)closeSubscriptionModal()">
+    <div id="subscription-modal" class="subscription-modal">
         <div class="subscription-panel">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                 <h2>订阅管理</h2>
-                <button onclick="closeSubscriptionModal()" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
+                <button id="close-subs-modal" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
             </div>
-            <div class="sub-tabs">
-                <div class="sub-tab active" onclick="switchSubTab('journals', this)">期刊</div>
-                <div class="sub-tab" onclick="switchSubTab('conferences', this)">会议</div>
-                <div class="sub-tab" onclick="switchSubTab('search', this)">搜索</div>
+            <div class="sub-tabs" id="sub-tabs-container">
+                <div class="sub-tab active" data-tab="journals">期刊</div>
+                <div class="sub-tab" data-tab="conferences">会议</div>
+                <div class="sub-tab" data-tab="search">搜索</div>
             </div>
 
             <div id="sub-tab-journals">
-                <input id="journal-search-input" type="text" placeholder="搜索期刊名称..." oninput="handleJournalSearch()" style="width:100%;padding:8px;margin-bottom:8px;box-sizing:border-box">
+                <input id="journal-search-input" type="text" placeholder="搜索期刊名称..." style="width:100%;padding:8px;margin-bottom:8px;box-sizing:border-box">
                 <div id="journal-search-results"></div>
                 <hr style="margin:16px 0">
                 <h3>已订阅期刊</h3>
@@ -127,10 +127,10 @@
             <div id="sub-tab-search" style="display:none">
                 <p>Semantic Scholar 关键词搜索（自动复用研究方向关键词）</p>
                 <div style="margin:8px 0">
-                    <label><input type="checkbox" id="use-profile-keywords" checked onchange="toggleCustomKeywords()"> 使用研究方向关键词</label>
+                    <label><input type="checkbox" id="use-profile-keywords" checked> 使用研究方向关键词</label>
                 </div>
                 <textarea id="custom-keywords" rows="3" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;display:none;resize:vertical" placeholder="输入关键词，每行一个..."></textarea>
-                <button onclick="saveSearchKeywords()" class="follow-btn" style="margin-top:8px">保存搜索关键词</button>
+                <button id="btn-save-keywords" class="follow-btn" style="margin-top:8px">保存搜索关键词</button>
             </div>
         </div>
     </div>

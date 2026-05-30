@@ -45,7 +45,6 @@ function handleJournalSearch() {
 
         results.innerHTML = journals.map(j => {
             const followed = isJournalFollowed(j.issn);
-            const escapedName = j.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
             return `
                 <div class="journal-item">
                     <div>
@@ -54,14 +53,27 @@ function handleJournalSearch() {
                         <div style="font-size:0.75rem;color:var(--text-secondary)">${j.publisher}${j.subjects ? ' · ' + j.subjects : ''}</div>
                     </div>
                     <button class="${followed ? 'unfollow-btn' : 'follow-btn'}"
-                            onclick="${followed
-                                ? `unfollowJournal('${j.issn}'); handleJournalSearch()`
-                                : `followJournal('${j.issn}', '${escapedName}')`}">
+                            data-action="${followed ? 'unfollow' : 'follow'}"
+                            data-issn="${j.issn}"
+                            data-name="${j.title.replace(/"/g, '&quot;').replace(/</g, '&lt;')}">
                         ${followed ? 'Unfollow' : 'Follow'}
                     </button>
                 </div>
             `;
         }).join('');
+
+        results.querySelectorAll('button[data-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                const issn = btn.dataset.issn;
+                if (action === 'unfollow') {
+                    unfollowJournal(issn);
+                    handleJournalSearch();
+                } else {
+                    followJournal(issn, btn.dataset.name);
+                }
+            });
+        });
     }, 300);
 }
 

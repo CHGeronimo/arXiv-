@@ -68,8 +68,14 @@ def get_subscriptions():
 def get_papers():
     source_filter = request.args.get("source", "all")
     article_type = request.args.get("type", "all")
-    page = max(1, int(request.args.get("page", 1)))
-    per_page = min(5000, max(1, int(request.args.get("per_page", 50))))
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = min(5000, max(1, int(request.args.get("per_page", 50))))
+    except (ValueError, TypeError):
+        per_page = 50
 
     papers = []
     if DATA_DIR.exists():
@@ -125,11 +131,12 @@ def get_stats():
                         source_counts[s] = source_counts.get(s, 0) + 1
                     except json.JSONDecodeError:
                         pass
+    subs = _load_subs()
     return jsonify({
         "total_papers": total,
         "by_source": source_counts,
-        "arxiv_categories": _load_subs().arxiv_categories,
-        "crossref_journals": len(_load_subs().crossref_journals),
+        "arxiv_categories": subs.arxiv_categories,
+        "crossref_journals": len(subs.crossref_journals),
     })
 
 
@@ -244,6 +251,7 @@ def _get_ai_chain():
     return _ai_chain, _ai_profile
 
 _written_ids: set[str] = set()
+_ids_lock = threading.Lock()
 
 
 def _load_existing_ids() -> set[str]:
@@ -270,9 +278,9 @@ def _load_existing_ids() -> set[str]:
 
 def _append_paper(paper: Paper, date_str: str | None = None, enhance: bool = False) -> bool:
     """Append a single paper to JSONL. Returns True if written (new)."""
-    global _written_ids
-    if paper.id in _written_ids:
-        return False
+    with _ids_lock:
+        if paper.id in _written_ids:
+            return False
 
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     DATA_DIR.mkdir(exist_ok=True)
@@ -286,7 +294,8 @@ def _append_paper(paper: Paper, date_str: str | None = None, enhance: bool = Fal
                 ai_path = DATA_DIR / f"{date_str}_AI_enhanced_{_ai_language}.jsonl"
                 with open(ai_path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(enhanced, ensure_ascii=False) + "\n")
-                _written_ids.add(paper.id)
+                with _ids_lock:
+                    _written_ids.add(paper.id)
                 return True
         except Exception as e:
             logger.warning(f"AI enhance failed for {paper.id}: {e}")
@@ -294,7 +303,8 @@ def _append_paper(paper: Paper, date_str: str | None = None, enhance: bool = Fal
     filepath = DATA_DIR / f"{date_str}.jsonl"
     with open(filepath, "a", encoding="utf-8") as f:
         f.write(paper.to_jsonl() + "\n")
-    _written_ids.add(paper.id)
+    with _ids_lock:
+        _written_ids.add(paper.id)
     return True
 
 
@@ -434,8 +444,9 @@ def run_retro_enhance():
 
             for p in papers:
                 pid = p.get("id", "")
-                if pid in _written_ids:
-                    continue
+                with _ids_lock:
+                    if pid in _written_ids:
+                        continue
                 if not p.get("summary") and not p.get("title"):
                     continue
                 try:
@@ -443,7 +454,8 @@ def run_retro_enhance():
                     if enhanced:
                         with open(ai_path, "a", encoding="utf-8") as af:
                             af.write(json.dumps(enhanced, ensure_ascii=False) + "\n")
-                        _written_ids.add(pid)
+                        with _ids_lock:
+                            _written_ids.add(pid)
                         enhanced_count += 1
                         if enhanced_count % 10 == 0:
                             logger.info(f"Retro-enhance progress: {enhanced_count} papers")
@@ -453,30 +465,6 @@ def run_retro_enhance():
         logger.info(f"Retro-enhance done: {enhanced_count} papers enhanced")
     except Exception as e:
         logger.error(f"Retro-enhance job failed: {e}", exc_info=True)
-
-
-def run_enhance_job():
-    logger.info("Starting AI enhance job")
-    try:
-        import subprocess
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        raw_file = DATA_DIR / f"{today}.jsonl"
-        if not raw_file.exists():
-            logger.info(f"No raw file for {today}, skipping enhance")
-            return
-        result = subprocess.run(
-            [sys.executable, "enhance.py", f"--data ../data/{today}.jsonl"],
-            cwd="ai",
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-        if result.returncode != 0:
-            logger.error(f"Enhance failed: {result.stderr[-500:]}")
-        else:
-            logger.info("AI enhance job done")
-    except Exception as e:
-        logger.error(f"Enhance job failed: {e}", exc_info=True)
 
 
 def run_digest_job():
@@ -529,9 +517,9 @@ class Scheduler:
 
         if job_name == "arxiv":
             try:
-                run_enhance_job()
+                run_retro_enhance()
             except Exception as e:
-                logger.error(f"Enhance after arxiv error: {e}")
+                logger.error(f"Retro-enhance after arxiv error: {e}")
             try:
                 run_digest_job()
             except Exception as e:
