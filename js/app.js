@@ -105,8 +105,6 @@ function buildFilterOptions() {
         Object.entries(categories).sort((a,b) => b[1]-a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
     );
     renderFilterDropdown('type', [
-        { value: 'research', label: '研究论文' },
-        { value: 'news', label: '新闻评论' },
         { value: 'must-read', label: 'Must Read' },
         { value: 'worth-reading', label: 'Worth Reading' },
         { value: 'skim', label: 'Skim' },

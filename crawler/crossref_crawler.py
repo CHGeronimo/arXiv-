@@ -62,10 +62,25 @@ class CrossrefCrawler:
             return "research"
         return "news"
 
+    _SKIP_PREFIXES = (
+        "Author Correction:",
+        "Publisher Correction:",
+        "Erratum:",
+        "Corrigendum:",
+        "Correction:",
+    )
+
+    def _is_noise(self, title: str) -> bool:
+        return any(title.startswith(p) for p in self._SKIP_PREFIXES)
+
     def _parse_item(self, item: dict, journal: Journal) -> Paper | None:
         title_list = item.get("title", [])
         title = title_list[0] if title_list else ""
         if not title:
+            return None
+        if self._is_noise(title):
+            return None
+        if self._classify_article(item) != "research":
             return None
 
         abstract = item.get("abstract", "")
