@@ -50,6 +50,18 @@ class CrossrefCrawler:
                     logger.error(f"Crossref fetch failed for ISSN {issn_list} after 3 retries")
         return []
 
+    def _classify_article(self, item: dict) -> str:
+        doi = item.get("DOI", "")
+        # Nature: d41586=news, s41586=research
+        if "/d41586-" in doi:
+            return "news"
+        if "/s41586-" in doi:
+            return "research"
+        # Generic: has abstract = likely research
+        if item.get("abstract"):
+            return "research"
+        return "news"
+
     def _parse_item(self, item: dict, journal: Journal) -> Paper | None:
         title_list = item.get("title", [])
         title = title_list[0] if title_list else ""
@@ -97,6 +109,7 @@ class CrossrefCrawler:
             publisher=item.get("publisher", ""),
             journal_title=journal.name,
             issn=issn_list,
+            article_type=self._classify_article(item),
         )
 
     def crawl_iter(self) -> Generator[Paper, None, None]:

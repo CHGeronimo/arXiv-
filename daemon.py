@@ -62,8 +62,9 @@ def get_subscriptions():
 @app.route("/api/papers", methods=["GET"])
 def get_papers():
     source_filter = request.args.get("source", "all")
+    article_type = request.args.get("type", "all")
     page = max(1, int(request.args.get("page", 1)))
-    per_page = min(100, max(1, int(request.args.get("per_page", 50))))
+    per_page = min(5000, max(1, int(request.args.get("per_page", 50))))
 
     papers = []
     if DATA_DIR.exists():
@@ -89,6 +90,9 @@ def get_papers():
 
     if source_filter != "all":
         papers = [p for p in papers if p.get("source") == source_filter]
+
+    if article_type != "all":
+        papers = [p for p in papers if p.get("article_type") == article_type]
 
     total = len(papers)
     start = (page - 1) * per_page

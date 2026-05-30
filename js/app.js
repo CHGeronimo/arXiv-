@@ -1,8 +1,15 @@
 // js/app.js
 let allPapers = [];
 let filteredPapers = [];
-let currentSourceFilter = 'all';
+let activeFilters = {
+    source: new Set(),    // 'arxiv', 'crossref'
+    journal: new Set(),   // journal names
+    category: new Set(),  // arXiv categories
+    type: new Set(),      // 'research', 'news'
+};
 let searchQuery = '';
+let dateFilter = '';
+let sortOrder = 'desc';
 let refreshTimer = null;
 let currentPage = 1;
 const PAGE_SIZE = 30;
@@ -11,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
     startAutoRefresh();
 
-    // Event delegation for paper cards
     document.getElementById('paper-container').addEventListener('click', (e) => {
         const card = e.target.closest('.paper-card[data-idx]');
         if (card) {
@@ -20,18 +26,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closePaperModal();
             closeSubscriptionModal();
+            closeAllDropdowns();
+        }
+    });
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.filter-dropdown')) {
+            document.querySelectorAll('.filter-dropdown-panel').forEach(p => p.classList.remove('show'));
+            document.querySelectorAll('.filter-dropdown-btn').forEach(b => b.classList.remove('open'));
         }
     });
 });
 
 async function loadPapers() {
     try {
-        const resp = await fetch('/api/papers');
+        const resp = await fetch('/api/papers?per_page=1000');
         if (resp.ok) {
             const data = await resp.json();
             allPapers = data.papers || [];
@@ -39,18 +53,7 @@ async function loadPapers() {
     } catch (e) {
         console.error('Failed to load papers:', e);
     }
-    renderPapers();
-}
-
-function filterBySource(source) {
-    currentSourceFilter = source;
-    document.querySelectorAll('.source-filter-btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
-    renderPapers();
-}
-
-function handleSearch() {
-    searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
+    buildFilterOptions();
     renderPapers();
 }
 
@@ -58,12 +61,13 @@ function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(async () => {
         try {
-            const resp = await fetch('/api/papers');
+            const resp = await fetch('/api/papers?per_page=1000');
             if (resp.ok) {
                 const data = await resp.json();
                 const newPapers = data.papers || [];
-                if (newPapers.length !== allPapers.length) {
+                if (data.total !== allPapers.length || newPapers.length !== allPapers.length) {
                     allPapers = newPapers;
+                    buildFilterOptions();
                     renderPapers();
                 }
             }
@@ -71,14 +75,166 @@ function startAutoRefresh() {
     }, 15000);
 }
 
+// ── Filter Bar ──────────────────────────────────────────────────
+
+let _filterCounts = {};
+let _openDropdown = null;
+
+function buildFilterOptions() {
+    const journals = {};
+    const categories = {};
+    for (const p of allPapers) {
+        if (p.source === 'crossref' && p.journal_title) {
+            journals[p.journal_title] = (journals[p.journal_title] || 0) + 1;
+        }
+        for (const c of (p.categories || [])) {
+            categories[c] = (categories[c] || 0) + 1;
+        }
+    }
+    _filterCounts = { journals, categories };
+
+    renderFilterDropdown('source', [
+        { value: 'arxiv', label: 'arXiv' },
+        { value: 'crossref', label: '期刊' },
+    ]);
+    renderFilterDropdown('journal',
+        Object.entries(journals).sort((a,b) => b[1]-a[1]).map(([j, c]) => ({ value: j, label: j, count: c }))
+    );
+    renderFilterDropdown('category',
+        Object.entries(categories).sort((a,b) => b[1]-a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
+    );
+    renderFilterDropdown('type', [
+        { value: 'research', label: '研究论文' },
+        { value: 'news', label: '新闻评论' },
+    ]);
+    updateFilterBadges();
+}
+
+function renderFilterDropdown(name, options) {
+    const panel = document.getElementById(`panel-${name}`);
+    if (!panel) return;
+    const active = activeFilters[name];
+    panel.innerHTML = options.map(o => `
+        <label class="filter-option">
+            <input type="checkbox" ${active.has(o.value) ? 'checked' : ''}
+                   onchange="toggleFilter('${name}', '${o.value}')">
+            <span>${o.label}</span>
+            ${o.count != null ? `<span class="count">${o.count}</span>` : ''}
+        </label>
+    `).join('');
+}
+
+function toggleDropdown(name) {
+    const panel = document.getElementById(`panel-${name}`);
+    const btn = panel.previousElementSibling;
+    const isOpen = panel.classList.contains('show');
+
+    // Close all
+    document.querySelectorAll('.filter-dropdown-panel').forEach(p => p.classList.remove('show'));
+    document.querySelectorAll('.filter-dropdown-btn').forEach(b => b.classList.remove('open'));
+
+    if (!isOpen) {
+        panel.classList.add('show');
+        btn.classList.add('open');
+        _openDropdown = name;
+    } else {
+        _openDropdown = null;
+    }
+}
+
+function toggleFilter(name, value) {
+    const set = activeFilters[name];
+    if (set.has(value)) set.delete(value);
+    else set.add(value);
+    updateFilterBadges();
+    currentPage = 1;
+    renderPapers();
+}
+
+function updateFilterBadges() {
+    for (const name of Object.keys(activeFilters)) {
+        const badge = document.getElementById(`badge-${name}`);
+        const btn = badge?.parentElement;
+        if (!badge || !btn) continue;
+        const count = activeFilters[name].size;
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'inline-flex' : 'none';
+        btn.classList.toggle('has-active', count > 0);
+    }
+}
+
+function clearAllFilters() {
+    for (const key of Object.keys(activeFilters)) activeFilters[key].clear();
+    document.querySelectorAll('.filter-dropdown-panel input').forEach(cb => cb.checked = false);
+    document.getElementById('search-input').value = '';
+    searchQuery = '';
+    document.getElementById('date-filter').value = '';
+    dateFilter = '';
+    updateFilterBadges();
+    currentPage = 1;
+    renderPapers();
+}
+
+function handleSearch() {
+    searchQuery = document.getElementById('search-input').value.trim().toLowerCase();
+    currentPage = 1;
+    renderPapers();
+}
+
+function handleDateFilter() {
+    dateFilter = document.getElementById('date-filter').value;
+    currentPage = 1;
+    renderPapers();
+}
+
+function toggleSort() {
+    sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+    document.getElementById('sort-btn').textContent = sortOrder === 'desc' ? '↓ 新→旧' : '↑ 旧→新';
+    renderPapers();
+}
+
+function closeAllDropdowns() {
+    document.querySelectorAll('.filter-dropdown-panel').forEach(p => p.classList.remove('show'));
+    document.querySelectorAll('.filter-dropdown-btn').forEach(b => b.classList.remove('open'));
+    _openDropdown = null;
+}
+
+// ── Render ──────────────────────────────────────────────────────
+
 function renderPapers() {
     const container = document.getElementById('paper-container');
     filteredPapers = allPapers;
 
-    if (currentSourceFilter !== 'all') {
-        filteredPapers = filteredPapers.filter(p => p.source === currentSourceFilter);
+    // Source filter
+    const srcSet = activeFilters.source;
+    if (srcSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p => srcSet.has(p.source));
     }
 
+    // Journal filter
+    const jSet = activeFilters.journal;
+    if (jSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p => jSet.has(p.journal_title));
+    }
+
+    // Category filter
+    const catSet = activeFilters.category;
+    if (catSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p =>
+            (p.categories || []).some(c => catSet.has(c))
+        );
+    }
+
+    // Type filter
+    const typeSet = activeFilters.type;
+    if (typeSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p => {
+            const at = p.article_type || _inferType(p);
+            return typeSet.has(at);
+        });
+    }
+
+    // Search
     if (searchQuery) {
         filteredPapers = filteredPapers.filter(p => {
             const text = ((p.title_zh || p.title || '') + ' ' + (p.summary_zh || p.summary || '') + ' ' + (p.authors || []).join(' ')).toLowerCase();
@@ -86,8 +242,20 @@ function renderPapers() {
         });
     }
 
+    // Date filter
+    if (dateFilter) {
+        filteredPapers = filteredPapers.filter(p => (p.published_date || '').startsWith(dateFilter));
+    }
+
+    // Sort
+    filteredPapers.sort((a, b) => {
+        const da = a.published_date || '';
+        const db = b.published_date || '';
+        return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
+    });
+
     if (!filteredPapers.length) {
-        container.innerHTML = '<div class="empty-state">暂无论文数据。请先配置订阅并等待爬取。</div>';
+        container.innerHTML = '<div class="empty-state">暂无匹配论文。尝试调整筛选条件。</div>';
         updatePaperCount();
         return;
     }
@@ -99,12 +267,16 @@ function renderPapers() {
     const start = (currentPage - 1) * PAGE_SIZE;
     const pagePapers = filteredPapers.slice(start, start + PAGE_SIZE);
 
-    container.innerHTML = pagePapers.map(paper => {
+    container.innerHTML = pagePapers.map((paper, i) => {
         const ai = paper.AI || {};
         const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
             ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
             : `<span class="source-badge arxiv">arXiv</span>`;
+        const articleType = paper.article_type || _inferType(paper);
+        const typeTag = articleType === 'news'
+            ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>'
+            : '';
         const aiBadge = hasAi ? '<span class="ai-badge">AI</span>' : '';
 
         const categories = (paper.categories || []).map(c =>
@@ -116,15 +288,14 @@ function renderPapers() {
 
         const summary = ai.summary_zh || paper.summary_zh || paper.summary || '';
         const title = ai.title_zh || paper.title_zh || paper.title || '';
-
         const tldr = (ai.tldr || paper.tldr) ? `<div class="paper-tldr">${ai.tldr || paper.tldr}</div>` : '';
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
 
-        const idx = start + pagePapers.indexOf(paper);
+        const idx = start + i;
         return `
             <div class="paper-card" data-idx="${idx}">
                 <div class="paper-header">
-                    ${sourceBadge}${aiBadge}
+                    ${sourceBadge}${aiBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                 </div>
                 <div class="paper-title">${title}</div>
@@ -139,7 +310,6 @@ function renderPapers() {
         `;
     }).join('');
 
-    // Pagination
     if (totalPages > 1) {
         container.innerHTML += `
             <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:16px">
@@ -175,7 +345,6 @@ function openPaperDetail(paper) {
     if (aiFields.result) sections.push(`<h3>Result</h3><p>${aiFields.result}</p>`);
     if (aiFields.conclusion) sections.push(`<h3>Conclusion</h3><p>${aiFields.conclusion}</p>`);
 
-    // Fallback to top-level fields (non-AI enhanced)
     if (!sections.length) {
         if (paper.tldr) sections.push(`<h3>TL;DR</h3><p>${paper.tldr}</p>`);
         if (paper.motivation) sections.push(`<h3>Motivation</h3><p>${paper.motivation}</p>`);
@@ -217,11 +386,17 @@ function closePaperModal() {
 
 function updatePaperCount() {
     const el = document.getElementById('paper-count');
-    if (el) {
-        const total = allPapers.length;
-        const shown = filteredPapers.length;
-        el.textContent = searchQuery || currentSourceFilter !== 'all'
-            ? `${shown}/${total} 篇`
-            : `${total} 篇`;
-    }
+    if (!el) return;
+    const total = allPapers.length;
+    const shown = filteredPapers.length;
+    const hasFilter = searchQuery || dateFilter || Object.values(activeFilters).some(s => s.size > 0);
+    el.textContent = hasFilter ? `${shown}/${total} 篇` : `${total} 篇`;
+}
+
+function _inferType(p) {
+    if (p.source === 'arxiv') return 'research';
+    const doi = p.doi || '';
+    if (doi.includes('/s41586-')) return 'research';
+    if (doi.includes('/d41586-')) return 'news';
+    return p.summary ? 'research' : 'news';
 }

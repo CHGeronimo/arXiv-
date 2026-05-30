@@ -14,15 +14,40 @@
         </div>
         <div class="header-right">
             <input id="search-input" type="text" placeholder="搜索论文..." oninput="handleSearch()" class="search-bar">
+            <input id="date-filter" type="date" class="date-filter" onchange="handleDateFilter()" title="按日期筛选">
+            <button id="sort-btn" class="sort-btn" onclick="toggleSort()" title="按日期排序">↓ 新→旧</button>
             <span id="paper-count" class="paper-count"></span>
-            <div class="source-filters">
-                <button class="source-filter-btn active" onclick="filterBySource('all')">全部</button>
-                <button class="source-filter-btn" onclick="filterBySource('arxiv')">arXiv</button>
-                <button class="source-filter-btn" onclick="filterBySource('crossref')">期刊</button>
-            </div>
             <button onclick="openSubscriptionModal()" class="gear-btn" title="订阅管理">⚙️</button>
         </div>
     </header>
+
+    <div class="filter-bar">
+        <div class="filter-dropdown" id="dd-source">
+            <button class="filter-dropdown-btn" onclick="toggleDropdown('source')">
+                来源 <span class="badge" id="badge-source" style="display:none">0</span> <span class="arrow">▼</span>
+            </button>
+            <div class="filter-dropdown-panel" id="panel-source"></div>
+        </div>
+        <div class="filter-dropdown" id="dd-journal">
+            <button class="filter-dropdown-btn" onclick="toggleDropdown('journal')">
+                期刊 <span class="badge" id="badge-journal" style="display:none">0</span> <span class="arrow">▼</span>
+            </button>
+            <div class="filter-dropdown-panel" id="panel-journal"></div>
+        </div>
+        <div class="filter-dropdown" id="dd-category">
+            <button class="filter-dropdown-btn" onclick="toggleDropdown('category')">
+                领域 <span class="badge" id="badge-category" style="display:none">0</span> <span class="arrow">▼</span>
+            </button>
+            <div class="filter-dropdown-panel" id="panel-category"></div>
+        </div>
+        <div class="filter-dropdown" id="dd-type">
+            <button class="filter-dropdown-btn" onclick="toggleDropdown('type')">
+                类型 <span class="badge" id="badge-type" style="display:none">0</span> <span class="arrow">▼</span>
+            </button>
+            <div class="filter-dropdown-panel" id="panel-type"></div>
+        </div>
+        <button class="clear-filters-btn" onclick="clearAllFilters()">清除筛选</button>
+    </div>
 
     <main id="paper-container">
         <div id="loading" class="loading-state">

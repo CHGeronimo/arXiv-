@@ -23,6 +23,7 @@ class Paper:
     journal_title: Optional[str] = None
     issn: List[str] = field(default_factory=list)
     comment: Optional[str] = None
+    article_type: str = ""  # "research" or "news"
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
