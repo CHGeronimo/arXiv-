@@ -515,3 +515,32 @@ function _inferType(p) {
     if (doi.includes('/d41586-')) return 'news';
     return p.summary ? 'research' : 'news';
 }
+
+async function triggerCrawl(job) {
+    if (job === 'enhance') {
+        try {
+            const resp = await fetch('/api/trigger/enhance', { method: 'POST' });
+            alert(resp.ok ? '补 AI 增强已启动，请稍等片刻后刷新页面' : '启动失败');
+        } catch { alert('启动失败'); }
+        setTimeout(loadPapers, 30000);
+        return;
+    }
+    const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2'] : [job];
+    for (const j of jobs) {
+        const el = document.getElementById(`crawl-${j}`);
+        if (el) el.textContent = '...';
+        try {
+            const resp = await fetch(`/api/trigger/${j}`, { method: 'POST' });
+            if (el) el.textContent = resp.ok ? '✓' : '✗';
+        } catch {
+            if (el) el.textContent = '✗';
+        }
+    }
+    setTimeout(() => {
+        loadPapers();
+        jobs.forEach(j => {
+            const el = document.getElementById(`crawl-${j}`);
+            if (el) el.textContent = '—';
+        });
+    }, 15000);
+}

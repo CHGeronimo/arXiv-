@@ -12,6 +12,7 @@ from crawler.subs_store import Conference
 logger = logging.getLogger(__name__)
 
 DBLP_BASE = "https://dblp.uni-trier.de/search/publ/api"
+OPENALEX_BASE = "https://api.openalex.org/works"
 
 VENUE_MAP = {
     "CVPR": "CVPR",
@@ -91,6 +92,32 @@ class DblpCrawler:
             venue=f"{venue} {year}",
         )
 
+    def _fill_abstracts_openalex(self, papers: List[Paper]) -> None:
+        dois = [p.doi for p in papers if p.doi and not p.summary]
+        if not dois:
+            return
+        logger.info(f"Filling abstracts via OpenAlex for {len(dois)} papers")
+        doi_to_paper = {p.doi: p for p in papers if p.doi}
+
+        for doi in dois:
+            try:
+                url = f"{OPENALEX_BASE}/doi:{doi}"
+                resp = httpx.get(url, timeout=10)
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                inv_index = data.get("abstract_inverted_index")
+                if inv_index:
+                    words = sorted(
+                        [(pos, w) for w, positions in inv_index.items() for pos in positions]
+                    )
+                    abstract = " ".join(w for _, w in words)
+                    paper = doi_to_paper.get(doi)
+                    if paper:
+                        paper.summary = abstract
+            except Exception:
+                continue
+
     def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_dois: Set[str] = set()
         seen_titles: Set[str] = set()
@@ -105,21 +132,22 @@ class DblpCrawler:
                 logger.info(f"Fetching {conf.venue} {year} from DBLP")
                 hits = self._fetch_recent(conf.venue, year)
 
-                count = 0
+                batch: List[Paper] = []
                 for hit in hits:
                     paper = self._parse_hit(hit, conf.venue)
                     if paper is None:
                         continue
-                    # Dedup by DOI, fall back to title
                     dedup_key = paper.doi if paper.doi else paper.title.lower().strip()
                     if dedup_key in seen_dois:
                         continue
                     seen_dois.add(dedup_key)
-                    seen_titles.add(paper.title.lower().strip())
-                    yield paper
-                    count += 1
+                    batch.append(paper)
 
-                logger.info(f"Got {count} new papers from {conf.venue} {year}")
+                self._fill_abstracts_openalex(batch)
+
+                for paper in batch:
+                    yield paper
+                logger.info(f"Got {len(batch)} new papers from {conf.venue} {year}")
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())

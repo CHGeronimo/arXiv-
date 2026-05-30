@@ -138,6 +138,31 @@ def put_subscriptions():
     data = request.get_json()
     if not data:
         return jsonify({"error": "empty body"}), 400
+    try:
+        cats = data.get("arxiv", {}).get("categories", [])
+        journals_data = data.get("crossref", {}).get("journals", [])
+        conferences_data = data.get("conferences", [])
+        search_keywords = data.get("search", {}).get("keywords", [])
+        from crawler.subs_store import Journal, Conference
+        journals = [
+            Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
+            for j in journals_data
+        ]
+        conferences = [
+            Conference(venue=c["venue"], last_updated=c.get("lastUpdated"))
+            for c in conferences_data
+        ]
+        subs = Subscriptions(
+            arxiv_categories=cats,
+            crossref_journals=journals,
+            conferences=conferences,
+            search_keywords=search_keywords,
+        )
+        _save_subs(subs)
+        logger.info(f"Subscriptions updated: {len(cats)} cats, {len(journals)} journals, {len(conferences)} conferences")
+        return jsonify(subs.to_dict())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 @app.route("/api/profile", methods=["GET"])
@@ -178,6 +203,13 @@ def trigger_job(job: str):
     return jsonify({"status": "triggered", "job": job})
 
 
+@app.route("/api/trigger/enhance", methods=["POST"])
+def trigger_enhance():
+    threading.Thread(target=run_retro_enhance, daemon=True).start()
+    logger.info("Manually triggered retro-enhance job")
+    return jsonify({"status": "triggered", "job": "enhance"})
+
+
 @app.route("/api/digest/<date_str>", methods=["GET"])
 def get_digest(date_str: str):
     digest_path = Path("digests") / f"{date_str}.md"
@@ -194,25 +226,6 @@ def list_digests():
     digests = sorted(digest_dir.glob("*.md"), reverse=True)
     return jsonify({"digests": [d.stem for d in digests]})
 
-
-    try:
-        cats = data.get("arxiv", {}).get("categories", [])
-        journals_data = data.get("crossref", {}).get("journals", [])
-        from crawler.subs_store import Journal
-        journals = [
-            Journal(
-                issn=j["issn"],
-                name=j["name"],
-                last_updated=j.get("lastUpdated"),
-            )
-            for j in journals_data
-        ]
-        subs = Subscriptions(arxiv_categories=cats, crossref_journals=journals)
-        _save_subs(subs)
-        logger.info(f"Subscriptions updated: {len(cats)} cats, {len(journals)} journals")
-        return jsonify(subs.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
 
 
 # ── Crawl Logic ────────────────────────────────────────────────────
@@ -398,6 +411,48 @@ def run_s2_job():
         logger.info(f"S2 job done: {fetched} fetched, {written} new written")
     except Exception as e:
         logger.error(f"S2 search job failed: {e}", exc_info=True)
+
+
+def run_retro_enhance():
+    logger.info("Starting retro-enhance for papers without AI data")
+    try:
+        chain, profile = _get_ai_chain()
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        ai_path = DATA_DIR / f"{today}_AI_enhanced_{_ai_language}.jsonl"
+        enhanced_count = 0
+
+        for f in sorted(DATA_DIR.glob("*.jsonl")):
+            if "_AI_" in f.name:
+                continue
+            papers = []
+            with open(f, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        papers.append(json.loads(line.strip()))
+                    except json.JSONDecodeError:
+                        pass
+
+            for p in papers:
+                pid = p.get("id", "")
+                if pid in _written_ids:
+                    continue
+                if not p.get("summary") and not p.get("title"):
+                    continue
+                try:
+                    enhanced = enhance_single(p, chain, profile, _ai_language)
+                    if enhanced:
+                        with open(ai_path, "a", encoding="utf-8") as af:
+                            af.write(json.dumps(enhanced, ensure_ascii=False) + "\n")
+                        _written_ids.add(pid)
+                        enhanced_count += 1
+                        if enhanced_count % 10 == 0:
+                            logger.info(f"Retro-enhance progress: {enhanced_count} papers")
+                except Exception as e:
+                    logger.warning(f"Retro-enhance failed for {pid}: {e}")
+
+        logger.info(f"Retro-enhance done: {enhanced_count} papers enhanced")
+    except Exception as e:
+        logger.error(f"Retro-enhance job failed: {e}", exc_info=True)
 
 
 def run_enhance_job():
