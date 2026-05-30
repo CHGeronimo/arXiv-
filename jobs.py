@@ -17,9 +17,8 @@ from crawler.subs_store import Subscriptions
 
 from paper_store import (
     append_paper, get_ai_chain, get_quick_chain, reset_ai_chain,
-    _enhanced_ids, _written_ids, DATA_DIR,
+    _enhanced_ids, _written_ids, _ids_lock, DATA_DIR,
 )
-from paper_store import _ids_lock, _shutdown
 
 logger = logging.getLogger("jobs")
 
