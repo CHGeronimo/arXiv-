@@ -652,10 +652,12 @@ function openPaperDetail(paper) {
     `;
 
     modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 function closePaperModal() {
     document.getElementById('paper-modal').classList.remove('active');
+    document.body.style.overflow = '';
 }
 
 function updatePaperCount() {
