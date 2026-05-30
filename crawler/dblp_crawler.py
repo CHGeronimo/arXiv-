@@ -18,12 +18,23 @@ VENUE_MAP = {
     "CVPR": "CVPR",
     "ICCV": "ICCV",
     "ECCV": "ECCV",
+    "WACV": "WACV",
     "NeurIPS": "NeurIPS",
     "ICML": "ICML",
     "ICLR": "ICLR",
+    "AAAI": "AAAI",
+    "IJCAI": "IJCAI",
     "ACL": "ACL",
     "EMNLP": "EMNLP",
     "NAACL": "NAACL",
+    "COLING": "COLING",
+    "KDD": "KDD",
+    "SIGIR": "SIGIR",
+    "WWW": "TheWebConf",
+    "WSDM": "WSDM",
+    "INTERSPEECH": "INTERSPEECH",
+    "ICASSP": "ICASSP",
+    "MICCAI": "MICCAI",
 }
 
 

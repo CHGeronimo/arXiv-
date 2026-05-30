@@ -29,8 +29,15 @@
     cursor: pointer;
     border-radius: 6px 6px 0 0;
     font-weight: 500;
+    font-size: 0.82rem;
     color: var(--text-secondary);
     transition: all 0.2s;
+    position: relative;
+    white-space: nowrap;
+}
+.sub-tab:hover:not(.active) {
+    color: var(--text-primary);
+    background: rgba(123, 47, 247, 0.08);
 }
 .sub-tab.active {
     background: var(--accent);
@@ -43,9 +50,15 @@
     border-radius: 16px;
     border: 1px solid var(--border-color);
     cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s;
+    font-size: 0.82rem;
+    transition: all 0.15s;
     user-select: none;
+    background: transparent;
+    color: var(--text-primary);
+}
+.sub-chip:hover:not(.selected) {
+    border-color: var(--accent);
+    color: var(--accent);
 }
 .sub-chip.selected {
     background: var(--accent);

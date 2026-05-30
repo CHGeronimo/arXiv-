@@ -115,12 +115,26 @@
                 <button id="close-subs-modal" style="background:none;border:none;font-size:1.5rem;cursor:pointer">&times;</button>
             </div>
             <div class="sub-tabs" id="sub-tabs-container">
-                <div class="sub-tab active" data-tab="journals">期刊</div>
+                <div class="sub-tab active" data-tab="arxiv">arXiv</div>
+                <div class="sub-tab" data-tab="journals">期刊</div>
                 <div class="sub-tab" data-tab="conferences">会议</div>
                 <div class="sub-tab" data-tab="search">搜索</div>
+                <div class="sub-tab" data-tab="notify">通知</div>
             </div>
 
-            <div id="sub-tab-journals">
+            <div id="sub-tab-arxiv">
+                <div style="margin-bottom:8px">
+                    <button id="btn-auto-recommend" class="follow-btn" style="font-size:0.78rem;padding:4px 10px">🎯 基于研究方向推荐</button>
+                </div>
+                <div id="arxiv-category-chips"></div>
+            </div>
+
+            <div id="sub-tab-journals" style="display:none">
+                <div style="margin-bottom:12px">
+                    <h3 style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px">快捷订阅</h3>
+                    <div id="quick-journal-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+                </div>
+                <hr style="margin:12px 0">
                 <input id="journal-search-input" type="text" placeholder="搜索期刊名称..." style="width:100%;padding:8px;margin-bottom:8px;box-sizing:border-box">
                 <div id="journal-search-results"></div>
                 <hr style="margin:16px 0">
@@ -140,6 +154,26 @@
                 </div>
                 <textarea id="custom-keywords" rows="3" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;display:none;resize:vertical" placeholder="输入关键词，每行一个..."></textarea>
                 <button id="btn-save-keywords" class="follow-btn" style="margin-top:8px">保存搜索关键词</button>
+            </div>
+            <div id="sub-tab-notify" style="display:none">
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">通知功能即将上线，敬请期待。</p>
+                <div style="padding:12px;background:var(--bg-primary);border-radius:6px;font-size:0.82rem">
+                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                        <input type="checkbox" checked disabled> 每日邮件摘要
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                        <input type="checkbox" disabled> Must Read 推送通知
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px">
+                        <input type="checkbox" disabled> 新论文即时提醒
+                    </label>
+                </div>
+            </div>
+            <div id="sub-stats" style="margin-top:12px;padding:8px;background:var(--bg-primary);border-radius:6px;font-size:0.8rem;color:var(--text-secondary)"></div>
+            <div style="margin-top:8px;display:flex;gap:8px">
+                <button id="btn-export-subs" class="follow-btn" style="flex:1">导出配置</button>
+                <button id="btn-import-subs" class="follow-btn" style="flex:1">导入配置</button>
+                <input type="file" id="import-subs-file" accept=".json" style="display:none">
             </div>
         </div>
     </div>

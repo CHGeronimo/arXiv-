@@ -84,7 +84,7 @@ async function followJournal(issn, name) {
         name: name,
         lastUpdated: null,
     });
-    await saveSubscriptions(subscriptions);
+    await saveSubscriptions(subscriptions, 'crossref');
     renderCrossrefJournals();
     handleJournalSearch();
 }
