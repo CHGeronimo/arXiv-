@@ -10,55 +10,35 @@ const PAGE_SIZE = 30;
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
     startAutoRefresh();
+
+    // Event delegation for paper cards
+    document.getElementById('paper-container').addEventListener('click', (e) => {
+        const card = e.target.closest('.paper-card[data-idx]');
+        if (card) {
+            const idx = parseInt(card.dataset.idx);
+            if (filteredPapers[idx]) openPaperDetail(filteredPapers[idx]);
+        }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closePaperModal();
+            closeSubscriptionModal();
+        }
+    });
 });
 
 async function loadPapers() {
-    const container = document.getElementById('paper-container');
     try {
         const resp = await fetch('/api/papers');
         if (resp.ok) {
             const data = await resp.json();
             allPapers = data.papers || [];
-        } else {
-            // Fallback: try loading from data directory
-            const listResp = await fetch('/assets/file-list.txt');
-            if (listResp.ok) {
-                const files = (await listResp.text()).trim().split('\n').filter(Boolean);
-                for (const file of files) {
-                    if (file.includes('_AI_')) {
-                        const r = await fetch(`/data/${file.trim()}`);
-                        if (r.ok) {
-                            const lines = (await r.text()).trim().split('\n');
-                            for (const line of lines) {
-                                try { allPapers.push(JSON.parse(line)); } catch {}
-                            }
-                        }
-                    }
-                }
-                // Also load raw files without AI
-                for (const file of files) {
-                    if (!file.includes('_AI_') && file.endsWith('.jsonl')) {
-                        const r = await fetch(`/data/${file.trim()}`);
-                        if (r.ok) {
-                            const lines = (await r.text()).trim().split('\n');
-                            for (const line of lines) {
-                                try {
-                                    const p = JSON.parse(line);
-                                    // Skip if already loaded via AI file
-                                    if (!allPapers.some(ep => ep.id === p.id)) {
-                                        allPapers.push(p);
-                                    }
-                                } catch {}
-                            }
-                        }
-                    }
-                }
-            }
         }
     } catch (e) {
         console.error('Failed to load papers:', e);
     }
-
     renderPapers();
 }
 
@@ -140,8 +120,9 @@ function renderPapers() {
         const tldr = (ai.tldr || paper.tldr) ? `<div class="paper-tldr">${ai.tldr || paper.tldr}</div>` : '';
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
 
+        const idx = start + pagePapers.indexOf(paper);
         return `
-            <div class="paper-card" onclick='openPaperDetail(${JSON.stringify(paper).replace(/'/g, "&#39;")})'>
+            <div class="paper-card" data-idx="${idx}">
                 <div class="paper-header">
                     ${sourceBadge}${aiBadge}
                     <div class="paper-categories">${categories}${codeBadge}</div>
