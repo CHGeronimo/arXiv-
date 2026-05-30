@@ -6,3 +6,4 @@ logs/
 *.log
 .claude/
 .understand-anything/
+digests/
