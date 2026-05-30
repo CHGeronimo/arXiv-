@@ -38,14 +38,17 @@ class CrossrefCrawler:
             f"?rows=100&sort=created&order=desc"
             f"&filter={issn_filter}&{MAILTO}"
         )
-        try:
-            resp = httpx.get(url, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("message", {}).get("items", [])
-        except Exception as e:
-            logger.error(f"Crossref fetch failed for ISSN {issn_list}: {e}")
-            return []
+        for attempt in range(3):
+            try:
+                resp = httpx.get(url, timeout=30)
+                resp.raise_for_status()
+                data = resp.json()
+                return data.get("message", {}).get("items", [])
+            except Exception as e:
+                logger.warning(f"Crossref fetch attempt {attempt+1}/3 failed: {e}")
+                if attempt == 2:
+                    logger.error(f"Crossref fetch failed for ISSN {issn_list} after 3 retries")
+        return []
 
     def _parse_item(self, item: dict, journal: Journal) -> Paper | None:
         title_list = item.get("title", [])

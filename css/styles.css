@@ -188,8 +188,82 @@ header h1 {
     font-size: 1.1rem;
 }
 
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 80px;
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 .empty-state {
     text-align: center;
     padding: 60px;
     color: var(--text-secondary);
+}
+
+.search-bar {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.search-bar:focus {
+    border-color: var(--accent);
+}
+
+.search-bar::placeholder {
+    color: var(--text-secondary);
+}
+
+.paper-count {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 60px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 16px;
+    }
+    .header-right {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+    .search-bar {
+        width: 100%;
+        order: -1;
+    }
+    #paper-container {
+        grid-template-columns: 1fr;
+        padding: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    header h1 { font-size: 1.1rem; }
+    .paper-title { font-size: 0.9rem; }
+    .paper-summary { font-size: 0.78rem; }
 }

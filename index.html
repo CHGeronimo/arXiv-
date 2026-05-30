@@ -13,6 +13,8 @@
             <h1>arxivSCI-daily</h1>
         </div>
         <div class="header-right">
+            <input id="search-input" type="text" placeholder="搜索论文..." oninput="handleSearch()" class="search-bar">
+            <span id="paper-count" class="paper-count"></span>
             <div class="source-filters">
                 <button class="source-filter-btn active" onclick="filterBySource('all')">全部</button>
                 <button class="source-filter-btn" onclick="filterBySource('arxiv')">arXiv</button>
@@ -23,7 +25,10 @@
     </header>
 
     <main id="paper-container">
-        <div id="loading">加载中...</div>
+        <div id="loading" class="loading-state">
+            <div class="spinner"></div>
+            <span>正在加载论文...</span>
+        </div>
     </main>
 
     <!-- Paper Detail Modal -->

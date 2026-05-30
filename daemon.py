@@ -83,6 +83,30 @@ def get_papers():
     return jsonify({"papers": papers[:500]})
 
 
+@app.route("/api/stats")
+def get_stats():
+    total = len(_written_ids)
+    source_counts: dict[str, int] = {}
+    if DATA_DIR.exists():
+        for f in DATA_DIR.glob("*.jsonl"):
+            if "_AI_" in f.name:
+                continue
+            with open(f, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        p = json.loads(line.strip())
+                        s = p.get("source", "unknown")
+                        source_counts[s] = source_counts.get(s, 0) + 1
+                    except json.JSONDecodeError:
+                        pass
+    return jsonify({
+        "total_papers": total,
+        "by_source": source_counts,
+        "arxiv_categories": _load_subs().arxiv_categories,
+        "crossref_journals": len(_load_subs().crossref_journals),
+    })
+
+
 @app.route("/api/subscriptions", methods=["PUT"])
 def put_subscriptions():
     data = request.get_json()
@@ -110,8 +134,10 @@ def put_subscriptions():
 
 # ── Crawl Logic ────────────────────────────────────────────────────
 
+_written_ids: set[str] = set()
 
-def _load_existing_ids() -> set:
+
+def _load_existing_ids() -> set[str]:
     existing: set[str] = set()
     if not DATA_DIR.exists():
         return existing
@@ -135,25 +161,17 @@ def _load_existing_ids() -> set:
 
 def _append_paper(paper: Paper, date_str: str | None = None) -> bool:
     """Append a single paper to JSONL. Returns True if written (new)."""
+    global _written_ids
+    if paper.id in _written_ids:
+        return False
+
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     DATA_DIR.mkdir(exist_ok=True)
     filepath = DATA_DIR / f"{date_str}.jsonl"
 
-    existing_ids: set[str] = set()
-    if filepath.exists():
-        with open(filepath, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    d = json.loads(line.strip())
-                    existing_ids.add(d.get("id", ""))
-                except json.JSONDecodeError:
-                    pass
-
-    if paper.id in existing_ids:
-        return False
-
     with open(filepath, "a", encoding="utf-8") as f:
         f.write(paper.to_jsonl() + "\n")
+    _written_ids.add(paper.id)
     return True
 
 
@@ -306,6 +324,10 @@ def main():
     if not Path(SUBS_PATH).exists():
         _save_subs(Subscriptions())
         logger.info(f"Created default {SUBS_PATH}")
+
+    global _written_ids
+    _written_ids = _load_existing_ids()
+    logger.info(f"Loaded {len(_written_ids)} existing paper IDs")
 
     sched = Scheduler()
 
