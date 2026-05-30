@@ -391,6 +391,10 @@ class Scheduler:
                 run_enhance_job()
             except Exception as e:
                 logger.error(f"Enhance after arxiv error: {e}")
+            try:
+                run_digest_job()
+            except Exception as e:
+                logger.error(f"Digest after arxiv error: {e}")
 
         if self._running:
             t = threading.Timer(
