@@ -107,6 +107,9 @@ function buildFilterOptions() {
     renderFilterDropdown('type', [
         { value: 'research', label: '研究论文' },
         { value: 'news', label: '新闻评论' },
+        { value: 'must-read', label: 'Must Read' },
+        { value: 'worth-reading', label: 'Worth Reading' },
+        { value: 'skim', label: 'Skim' },
     ]);
     updateFilterBadges();
 }
@@ -189,8 +192,11 @@ function handleDateFilter() {
 }
 
 function toggleSort() {
-    sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
-    document.getElementById('sort-btn').textContent = sortOrder === 'desc' ? '↓ 新→旧' : '↑ 旧→新';
+    const modes = ['desc', 'asc', 'relevance', 'quality'];
+    const labels = ['↓ 新→旧', '↑ 旧→新', '★ 相关性', '✦ 质量'];
+    const idx = (modes.indexOf(sortOrder) + 1) % modes.length;
+    sortOrder = modes[idx];
+    document.getElementById('sort-btn').textContent = labels[idx];
     renderPapers();
 }
 
@@ -231,7 +237,8 @@ function renderPapers() {
     if (typeSet.size > 0) {
         filteredPapers = filteredPapers.filter(p => {
             const at = p.article_type || _inferType(p);
-            return typeSet.has(at);
+            const rec = (p.AI || {}).recommendation || '';
+            return typeSet.has(at) || typeSet.has(rec);
         });
     }
 
@@ -250,6 +257,12 @@ function renderPapers() {
 
     // Sort
     filteredPapers.sort((a, b) => {
+        if (sortOrder === 'relevance') {
+            return ((b.AI || {}).relevance_score || 0) - ((a.AI || {}).relevance_score || 0);
+        }
+        if (sortOrder === 'quality') {
+            return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
+        }
         const da = a.published_date || '';
         const db = b.published_date || '';
         return sortOrder === 'desc' ? db.localeCompare(da) : da.localeCompare(db);
