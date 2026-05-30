@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import List, Set
+from typing import Generator, List, Set
 
 import arxiv
 import httpx
@@ -96,37 +96,35 @@ class ArxivCrawler:
 
         return all_ids
 
-    def fetch_metadata(self, paper_ids: List[str]) -> List[Paper]:
-        papers: List[Paper] = []
+    def fetch_metadata_iter(self, paper_ids: List[str]) -> Generator[Paper, None, None]:
         for pid in paper_ids:
             if pid in self.existing_ids:
-                logger.debug(f"Skipping existing: {pid}")
                 continue
             try:
                 search = arxiv.Search(id_list=[pid])
                 result = next(self.client.results(search))
-                papers.append(
-                    Paper(
-                        id=pid,
-                        source="arxiv",
-                        title=result.title,
-                        summary=result.summary,
-                        authors=[a.name for a in result.authors],
-                        categories=result.categories,
-                        doi=result.doi or "",
-                        published_date=result.published.isoformat()[:10],
-                        url=f"https://arxiv.org/abs/{pid}",
-                        pdf=f"https://arxiv.org/pdf/{pid}",
-                        publisher="arXiv",
-                        comment=result.comment,
-                    )
+                yield Paper(
+                    id=pid,
+                    source="arxiv",
+                    title=result.title,
+                    summary=result.summary,
+                    authors=[a.name for a in result.authors],
+                    categories=result.categories,
+                    doi=result.doi or "",
+                    published_date=result.published.isoformat()[:10],
+                    url=f"https://arxiv.org/abs/{pid}",
+                    pdf=f"https://arxiv.org/pdf/{pid}",
+                    publisher="arXiv",
+                    comment=result.comment,
                 )
             except Exception as e:
                 logger.error(f"Failed to fetch metadata for {pid}: {e}")
-        return papers
 
-    def crawl(self) -> List[Paper]:
+    def crawl_iter(self) -> Generator[Paper, None, None]:
         ids = self.fetch_new_ids()
         new_ids = [i for i in ids if i not in self.existing_ids]
         logger.info(f"Total {len(ids)} found, {len(new_ids)} new")
-        return self.fetch_metadata(new_ids)
+        yield from self.fetch_metadata_iter(new_ids)
+
+    def crawl(self) -> List[Paper]:
+        return list(self.crawl_iter())

@@ -133,9 +133,8 @@ def _load_existing_ids() -> set:
     return existing
 
 
-def _write_papers(papers: list, date_str: str | None = None) -> int:
-    if not papers:
-        return 0
+def _append_paper(paper: Paper, date_str: str | None = None) -> bool:
+    """Append a single paper to JSONL. Returns True if written (new)."""
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     DATA_DIR.mkdir(exist_ok=True)
     filepath = DATA_DIR / f"{date_str}.jsonl"
@@ -150,18 +149,26 @@ def _write_papers(papers: list, date_str: str | None = None) -> int:
                 except json.JSONDecodeError:
                     pass
 
-    written = 0
+    if paper.id in existing_ids:
+        return False
+
     with open(filepath, "a", encoding="utf-8") as f:
-        for paper in papers:
-            if paper.id not in existing_ids:
-                f.write(paper.to_jsonl() + "\n")
-                existing_ids.add(paper.id)
-                written += 1
+        f.write(paper.to_jsonl() + "\n")
+    return True
+
+
+def _write_papers(papers: list, date_str: str | None = None) -> int:
+    if not papers:
+        return 0
+    written = 0
+    for p in papers:
+        if _append_paper(p, date_str):
+            written += 1
     return written
 
 
 def run_arxiv_job():
-    logger.info("Starting arXiv crawl job")
+    logger.info("Starting arXiv crawl job (streaming)")
     try:
         subs = _load_subs()
         if not subs.arxiv_categories:
@@ -172,31 +179,43 @@ def run_arxiv_job():
             categories=subs.arxiv_categories,
             existing_ids=existing,
         )
-        papers = crawler.crawl()
-        written = _write_papers(papers)
-        logger.info(f"arXiv job done: {len(papers)} fetched, {written} new written")
+        fetched, written = 0, 0
+        for paper in crawler.crawl_iter():
+            fetched += 1
+            if _append_paper(paper):
+                written += 1
+            if fetched % 20 == 0:
+                logger.info(f"arXiv progress: {fetched} fetched, {written} written")
+        logger.info(f"arXiv job done: {fetched} fetched, {written} new written")
     except Exception as e:
         logger.error(f"arXiv job failed: {e}", exc_info=True)
 
 
 def run_crossref_job():
-    logger.info("Starting Crossref crawl job")
+    logger.info("Starting Crossref crawl job (streaming)")
     try:
         subs = _load_subs()
         if not subs.crossref_journals:
             logger.info("No Crossref journals subscribed, skipping")
             return
         crawler = CrossrefCrawler(journals=subs.crossref_journals)
-        papers = crawler.crawl()
-        written = _write_papers(papers)
-        if papers:
-            fetched_journals = {p.journal_title for p in papers if p.journal_title}
+        fetched, written = 0, 0
+        fetched_journals: set[str] = set()
+        for paper in crawler.crawl_iter():
+            fetched += 1
+            if paper.journal_title:
+                fetched_journals.add(paper.journal_title)
+            if _append_paper(paper):
+                written += 1
+            if fetched % 20 == 0:
+                logger.info(f"Crossref progress: {fetched} fetched, {written} written")
+        if fetched_journals:
             now = datetime.now(timezone.utc).isoformat()
             for j in subs.crossref_journals:
                 if j.name in fetched_journals:
                     j.last_updated = now
             _save_subs(subs)
-        logger.info(f"Crossref job done: {len(papers)} fetched, {written} new written")
+        logger.info(f"Crossref job done: {fetched} fetched, {written} new written")
     except Exception as e:
         logger.error(f"Crossref job failed: {e}", exc_info=True)
 

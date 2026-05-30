@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import List, Set
+from typing import Generator, List, Set
 
 import httpx
 
@@ -96,8 +96,7 @@ class CrossrefCrawler:
             issn=issn_list,
         )
 
-    def crawl(self) -> List[Paper]:
-        papers: List[Paper] = []
+    def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_dois: Set[str] = set()
 
         for journal in self.journals:
@@ -113,9 +112,10 @@ class CrossrefCrawler:
                 paper = self._parse_item(item, journal)
                 if paper and paper.doi not in seen_dois:
                     seen_dois.add(paper.doi)
-                    papers.append(paper)
+                    yield paper
                     count += 1
 
             logger.info(f"Got {count} new papers from {journal.name}")
 
-        return papers
+    def crawl(self) -> List[Paper]:
+        return list(self.crawl_iter())
