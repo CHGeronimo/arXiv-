@@ -3,10 +3,10 @@
 import {
     setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
     refreshTimer, toggleBookmark, showToast,
-    filteredPapers, currentPage, setCurrentTheme, currentTheme,
+    filteredPapers, currentPage, setCurrentTheme, currentTheme, setSidebarOpen, sidebarOpen,
 } from './state.js';
 import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex } from './api.js';
-import { buildFilterOptions, toggleFilter, toggleDropdown, clearAllFilters, closeAllDropdowns } from './filters.js';
+import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
 
@@ -31,7 +31,6 @@ function cycleTheme() {
 _initTheme();
 
 // Expose for inline onclick handlers
-window._toggleFilter = (name, value) => { toggleFilter(name, value); renderPapers(); };
 window._changePage = changePage;
 
 // Data loading
@@ -68,30 +67,61 @@ document.addEventListener('DOMContentLoaded', () => {
     startAutoRefresh();
     window.addEventListener('beforeunload', () => { if (refreshTimer) clearInterval(refreshTimer); });
 
-    // Sort panel
-    document.getElementById('panel-sort')?.addEventListener('click', (e) => {
-        const opt = e.target.closest('[data-sort]');
-        if (!opt) return;
-        setSortOrder(opt.dataset.sort);
-        const btn = document.querySelector('#dd-sort .sort-btn');
-        btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
-        document.querySelectorAll('#panel-sort .filter-option').forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-        closeAllDropdowns();
-        renderPapers();
+    // Sidebar toggle
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    sidebarToggle?.addEventListener('click', () => {
+        const isOpen = sidebarOpen;
+        setSidebarOpen(!isOpen);
+        if (sidebarToggle) sidebarToggle.textContent = isOpen ? '☰' : '✕';
     });
+
+    // Sidebar filter group expand/collapse
+    document.getElementById('sidebar-filter-groups')?.addEventListener('click', (e) => {
+        const header = e.target.closest('[data-group-toggle]');
+        if (!header) return;
+        const key = header.dataset.groupToggle;
+        if (key === 'sort') return;
+        const body = document.querySelector(`[data-group-body="${key}"]`);
+        header.classList.toggle('expanded');
+        body?.classList.toggle('expanded');
+    });
+
+    // Sidebar checkbox changes
+    document.getElementById('sidebar-filter-groups')?.addEventListener('change', (e) => {
+        const cb = e.target;
+        if (cb.type === 'checkbox') {
+            toggleFilter(cb.dataset.filterKey, cb.dataset.filterValue);
+            renderPapers();
+        }
+    });
+
+    // Sidebar sort
+    document.getElementById('sidebar-sort')?.addEventListener('change', (e) => {
+        if (e.target.type === 'radio' && e.target.name === 'sort') {
+            setSortOrder(e.target.value);
+            renderPapers();
+        }
+    });
+
+    // Sidebar sort group toggle
+    document.getElementById('sidebar-sort')?.addEventListener('click', (e) => {
+        const header = e.target.closest('[data-group-toggle="sort"]');
+        if (!header) return;
+        const body = document.querySelector('[data-group-body="sort"]');
+        header.classList.toggle('expanded');
+        body?.classList.toggle('expanded');
+    });
+
+    // Sidebar search and date
+    document.getElementById('sidebar-search-input')?.addEventListener('input', () => renderPapers());
+    document.getElementById('sidebar-date-filter')?.addEventListener('change', () => renderPapers());
+
+    // Sidebar clear
+    document.getElementById('sidebar-clear')?.addEventListener('click', () => { clearAllFilters(); buildFilterOptions(); renderPapers(); });
 
     document.getElementById('btn-profile').addEventListener('click', openProfileModal);
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
     document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
-    document.getElementById('btn-clear-filters').addEventListener('click', () => { clearAllFilters(); renderPapers(); });
-    document.getElementById('search-input').addEventListener('input', () => renderPapers());
-    document.getElementById('date-filter').addEventListener('change', () => renderPapers());
-
-    // Dropdown toggle
-    document.querySelectorAll('[data-dropdown]').forEach(btn => {
-        btn.addEventListener('click', () => toggleDropdown(btn.dataset.dropdown));
-    });
 
     // Crawl trigger
     document.getElementById('panel-crawl').addEventListener('click', (e) => {
@@ -161,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', async (e) => {
         const active = document.activeElement;
         const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-        if (e.key === 'Escape') { closePaperModal(); window.closeSubscriptionModal?.(); closeProfileModal(); closeAllDropdowns(); return; }
+        if (e.key === 'Escape') { closePaperModal(); window.closeSubscriptionModal?.(); closeProfileModal(); return; }
         if (typing) return;
         if (e.key === 'j') changePage(1);
         else if (e.key === 'k') changePage(-1);
@@ -170,12 +200,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const first = fp[cp - 1];
             if (first) { tb(first.id); renderPapers(); }
         }
-        else if (e.key === '/') { e.preventDefault(); document.getElementById('search-input').focus(); }
+        else if (e.key === '/') { e.preventDefault(); document.getElementById('sidebar-search-input')?.focus(); }
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
     });
 
-    // Close dropdowns on outside click
+    // Close dropdowns on outside click (no-op for sidebar)
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.filter-dropdown')) closeAllDropdowns();
+        // Sidebar doesn't need outside click handling
     });
 });

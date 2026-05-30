@@ -18,11 +18,31 @@ export let currentPage = 1;
 export const PAGE_SIZE = 40;
 
 export let currentTheme = localStorage.getItem('theme') || 'dark';
+export let sidebarOpen = false;
 
 export function setCurrentTheme(t) {
     currentTheme = t;
     localStorage.setItem('theme', t);
     document.documentElement.setAttribute('data-theme', t);
+}
+
+export function setSidebarOpen(v) {
+    sidebarOpen = v;
+    const sidebar = document.getElementById('filter-sidebar');
+    const toggle = document.getElementById('sidebar-toggle');
+    const container = document.getElementById('paper-container');
+    const header = document.querySelector('header');
+    if (v) {
+        sidebar?.classList.add('open');
+        toggle?.classList.add('open');
+        container?.classList.add('sidebar-open');
+        header?.classList.add('sidebar-open');
+    } else {
+        sidebar?.classList.remove('open');
+        toggle?.classList.remove('open');
+        container?.classList.remove('sidebar-open');
+        header?.classList.remove('sidebar-open');
+    }
 }
 
 export const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));

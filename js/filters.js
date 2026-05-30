@@ -7,11 +7,11 @@ import {
 } from './state.js';
 
 export let _filterCounts = {};
-export let _openDropdown = null;
 
 export function buildFilterOptions() {
     const journals = {};
     const categories = {};
+    const venues = {};
     for (const p of allPapers) {
         if (p.source === 'crossref' && p.journal_title) {
             journals[p.journal_title] = (journals[p.journal_title] || 0) + 1;
@@ -19,68 +19,80 @@ export function buildFilterOptions() {
         for (const c of (p.categories || [])) {
             categories[c] = (categories[c] || 0) + 1;
         }
-    }
-    _filterCounts = { journals, categories };
-
-    renderFilterDropdown('source', [
-        { value: 'arxiv', label: 'arXiv' },
-        { value: 'crossref', label: '期刊' },
-        { value: 'dblp', label: 'DBLP 会议' },
-        { value: 'semantic_scholar', label: 'S2 搜索' },
-    ]);
-    renderFilterDropdown('journal',
-        Object.entries(journals).sort((a, b) => b[1] - a[1]).map(([j, c]) => ({ value: j, label: j, count: c }))
-    );
-    const venues = {};
-    for (const p of allPapers) {
         if (p.venue) venues[p.venue] = (venues[p.venue] || 0) + 1;
     }
-    _filterCounts.venues = venues;
-    renderFilterDropdown('venue',
-        Object.entries(venues).sort((a, b) => b[1] - a[1]).map(([v, c]) => ({ value: v, label: v, count: c }))
-    );
-    renderFilterDropdown('category',
-        Object.entries(categories).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
-    );
-    renderFilterDropdown('type', [
-        { value: 'must-read', label: 'Must Read' },
-        { value: 'worth-reading', label: 'Worth Reading' },
-        { value: 'skim', label: 'Skim' },
-        { value: 'unread', label: '未读' },
-    ]);
-    renderFilterDropdown('bookmarked', [
-        { value: 'yes', label: '⭐ 已收藏' },
-    ]);
+    _filterCounts = { journals, categories, venues };
+
+    const groups = [
+        { key: 'source', label: '来源', options: [
+            { value: 'arxiv', label: 'arXiv' },
+            { value: 'crossref', label: '期刊' },
+            { value: 'dblp', label: 'DBLP 会议' },
+            { value: 'semantic_scholar', label: 'S2 搜索' },
+        ]},
+        { key: 'venue', label: '会议', options:
+            Object.entries(venues).sort((a, b) => b[1] - a[1]).map(([v, c]) => ({ value: v, label: v, count: c }))
+        },
+        { key: 'journal', label: '期刊', options:
+            Object.entries(journals).sort((a, b) => b[1] - a[1]).map(([j, c]) => ({ value: j, label: j, count: c }))
+        },
+        { key: 'category', label: '领域', options:
+            Object.entries(categories).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
+        },
+        { key: 'type', label: '推荐/类型', options: [
+            { value: 'must-read', label: 'Must Read' },
+            { value: 'worth-reading', label: 'Worth Reading' },
+            { value: 'skim', label: 'Skim' },
+            { value: 'unread', label: '未读' },
+        ]},
+        { key: 'bookmarked', label: '收藏', options: [
+            { value: 'yes', label: '⭐ 已收藏' },
+        ]},
+    ];
+
+    const container = document.getElementById('sidebar-filter-groups');
+    if (!container) return;
+    container.innerHTML = groups.map(g => {
+        const activeCount = activeFilters[g.key]?.size || 0;
+        return `
+        <div class="filter-group" data-group="${g.key}">
+            <div class="filter-group-header ${activeCount > 0 ? 'expanded' : ''}" data-group-toggle="${g.key}">
+                <span>${g.label}${activeCount > 0 ? ` <span class="group-count">${activeCount}</span>` : ''}</span>
+                <span class="group-arrow">▼</span>
+            </div>
+            <div class="filter-group-body ${activeCount > 0 ? 'expanded' : ''}" data-group-body="${g.key}">
+                ${g.options.map(o => `
+                    <label>
+                        <input type="checkbox" ${activeFilters[g.key]?.has(o.value) ? 'checked' : ''}
+                               data-filter-key="${escAttr(g.key)}" data-filter-value="${escAttr(o.value)}">
+                        <span>${o.label}</span>
+                        ${o.count != null ? `<span class="filter-count">${o.count}</span>` : ''}
+                    </label>
+                `).join('')}
+            </div>
+        </div>`;
+    }).join('');
+
+    renderSortOptions();
     updateFilterBadges();
 }
 
-function renderFilterDropdown(name, options) {
-    const panel = document.getElementById(`panel-${name}`);
-    if (!panel) return;
-    const active = activeFilters[name];
-    panel.innerHTML = options.map(o => `
-        <label class="filter-option">
-            <input type="checkbox" ${active.has(o.value) ? 'checked' : ''}
-                   onchange="window._toggleFilter('${escAttr(name)}', '${escAttr(o.value)}')">
-            <span>${o.label}</span>
-            ${o.count != null ? `<span class="count">${o.count}</span>` : ''}
-        </label>
-    `).join('');
-}
-
-export function toggleDropdown(name) {
-    const panel = document.getElementById(`panel-${name}`);
-    const btn = panel.previousElementSibling;
-    const isOpen = panel.classList.contains('show');
-    document.querySelectorAll('.filter-dropdown-panel').forEach(p => p.classList.remove('show'));
-    document.querySelectorAll('.filter-dropdown-btn').forEach(b => b.classList.remove('open'));
-    if (!isOpen) {
-        panel.classList.add('show');
-        btn.classList.add('open');
-        _openDropdown = name;
-    } else {
-        _openDropdown = null;
-    }
+function renderSortOptions() {
+    const container = document.getElementById('sidebar-sort');
+    if (!container) return;
+    const options = [
+        { value: 'desc', label: '↓ 日期：新→旧' },
+        { value: 'asc', label: '↑ 日期：旧→新' },
+        { value: 'relevance', label: '★ 相关性' },
+        { value: 'quality', label: '✦ AI 质量评分' },
+        { value: 'citations', label: '✱ 引用数' },
+        { value: 'rec', label: '✓ AI 推荐优先' },
+        { value: 'source', label: '◉ 按来源分组' },
+    ];
+    container.innerHTML = '<div class="filter-group-header expanded" data-group-toggle="sort"><span>排序</span><span class="group-arrow">▼</span></div>' +
+        '<div class="filter-group-body expanded" data-group-body="sort">' +
+        options.map(o => `<label><input type="radio" name="sort" value="${o.value}" ${sortOrder === o.value ? 'checked' : ''}> ${o.label}</label>`).join('') +
+        '</div>';
 }
 
 export function toggleFilter(name, value) {
@@ -93,21 +105,30 @@ export function toggleFilter(name, value) {
 
 export function updateFilterBadges() {
     for (const name of Object.keys(activeFilters)) {
-        const badge = document.getElementById(`badge-${name}`);
-        const btn = badge?.parentElement;
-        if (!badge || !btn) continue;
         const count = activeFilters[name].size;
-        badge.textContent = count;
-        badge.style.display = count > 0 ? 'inline-flex' : 'none';
-        btn.classList.toggle('has-active', count > 0);
+        const header = document.querySelector(`[data-group-toggle="${name}"]`);
+        if (!header) continue;
+        let countEl = header.querySelector('.group-count');
+        if (count > 0) {
+            if (!countEl) {
+                countEl = document.createElement('span');
+                countEl.className = 'group-count';
+                header.querySelector('span').appendChild(countEl);
+            }
+            countEl.textContent = count;
+        } else if (countEl) {
+            countEl.remove();
+        }
     }
 }
 
 export function clearAllFilters() {
     for (const key of Object.keys(activeFilters)) activeFilters[key].clear();
-    document.querySelectorAll('.filter-dropdown-panel input').forEach(cb => cb.checked = false);
-    document.getElementById('search-input').value = '';
-    document.getElementById('date-filter').value = '';
+    document.querySelectorAll('#sidebar-filter-groups input[type="checkbox"]').forEach(cb => cb.checked = false);
+    const searchInput = document.getElementById('sidebar-search-input');
+    const dateInput = document.getElementById('sidebar-date-filter');
+    if (searchInput) searchInput.value = '';
+    if (dateInput) dateInput.value = '';
     setCurrentPage(1);
 }
 
@@ -136,7 +157,7 @@ export function applyFiltersAndSort() {
     if (activeFilters.bookmarked.size > 0)
         result = result.filter(p => _bookmarks.has(p.id));
 
-    const sq = document.getElementById('search-input')?.value?.trim().toLowerCase() || '';
+    const sq = document.getElementById('sidebar-search-input')?.value?.trim().toLowerCase() || '';
     if (sq) {
         const prefixFields = { 'title:': 'title', 'abstract:': 'summary', 'author:': 'authors' };
         const terms = sq.split(/\s+/);
@@ -159,7 +180,7 @@ export function applyFiltersAndSort() {
         });
     }
 
-    const df = document.getElementById('date-filter')?.value || '';
+    const df = document.getElementById('sidebar-date-filter')?.value || '';
     if (df) {
         result = result.filter(p => (p.published_date || '').startsWith(df));
     }
@@ -189,7 +210,5 @@ export function applyFiltersAndSort() {
 }
 
 export function closeAllDropdowns() {
-    document.querySelectorAll('.filter-dropdown-panel').forEach(p => p.classList.remove('show'));
-    document.querySelectorAll('.filter-dropdown-btn').forEach(b => b.classList.remove('open'));
-    _openDropdown = null;
+    // No-op: sidebar replaces dropdowns
 }

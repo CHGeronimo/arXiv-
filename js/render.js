@@ -106,8 +106,8 @@ export function changePage(delta) {
 export function updatePaperCount() {
     const el = document.getElementById('paper-count');
     if (!el) return;
-    const sq = document.getElementById('search-input')?.value?.trim() || '';
-    const df = document.getElementById('date-filter')?.value || '';
+    const sq = document.getElementById('sidebar-search-input')?.value?.trim() || '';
+    const df = document.getElementById('sidebar-date-filter')?.value || '';
     const total = allPapers.length;
     const shown = filteredPapers.length;
     const hasFilter = sq || df || Object.values(activeFilters).some(s => s.size > 0);
