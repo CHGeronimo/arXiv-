@@ -48,6 +48,47 @@ function toggleTheme() {
 }
 _initTheme();
 
+async function quickFollowAuthor(name) {
+    try {
+        const resp = await fetch(`/api/author/search?query=${encodeURIComponent(name)}`);
+        if (!resp.ok) throw new Error('search failed');
+        const data = await resp.json();
+        const authors = data.authors || [];
+        if (!authors.length) {
+            showToast('未找到该作者');
+            return;
+        }
+        // Pick best match (first result is usually the right one for exact names)
+        const best = authors[0];
+        // Check if already subscribed
+        const subsResp = await fetch('/api/subscriptions');
+        const subs = subsResp.ok ? await subsResp.json() : {};
+        if (!subs.authors) subs.authors = [];
+        if (subs.authors.some(a => a.authorId === best.authorId)) {
+            showToast(`已关注 ${best.name}`);
+            return;
+        }
+        subs.authors.push({
+            name: best.name,
+            authorId: best.authorId,
+            affiliation: best.affiliations?.[0] || '',
+            paperCount: best.paperCount || 0,
+            lastUpdated: null,
+        });
+        const putResp = await fetch('/api/subscriptions', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(subs),
+        });
+        if (putResp.ok) {
+            showToast(`已关注 ${best.name}，正在爬取论文...`);
+            fetch('/api/trigger/author', { method: 'POST' }).catch(() => {});
+        }
+    } catch (e) {
+        showToast('关注失败，请重试');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
     startAutoRefresh();
@@ -138,6 +179,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 fbBtn.classList.add('voted');
                 showToast(rating === 'useful' ? '已标记为有用' : '已标记为没用');
             } catch {}
+            return;
+        }
+        const authorLink = e.target.closest('.author-link');
+        if (authorLink) {
+            e.stopPropagation();
+            const name = authorLink.dataset.authorName;
+            if (name && confirm(`关注作者 "${name}" 的最新论文？`)) {
+                quickFollowAuthor(name);
+            }
             return;
         }
         const card = e.target.closest('.paper-card[data-idx]');
@@ -514,8 +564,10 @@ function renderPapers() {
             `<span class="paper-cat">${c}</span>`
         ).join('');
 
-        const authors = (paper.authors || []).slice(0, 3).join(', ') +
-            ((paper.authors || []).length > 3 ? ' et al.' : '');
+        const authorList = (paper.authors || []).slice(0, 3).map(a =>
+            `<span class="author-link" data-author-name="${_escAttr(a)}">${a}</span>`
+        ).join(', ');
+        const authors = authorList + ((paper.authors || []).length > 3 ? ' et al.' : '');
 
         const summary = ai.summary_zh || paper.summary_zh || paper.summary || '';
         const title = ai.title_zh || paper.title_zh || paper.title || '';
@@ -638,7 +690,7 @@ function openPaperDetail(paper) {
         <h2 style="margin:12px 0">${title}</h2>
         ${origTitle}
         <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
-            ${(paper.authors || []).join(', ')}
+            ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${_escAttr(a)}">${a}</span>`).join(', ')}
         </p>
         ${citeInfo}
         ${sections.join('')}

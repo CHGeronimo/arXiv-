@@ -5,7 +5,16 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-__all__ = ["Conference", "Journal", "Subscriptions"]
+__all__ = ["Author", "Conference", "Journal", "Subscriptions"]
+
+
+@dataclass
+class Author:
+    name: str
+    author_id: str
+    affiliation: str = ""
+    paper_count: int = 0
+    last_updated: Optional[str] = None
 
 
 @dataclass
@@ -27,6 +36,7 @@ class Subscriptions:
     crossref_journals: List[Journal] = field(default_factory=list)
     conferences: List[Conference] = field(default_factory=list)
     search_keywords: List[str] = field(default_factory=list)
+    authors: List[Author] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: str = "subscriptions.json") -> Subscriptions:
@@ -44,11 +54,22 @@ class Subscriptions:
             for c in data.get("conferences", [])
         ]
         keywords = data.get("search", {}).get("keywords", [])
+        authors = [
+            Author(
+                name=a["name"],
+                author_id=a["authorId"],
+                affiliation=a.get("affiliation", ""),
+                paper_count=a.get("paperCount", 0),
+                last_updated=a.get("lastUpdated"),
+            )
+            for a in data.get("authors", [])
+        ]
         return cls(
             arxiv_categories=cats,
             crossref_journals=journals,
             conferences=conferences,
             search_keywords=keywords,
+            authors=authors,
         )
 
     def save(self, path: str = "subscriptions.json") -> None:
@@ -69,6 +90,16 @@ class Subscriptions:
                 for c in self.conferences
             ],
             "search": {"keywords": self.search_keywords},
+            "authors": [
+                {
+                    "name": a.name,
+                    "authorId": a.author_id,
+                    "affiliation": a.affiliation,
+                    "paperCount": a.paper_count,
+                    "lastUpdated": a.last_updated,
+                }
+                for a in self.authors
+            ],
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -87,4 +118,14 @@ class Subscriptions:
                 for c in self.conferences
             ],
             "search": {"keywords": self.search_keywords},
+            "authors": [
+                {
+                    "name": a.name,
+                    "authorId": a.author_id,
+                    "affiliation": a.affiliation,
+                    "paperCount": a.paper_count,
+                    "lastUpdated": a.last_updated,
+                }
+                for a in self.authors
+            ],
         }

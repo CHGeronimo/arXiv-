@@ -127,6 +127,7 @@
                 <div class="sub-tab active" data-tab="arxiv">arXiv</div>
                 <div class="sub-tab" data-tab="journals">期刊</div>
                 <div class="sub-tab" data-tab="conferences">会议</div>
+                <div class="sub-tab" data-tab="authors">作者</div>
                 <div class="sub-tab" data-tab="search">搜索</div>
                 <div class="sub-tab" data-tab="notify">通知</div>
             </div>
@@ -159,6 +160,18 @@
             <div id="sub-tab-conferences" style="display:none">
                 <p>选择关注的顶级会议：</p>
                 <div id="conference-chips"></div>
+            </div>
+
+            <div id="sub-tab-authors" style="display:none">
+                <p>搜索并关注作者，自动追踪其最新论文：</p>
+                <div style="display:flex;gap:6px;margin-bottom:12px">
+                    <input id="author-search-input" type="text" placeholder="输入作者姓名..." style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem">
+                    <button id="btn-search-author" class="follow-btn" style="padding:8px 14px">搜索</button>
+                </div>
+                <div id="author-search-results" style="margin-bottom:12px"></div>
+                <hr style="border-color:var(--border-color);margin:12px 0">
+                <h3 style="font-size:0.9rem">已关注作者</h3>
+                <div id="subscribed-authors-list"></div>
             </div>
 
             <div id="sub-tab-search" style="display:none">

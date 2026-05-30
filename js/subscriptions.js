@@ -1,5 +1,5 @@
 // js/subscriptions.js
-let subscriptions = { arxiv: { categories: [] }, crossref: { journals: [] }, conferences: [], search: { keywords: [], useProfile: true } };
+let subscriptions = { arxiv: { categories: [] }, crossref: { journals: [] }, conferences: [], search: { keywords: [], useProfile: true }, authors: [] };
 
 const ARXIV_CATEGORIES = [
     { cat: "cs.AI", label: "AI", group: "CS" },
@@ -72,6 +72,7 @@ async function loadSubscriptions() {
     }
     if (!subscriptions.conferences) subscriptions.conferences = [];
     if (!subscriptions.search) subscriptions.search = { keywords: [], useProfile: true };
+    if (!subscriptions.authors) subscriptions.authors = [];
     renderSubscriptionUI();
     return subscriptions;
 }
@@ -103,6 +104,7 @@ function renderSubscriptionUI() {
     renderQuickJournals();
     renderCrossrefJournals();
     renderConferenceChips();
+    renderSubscribedAuthors();
     renderSubStats();
 }
 
@@ -125,7 +127,8 @@ function renderSubStats() {
             else ccfC++;
         }
     }
-    el.innerHTML = `订阅统计：${cats} arXiv 分类 · ${journals} 期刊 · ${confs} 会议 (CCF A:${ccfA} B:${ccfB} C:${ccfC}) · ${keywords || (useProfile ? '使用研究方向' : 0)} 搜索关键词`;
+    const authors = (subscriptions.authors || []).length;
+    el.innerHTML = `订阅统计：${cats} arXiv 分类 · ${journals} 期刊 · ${confs} 会议 (CCF A:${ccfA} B:${ccfB} C:${ccfC}) · ${authors} 作者 · ${keywords || (useProfile ? '使用研究方向' : 0)} 搜索关键词`;
 }
 
 function renderCCFJournals() {
@@ -347,7 +350,7 @@ function closeSubscriptionModal() {
 function switchSubTab(tab, el) {
     document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
-    ['arxiv', 'journals', 'conferences', 'search', 'notify'].forEach(t => {
+    ['arxiv', 'journals', 'conferences', 'authors', 'search', 'notify'].forEach(t => {
         const tabEl = document.getElementById(`sub-tab-${t}`);
         if (tabEl) tabEl.style.display = t === tab ? 'block' : 'none';
     });
@@ -402,7 +405,115 @@ function importSubscriptions(file) {
     reader.readAsText(file);
 }
 
+// ── Author Subscriptions ────────────────────────────────────────
+
+async function searchAuthors(query) {
+    const resultsEl = document.getElementById('author-search-results');
+    if (!resultsEl || !query || query.length < 2) {
+        if (resultsEl) resultsEl.innerHTML = '';
+        return;
+    }
+    resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">搜索中...</div>';
+    try {
+        const resp = await fetch(`/api/author/search?query=${encodeURIComponent(query)}`);
+        if (!resp.ok) throw new Error('search failed');
+        const data = await resp.json();
+        const authors = data.authors || [];
+        if (!authors.length) {
+            resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">未找到匹配作者</div>';
+            return;
+        }
+        const subscribedIds = new Set((subscriptions.authors || []).map(a => a.authorId));
+        resultsEl.innerHTML = authors.map(a => {
+            const subbed = subscribedIds.has(a.authorId);
+            const aff = a.affiliations?.[0] || '';
+            return `<div class="author-search-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color)">
+                <div>
+                    <div style="font-size:0.88rem;font-weight:500">${a.name}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary)">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文</div>
+                </div>
+                <button class="follow-btn ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px">${subbed ? '✓ 已关注' : '+ 关注'}</button>
+            </div>`;
+        }).join('');
+    } catch (e) {
+        resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">搜索失败，请重试</div>';
+    }
+}
+
+function followAuthor(authorId, name, affiliation, paperCount) {
+    if (!subscriptions.authors) subscriptions.authors = [];
+    if (subscriptions.authors.some(a => a.authorId === authorId)) return;
+    subscriptions.authors.push({
+        name,
+        authorId,
+        affiliation: affiliation || '',
+        paperCount: paperCount || 0,
+        lastUpdated: null,
+    });
+    saveSubscriptions(subscriptions, 'author');
+    renderSubscribedAuthors();
+}
+
+function unfollowAuthor(authorId) {
+    subscriptions.authors = (subscriptions.authors || []).filter(a => a.authorId !== authorId);
+    saveSubscriptions(subscriptions, 'author');
+    renderSubscribedAuthors();
+}
+
+function renderSubscribedAuthors() {
+    const container = document.getElementById('subscribed-authors-list');
+    if (!container) return;
+    const authors = subscriptions.authors || [];
+    if (!authors.length) {
+        container.innerHTML = '<p class="empty-hint">暂无关注作者。在上方搜索添加。</p>';
+        return;
+    }
+    container.innerHTML = authors.map(a => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color)">
+            <div>
+                <div style="font-size:0.88rem;font-weight:500">${a.name}</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary)">${a.affiliation || ''}${a.affiliation ? ' · ' : ''}${a.paperCount || 0} 篇</div>
+            </div>
+            <button class="unfollow-btn" data-unfollow-author="${a.authorId}">取消关注</button>
+        </div>
+    `).join('');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('author-search-input');
+    const searchBtn = document.getElementById('btn-search-author');
+    let searchTimer = null;
+
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => searchAuthors(searchInput.value.trim()), 400);
+        });
+    }
+    if (searchBtn) {
+        searchBtn.addEventListener('click', () => searchAuthors(searchInput?.value?.trim()));
+    }
+
+    // Event delegation for author search results and subscribed list
+    const resultsEl = document.getElementById('author-search-results');
+    if (resultsEl) {
+        resultsEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-author-id]');
+            if (!btn) return;
+            followAuthor(btn.dataset.authorId, btn.dataset.authorName, btn.dataset.authorAff, parseInt(btn.dataset.authorPapers));
+            // Re-render search results to update button state
+            searchAuthors(searchInput?.value?.trim());
+        });
+    }
+
+    const subList = document.getElementById('subscribed-authors-list');
+    if (subList) {
+        subList.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-unfollow-author]');
+            if (btn) unfollowAuthor(btn.dataset.unfollowAuthor);
+        });
+    }
+
     document.getElementById('btn-export-subs')?.addEventListener('click', exportSubscriptions);
     document.getElementById('btn-import-subs')?.addEventListener('click', () => {
         document.getElementById('import-subs-file')?.click();

@@ -541,6 +541,15 @@ header h1 {
 .feedback-btn.voted[data-feedback-rating="useful"] { opacity: 1; filter: none; }
 .feedback-btn.voted[data-feedback-rating="not_useful"] { opacity: 1; filter: none; }
 
+.author-link {
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.author-link:hover {
+    color: var(--accent-color, #60a5fa);
+    text-decoration: underline;
+}
+
 .paper-card.is-read { opacity: 0.6; }
 .paper-card.is-read:hover { opacity: 1; }
 

@@ -18,6 +18,7 @@ from ai.digest import generate_digest
 from ai.enhance import enhance_single, build_chain, load_research_profile
 from ai.quick_filter import build_quick_filter, quick_filter_paper
 from crawler.arxiv_crawler import ArxivCrawler
+from crawler.author_crawler import AuthorCrawler
 from crawler.crossref_crawler import CrossrefCrawler
 from crawler.dblp_crawler import DblpCrawler
 from crawler.s2_crawler import S2Crawler
@@ -175,7 +176,8 @@ def put_subscriptions():
         journals_data = data.get("crossref", {}).get("journals", [])
         conferences_data = data.get("conferences", [])
         search_keywords = data.get("search", {}).get("keywords", [])
-        from crawler.subs_store import Journal, Conference
+        authors_data = data.get("authors", [])
+        from crawler.subs_store import Journal, Conference, Author
         journals = [
             Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
             for j in journals_data
@@ -184,14 +186,25 @@ def put_subscriptions():
             Conference(venue=c["venue"], last_updated=c.get("lastUpdated"))
             for c in conferences_data
         ]
+        authors = [
+            Author(
+                name=a["name"],
+                author_id=a.get("authorId", a.get("author_id", "")),
+                affiliation=a.get("affiliation", ""),
+                paper_count=a.get("paperCount", a.get("paper_count", 0)),
+                last_updated=a.get("lastUpdated"),
+            )
+            for a in authors_data
+        ]
         subs = Subscriptions(
             arxiv_categories=cats,
             crossref_journals=journals,
             conferences=conferences,
             search_keywords=search_keywords,
+            authors=authors,
         )
         _save_subs(subs)
-        logger.info(f"Subscriptions updated: {len(cats)} cats, {len(journals)} journals, {len(conferences)} conferences")
+        logger.info(f"Subscriptions updated: {len(cats)} cats, {len(journals)} journals, {len(conferences)} conferences, {len(authors)} authors")
         return jsonify(subs.to_dict())
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -222,13 +235,14 @@ def put_profile():
 
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
-    if job not in ("arxiv", "crossref", "dblp", "s2"):
+    if job not in ("arxiv", "crossref", "dblp", "s2", "author"):
         return jsonify({"error": "unknown job"}), 400
     job_funcs = {
         "arxiv": run_arxiv_job,
         "crossref": run_crossref_job,
         "dblp": run_dblp_job,
         "s2": run_s2_job,
+        "author": run_author_job,
     }
     threading.Thread(target=job_funcs[job], daemon=True).start()
     logger.info(f"Manually triggered {job} job")
@@ -338,6 +352,16 @@ def get_feedback():
         with open(FEEDBACK_FILE, "r") as f:
             return jsonify(json.load(f))
     return jsonify({})
+
+
+@app.route("/api/author/search", methods=["GET"])
+def search_author_api():
+    query = request.args.get("query", "").strip()
+    if not query or len(query) < 2:
+        return jsonify({"authors": []})
+    from crawler.author_crawler import search_authors
+    results = search_authors(query, limit=10)
+    return jsonify({"authors": results})
 
 
 def _bibtex_for(paper: dict) -> str:
@@ -654,6 +678,41 @@ def run_s2_job():
         _set_job_status("s2", "error", str(e))
 
 
+def run_author_job():
+    _set_job_status("author", "running")
+    logger.info("Starting author crawl job")
+    try:
+        subs = _load_subs()
+        if not subs.authors:
+            logger.info("No subscribed authors, skipping")
+            _set_job_status("author", "skipped", "no authors")
+            return
+        author_dicts = [
+            {
+                "authorId": a.author_id,
+                "name": a.name,
+            }
+            for a in subs.authors
+        ]
+        crawler = AuthorCrawler(authors=author_dicts, papers_per_author=50)
+        fetched, written = 0, 0
+        for paper in crawler.crawl_iter():
+            fetched += 1
+            if _append_paper(paper, enhance=True):
+                written += 1
+            if fetched % 20 == 0:
+                logger.info(f"Author crawl progress: {fetched} fetched, {written} written")
+        now = datetime.now(timezone.utc).isoformat()
+        for a in subs.authors:
+            a.last_updated = now
+        _save_subs(subs)
+        logger.info(f"Author job done: {fetched} fetched, {written} new written")
+        _set_job_status("author", "done", f"{fetched} fetched, {written} written")
+    except Exception as e:
+        logger.error(f"Author job failed: {e}", exc_info=True)
+        _set_job_status("author", "error", str(e))
+
+
 def run_retro_enhance():
     logger.info("Starting retro-enhance for papers without AI data")
     try:
@@ -741,6 +800,7 @@ class Scheduler:
         self._run_and_reschedule("crossref", interval_hours=24)
         self._run_and_reschedule("dblp", interval_hours=24)
         self._run_and_reschedule("s2", interval_hours=24)
+        self._run_and_reschedule("author", interval_hours=24)
 
     def stop(self):
         self._running = False
@@ -760,6 +820,8 @@ class Scheduler:
                 run_dblp_job()
             elif job_name == "s2":
                 run_s2_job()
+            elif job_name == "author":
+                run_author_job()
         except Exception as e:
             logger.error(f"Scheduled {job_name} job error: {e}")
 
