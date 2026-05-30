@@ -56,6 +56,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('search-input').addEventListener('input', handleSearch);
     document.getElementById('date-filter').addEventListener('change', handleDateFilter);
     document.getElementById('sort-btn').addEventListener('click', toggleSort);
+    document.getElementById('panel-sort')?.addEventListener('click', (e) => {
+        const opt = e.target.closest('[data-sort]');
+        if (!opt) return;
+        sortOrder = opt.dataset.sort;
+        // Update button label
+        const btn = document.getElementById('sort-btn');
+        btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
+        // Highlight active
+        document.querySelectorAll('#panel-sort .filter-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        closeAllDropdowns();
+        renderPapers();
+    });
     document.getElementById('btn-profile').addEventListener('click', openProfileModal);
     document.getElementById('btn-theme').addEventListener('click', toggleTheme);
     document.getElementById('btn-subs').addEventListener('click', openSubscriptionModal);
@@ -311,11 +324,16 @@ function handleDateFilter() {
 }
 
 function toggleSort() {
-    const modes = ['desc', 'asc', 'relevance', 'quality', 'citations'];
-    const labels = ['↓ 新→旧', '↑ 旧→新', '★ 相关性', '✦ 质量', '✱ 引用'];
+    const modes = ['desc', 'asc', 'relevance', 'quality', 'citations', 'rec', 'source'];
     const idx = (modes.indexOf(sortOrder) + 1) % modes.length;
     sortOrder = modes[idx];
-    document.getElementById('sort-btn').textContent = labels[idx];
+    const opt = document.querySelector(`[data-sort="${sortOrder}"]`);
+    if (opt) {
+        const btn = document.getElementById('sort-btn');
+        btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
+        document.querySelectorAll('#panel-sort .filter-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+    }
     renderPapers();
 }
 
@@ -412,6 +430,23 @@ function renderPapers() {
         }
         if (sortOrder === 'citations') {
             return (b.citation_count || 0) - (a.citation_count || 0);
+        }
+        if (sortOrder === 'rec') {
+            const ra = (b.AI || {}).recommendation === 'must_read' ? 3 :
+                       (b.AI || {}).recommendation === 'recommended' ? 2 :
+                       (b.AI || {}).recommendation === 'worth_reading' ? 1 : 0;
+            const la = (a.AI || {}).recommendation === 'must_read' ? 3 :
+                       (a.AI || {}).recommendation === 'recommended' ? 2 :
+                       (a.AI || {}).recommendation === 'worth_reading' ? 1 : 0;
+            if (ra !== la) return ra - la;
+            return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
+        }
+        if (sortOrder === 'source') {
+            const sa = (a.source || '').localeCompare(b.source || '');
+            if (sa !== 0) return sa;
+            const da = a.published_date || '';
+            const db = b.published_date || '';
+            return db.localeCompare(da);
         }
         const da = a.published_date || '';
         const db = b.published_date || '';

@@ -15,7 +15,18 @@
         <div class="header-right">
             <input id="search-input" type="text" placeholder="搜索... 支持 title: abstract: author:" class="search-bar">
             <input id="date-filter" type="date" class="date-filter" title="按日期筛选">
-            <button id="sort-btn" class="sort-btn" title="按日期排序">↓ 新→旧</button>
+            <div class="filter-dropdown" id="dd-sort">
+                <button class="sort-btn" data-dropdown="sort" title="排序方式">↓ 新→旧 <span class="arrow">▼</span></button>
+                <div class="filter-dropdown-panel" id="panel-sort" style="min-width:140px;right:0;left:auto">
+                    <div class="filter-option active" data-sort="desc">↓ 日期：新→旧</div>
+                    <div class="filter-option" data-sort="asc">↑ 日期：旧→新</div>
+                    <div class="filter-option" data-sort="relevance">★ 相关性</div>
+                    <div class="filter-option" data-sort="quality">✦ AI 质量评分</div>
+                    <div class="filter-option" data-sort="citations">✱ 引用数</div>
+                    <div class="filter-option" data-sort="rec">✓ AI 推荐优先</div>
+                    <div class="filter-option" data-sort="source">◉ 按来源分组</div>
+                </div>
+            </div>
             <span id="paper-count" class="paper-count"></span>
             <div class="filter-dropdown" id="dd-crawl">
                 <button class="gear-btn" data-dropdown="crawl" title="手动爬取">🔄</button>
