@@ -73,7 +73,7 @@ export function renderPapers() {
                 <div class="paper-title">${title}</div>
                 ${cardTldr}
                 <div class="paper-authors">${authors}</div>
-                <div class="paper-summary">${summary.substring(0, 200)}...</div>
+                <div class="paper-summary">${summary}</div>
                 ${scoreBar}
                 <div class="paper-meta">
                     <span>${paper.published_date || ''}</span>
