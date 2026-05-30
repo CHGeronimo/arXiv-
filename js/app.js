@@ -1,9 +1,13 @@
 // js/app.js — entry point
 
-import { setAllPapers, setRefreshTimer, refreshTimer, toggleBookmark, showToast } from './state.js';
+import {
+    setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
+    refreshTimer, toggleBookmark, showToast,
+    filteredPapers, currentPage,
+} from './state.js';
 import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex } from './api.js';
-import { buildFilterOptions, toggleFilter, toggleDropdown, updateFilterBadges, clearAllFilters, closeAllDropdowns } from './filters.js';
-import { renderPapers, changePage, updatePaperCount } from './render.js';
+import { buildFilterOptions, toggleFilter, toggleDropdown, clearAllFilters, closeAllDropdowns } from './filters.js';
+import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
 
 // Theme
@@ -63,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('panel-sort')?.addEventListener('click', (e) => {
         const opt = e.target.closest('[data-sort]');
         if (!opt) return;
-        const { setSortOrder } = await import('./state.js'); // avoid top-level circular
         setSortOrder(opt.dataset.sort);
         const btn = document.querySelector('#dd-sort .sort-btn');
         btn.innerHTML = opt.textContent.trim() + ' <span class="arrow">▼</span>';
@@ -72,9 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
         closeAllDropdowns();
         renderPapers();
     });
+
     document.getElementById('btn-profile').addEventListener('click', openProfileModal);
     document.getElementById('btn-theme').addEventListener('click', toggleTheme);
-    document.getElementById('btn-subs').addEventListener('click', openSubscriptionModal);
+    document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
     document.getElementById('btn-clear-filters').addEventListener('click', () => { clearAllFilters(); renderPapers(); });
     document.getElementById('search-input').addEventListener('input', () => renderPapers());
     document.getElementById('date-filter').addEventListener('change', () => renderPapers());
@@ -107,16 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('profile-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeProfileModal(); });
     document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
 
-    // Subscription modal
-    document.getElementById('close-subs-modal').addEventListener('click', closeSubscriptionModal);
-    document.getElementById('subscription-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSubscriptionModal(); });
-    document.getElementById('btn-save-keywords').addEventListener('click', () => saveSearchKeywords());
+    // Subscription modal (functions from subscriptions.js — global scope)
+    document.getElementById('close-subs-modal').addEventListener('click', () => window.closeSubscriptionModal());
+    document.getElementById('subscription-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) window.closeSubscriptionModal(); });
+    document.getElementById('btn-save-keywords').addEventListener('click', () => window.saveSearchKeywords?.());
     document.getElementById('sub-tabs-container').addEventListener('click', (e) => {
         const tab = e.target.closest('[data-tab]');
-        if (tab) switchSubTab(tab.dataset.tab, tab);
+        if (tab) window.switchSubTab(tab.dataset.tab, tab);
     });
-    document.getElementById('journal-search-input')?.addEventListener('input', handleJournalSearch);
-    document.getElementById('use-profile-keywords')?.addEventListener('change', toggleCustomKeywords);
+    document.getElementById('journal-search-input')?.addEventListener('input', (e) => window.handleJournalSearch?.());
+    document.getElementById('use-profile-keywords')?.addEventListener('change', () => window.toggleCustomKeywords?.());
 
     // Paper container delegation
     document.getElementById('paper-container').addEventListener('click', async (e) => {
@@ -142,24 +146,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = e.target.closest('.paper-card[data-idx]');
         if (card) {
             const idx = parseInt(card.dataset.idx);
-            const { filteredPapers } = await import('./state.js');
-            if (filteredPapers[idx]) openPaperDetail(filteredPapers[idx]);
+            // Live import to get current filteredPapers
+            const { filteredPapers: fp } = await import('./state.js');
+            if (fp[idx]) openPaperDetail(fp[idx]);
         }
     });
 
     // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', async (e) => {
         const active = document.activeElement;
         const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-        if (e.key === 'Escape') { closePaperModal(); closeSubscriptionModal(); closeProfileModal(); closeAllDropdowns(); return; }
+        if (e.key === 'Escape') { closePaperModal(); window.closeSubscriptionModal?.(); closeProfileModal(); closeAllDropdowns(); return; }
         if (typing) return;
         if (e.key === 'j') changePage(1);
         else if (e.key === 'k') changePage(-1);
         else if (e.key === 'f') {
-            import('./state.js').then(({ filteredPapers, currentPage, toggleBookmark }) => {
-                const first = filteredPapers[currentPage - 1];
-                if (first) { toggleBookmark(first.id); renderPapers(); }
-            });
+            const { filteredPapers: fp, currentPage: cp, toggleBookmark: tb } = await import('./state.js');
+            const first = fp[cp - 1];
+            if (first) { tb(first.id); renderPapers(); }
         }
         else if (e.key === '/') { e.preventDefault(); document.getElementById('search-input').focus(); }
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
