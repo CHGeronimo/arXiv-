@@ -278,6 +278,16 @@ function renderPapers() {
             ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>'
             : '';
         const aiBadge = hasAi ? '<span class="ai-badge">AI</span>' : '';
+        const rec = ai.recommendation || '';
+        const recBadge = rec ? `<span class="rec-badge ${rec}">${rec}</span>` : '';
+        const qScore = ai.quality_score || 0;
+        const rScore = ai.relevance_score || 0;
+        const scoreBar = (qScore || rScore) ? `
+            <div class="score-bar">
+                <span class="score-item">Q<span class="score-fill" style="width:${qScore*8}px;background:#3b82f6"></span>${qScore}</span>
+                <span class="score-item">R<span class="score-fill" style="width:${rScore*8}px;background:#22c55e"></span>${rScore}</span>
+            </div>` : '';
+        const cardTldr = ai.tldr ? `<div class="card-tldr">${ai.tldr}</div>` : '';
 
         const categories = (paper.categories || []).map(c =>
             `<span class="paper-cat">${c}</span>`
@@ -288,20 +298,20 @@ function renderPapers() {
 
         const summary = ai.summary_zh || paper.summary_zh || paper.summary || '';
         const title = ai.title_zh || paper.title_zh || paper.title || '';
-        const tldr = (ai.tldr || paper.tldr) ? `<div class="paper-tldr">${ai.tldr || paper.tldr}</div>` : '';
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
 
         const idx = start + i;
         return `
-            <div class="paper-card" data-idx="${idx}">
+            <div class="paper-card" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
-                    ${sourceBadge}${aiBadge}${typeTag}
+                    ${sourceBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                 </div>
                 <div class="paper-title">${title}</div>
+                ${cardTldr}
                 <div class="paper-authors">${authors}</div>
                 <div class="paper-summary">${summary.substring(0, 200)}...</div>
-                ${tldr}
+                ${scoreBar}
                 <div class="paper-meta">
                     <span>${paper.published_date || ''}</span>
                     <span>${paper.publisher || ''}</span>
