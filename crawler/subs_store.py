@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-__all__ = ["Journal", "Subscriptions"]
+__all__ = ["Conference", "Journal", "Subscriptions"]
 
 
 @dataclass
@@ -16,9 +16,17 @@ class Journal:
 
 
 @dataclass
+class Conference:
+    venue: str
+    last_updated: Optional[str] = None
+
+
+@dataclass
 class Subscriptions:
     arxiv_categories: List[str] = field(default_factory=lambda: ["cs.CV", "cs.CL"])
     crossref_journals: List[Journal] = field(default_factory=list)
+    conferences: List[Conference] = field(default_factory=list)
+    search_keywords: List[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: str = "subscriptions.json") -> Subscriptions:
@@ -31,7 +39,17 @@ class Subscriptions:
             Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
             for j in data.get("crossref", {}).get("journals", [])
         ]
-        return cls(arxiv_categories=cats, crossref_journals=journals)
+        conferences = [
+            Conference(venue=c["venue"], last_updated=c.get("lastUpdated"))
+            for c in data.get("conferences", [])
+        ]
+        keywords = data.get("search", {}).get("keywords", [])
+        return cls(
+            arxiv_categories=cats,
+            crossref_journals=journals,
+            conferences=conferences,
+            search_keywords=keywords,
+        )
 
     def save(self, path: str = "subscriptions.json") -> None:
         data = {
@@ -46,6 +64,11 @@ class Subscriptions:
                     for j in self.crossref_journals
                 ]
             },
+            "conferences": [
+                {"venue": c.venue, "lastUpdated": c.last_updated}
+                for c in self.conferences
+            ],
+            "search": {"keywords": self.search_keywords},
         }
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -59,4 +82,9 @@ class Subscriptions:
                     for j in self.crossref_journals
                 ]
             },
+            "conferences": [
+                {"venue": c.venue, "lastUpdated": c.last_updated}
+                for c in self.conferences
+            ],
+            "search": {"keywords": self.search_keywords},
         }

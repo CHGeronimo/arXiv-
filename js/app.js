@@ -2,9 +2,10 @@
 let allPapers = [];
 let filteredPapers = [];
 let activeFilters = {
-    source: new Set(),    // 'arxiv', 'crossref'
+    source: new Set(),    // 'arxiv', 'crossref', 'dblp', 'semantic_scholar'
     journal: new Set(),   // journal names
     category: new Set(),  // arXiv categories
+    venue: new Set(),     // conference venues
     type: new Set(),      // 'research', 'news'
 };
 let searchQuery = '';
@@ -97,9 +98,19 @@ function buildFilterOptions() {
     renderFilterDropdown('source', [
         { value: 'arxiv', label: 'arXiv' },
         { value: 'crossref', label: '期刊' },
+        { value: 'dblp', label: 'DBLP 会议' },
+        { value: 'semantic_scholar', label: 'S2 搜索' },
     ]);
     renderFilterDropdown('journal',
         Object.entries(journals).sort((a,b) => b[1]-a[1]).map(([j, c]) => ({ value: j, label: j, count: c }))
+    );
+    const venues = {};
+    for (const p of allPapers) {
+        if (p.venue) venues[p.venue] = (venues[p.venue] || 0) + 1;
+    }
+    _filterCounts.venues = venues;
+    renderFilterDropdown('venue',
+        Object.entries(venues).sort((a,b) => b[1]-a[1]).map(([v, c]) => ({ value: v, label: v, count: c }))
     );
     renderFilterDropdown('category',
         Object.entries(categories).sort((a,b) => b[1]-a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
@@ -222,6 +233,12 @@ function renderPapers() {
         filteredPapers = filteredPapers.filter(p => jSet.has(p.journal_title));
     }
 
+    // Venue filter
+    const venueSet = activeFilters.venue;
+    if (venueSet.size > 0) {
+        filteredPapers = filteredPapers.filter(p => venueSet.has(p.venue));
+    }
+
     // Category filter
     const catSet = activeFilters.category;
     if (catSet.size > 0) {
@@ -284,7 +301,14 @@ function renderPapers() {
         const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
             ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
+            : paper.source === 'dblp'
+            ? `<span class="source-badge dblp">DBLP</span>`
+            : paper.source === 'semantic_scholar'
+            ? `<span class="source-badge s2">S2</span>`
             : `<span class="source-badge arxiv">arXiv</span>`;
+        const venueBadge = paper.venue ? `<span class="venue-badge">${paper.venue}</span>` : '';
+        const accBadge = paper.acceptance ? `<span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
+        const citeBadge = paper.citation_count ? `<span class="cite-badge">&#9733; ${paper.citation_count}</span>` : '';
         const articleType = paper.article_type || _inferType(paper);
         const typeTag = articleType === 'news'
             ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>'
@@ -316,7 +340,7 @@ function renderPapers() {
         return `
             <div class="paper-card" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
-                    ${sourceBadge}${aiBadge}${recBadge}${typeTag}
+                    ${sourceBadge}${venueBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                 </div>
                 <div class="paper-title">${title}</div>
@@ -326,7 +350,7 @@ function renderPapers() {
                 ${scoreBar}
                 <div class="paper-meta">
                     <span>${paper.published_date || ''}</span>
-                    <span>${paper.publisher || ''}</span>
+                    <span>${citeBadge || (paper.publisher || '')}</span>
                 </div>
             </div>
         `;
@@ -353,36 +377,71 @@ function openPaperDetail(paper) {
     const modal = document.getElementById('paper-modal');
     const detail = document.getElementById('paper-detail');
 
-    const title = paper.title_zh || paper.title;
-    const origTitle = (paper.title_zh && paper.title) ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px">${paper.title}</div>` : '';
+    const aiTitle = (paper.AI || {}).title_zh || '';
+    const titleZh = aiTitle || paper.title_zh || '';
+    const titleEn = paper.title || '';
+    const title = titleZh || titleEn;
+    const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
     const sourceBadge = paper.source === 'crossref'
         ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
+        : paper.source === 'dblp'
+        ? `<span class="source-badge dblp">DBLP</span>`
+        : paper.source === 'semantic_scholar'
+        ? `<span class="source-badge s2">S2</span>`
         : `<span class="source-badge arxiv">arXiv</span>`;
+    const venueInfo = paper.venue ? ` <span class="venue-badge">${paper.venue}</span>` : '';
+    const accInfo = paper.acceptance ? ` <span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
+    const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary)">&#9733; ${paper.citation_count} citations</div>` : '';
 
     const aiFields = paper.AI || {};
     const sections = [];
-    if (aiFields.tldr) sections.push(`<h3>TL;DR</h3><p>${aiFields.tldr}</p>`);
-    if (aiFields.motivation) sections.push(`<h3>Motivation</h3><p>${aiFields.motivation}</p>`);
-    if (aiFields.method) sections.push(`<h3>Method</h3><p>${aiFields.method}</p>`);
-    if (aiFields.result) sections.push(`<h3>Result</h3><p>${aiFields.result}</p>`);
-    if (aiFields.conclusion) sections.push(`<h3>Conclusion</h3><p>${aiFields.conclusion}</p>`);
 
-    if (!sections.length) {
-        if (paper.tldr) sections.push(`<h3>TL;DR</h3><p>${paper.tldr}</p>`);
-        if (paper.motivation) sections.push(`<h3>Motivation</h3><p>${paper.motivation}</p>`);
-        if (paper.method) sections.push(`<h3>Method</h3><p>${paper.method}</p>`);
-        if (paper.result) sections.push(`<h3>Result</h3><p>${paper.result}</p>`);
-        if (paper.conclusion) sections.push(`<h3>Conclusion</h3><p>${paper.conclusion}</p>`);
+    // AI analysis: merge into one cohesive block
+    const aiParts = [];
+    if (aiFields.tldr) aiParts.push(`<b>TL;DR</b> ${aiFields.tldr}`);
+    if (aiFields.motivation) aiParts.push(`<b>Motivation</b> ${aiFields.motivation}`);
+    if (aiFields.method) aiParts.push(`<b>Method</b> ${aiFields.method}`);
+    if (aiFields.result) aiParts.push(`<b>Result</b> ${aiFields.result}`);
+    if (aiFields.conclusion) aiParts.push(`<b>Conclusion</b> ${aiFields.conclusion}`);
+    if (aiParts.length) {
+        sections.push(`<h3>AI 解读</h3><p>${aiParts.join('<br><br>')}</p>`);
     }
 
-    const abstract = paper.summary_zh || aiFields.summary_zh || paper.summary || '';
-    if (abstract && !sections.length) sections.push(`<h3>Abstract</h3><p>${abstract}</p>`);
+    // Fallback to non-AI structured fields
+    if (!aiParts.length) {
+        const fallbackParts = [];
+        if (paper.tldr) fallbackParts.push(`<b>TL;DR</b> ${paper.tldr}`);
+        if (paper.motivation) fallbackParts.push(`<b>Motivation</b> ${paper.motivation}`);
+        if (paper.method) fallbackParts.push(`<b>Method</b> ${paper.method}`);
+        if (paper.result) fallbackParts.push(`<b>Result</b> ${paper.result}`);
+        if (paper.conclusion) fallbackParts.push(`<b>Conclusion</b> ${paper.conclusion}`);
+        if (fallbackParts.length) {
+            sections.push(`<h3>解读</h3><p>${fallbackParts.join('<br><br>')}</p>`);
+        }
+    }
+
+    // Show Chinese summary if available
+    const summaryZh = aiFields.summary_zh || paper.summary_zh || '';
+    if (summaryZh) {
+        sections.push(`<h3>中文摘要</h3><p>${summaryZh}</p>`);
+    }
+
+    // Always show original abstract
+    const abstractEn = paper.summary || '';
+    if (abstractEn) {
+        sections.push(`<h3>Abstract</h3><p>${abstractEn}</p>`);
+    }
+
+    // Final fallback
+    if (!sections.length) {
+        sections.push(`<p style="color:var(--text-secondary)">暂无摘要</p>`);
+    }
 
     const codeUrl = paper.code_url || '';
     const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
 
     detail.innerHTML = `
-        <div class="paper-header">${sourceBadge}
+        <div class="paper-header">${sourceBadge}${venueInfo}${accInfo}
             <span class="paper-cat">${paper.published_date || ''}</span>
         </div>
         <h2 style="margin:12px 0">${title}</h2>
@@ -390,7 +449,8 @@ function openPaperDetail(paper) {
         <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
             ${(paper.authors || []).join(', ')}
         </p>
-        ${sections.join('<hr style="border-color:var(--border-color);margin:12px 0">')}
+        ${citeInfo}
+        ${sections.join('')}
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
             ${paper.url ? `<a href="${paper.url}" target="_blank" class="follow-btn">论文链接</a>` : ''}
             ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="follow-btn">PDF</a>` : ''}

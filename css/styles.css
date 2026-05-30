@@ -92,6 +92,35 @@ header h1 {
 }
 .source-badge.arxiv { background: var(--source-arxiv); color: #fff; }
 .source-badge.crossref { background: var(--source-crossref); color: #fff; }
+.source-badge.dblp { background: #0891b2; color: #fff; }
+.source-badge.s2 { background: #059669; color: #fff; }
+
+.venue-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(8, 145, 178, 0.15);
+    color: #0891b2;
+}
+
+.acc-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.acc-badge.oral { background: rgba(34,197,94,0.2); color: #22c55e; }
+.acc-badge.spotlight { background: rgba(234,179,8,0.2); color: #eab308; }
+.acc-badge.poster { background: rgba(107,114,128,0.2); color: #9ca3af; }
+
+.cite-badge {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
 
 .paper-categories {
     display: flex;

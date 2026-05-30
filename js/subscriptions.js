@@ -1,5 +1,5 @@
 // js/subscriptions.js
-let subscriptions = { arxiv: { categories: [] }, crossref: { journals: [] } };
+let subscriptions = { arxiv: { categories: [] }, crossref: { journals: [] }, conferences: [], search: { keywords: [], useProfile: true } };
 
 const ARXIV_CATEGORIES = [
     "cs.AI", "cs.CL", "cs.CV", "cs.LG", "cs.RO", "cs.NE", "cs.MM",
@@ -8,6 +8,17 @@ const ARXIV_CATEGORIES = [
     "math.OC", "math.ST", "stat.ML", "stat.AP",
     "physics.optics", "physics.app-ph", "physics.med-ph",
     "q-bio.NC", "q-bio.QM",
+];
+
+const CONFERENCES = [
+    { venue: "CVPR", label: "CVPR", group: "CV" },
+    { venue: "ICCV", label: "ICCV", group: "CV" },
+    { venue: "ECCV", label: "ECCV", group: "CV" },
+    { venue: "NeurIPS", label: "NeurIPS", group: "ML" },
+    { venue: "ICML", label: "ICML", group: "ML" },
+    { venue: "ICLR", label: "ICLR", group: "ML" },
+    { venue: "ACL", label: "ACL", group: "NLP" },
+    { venue: "EMNLP", label: "EMNLP", group: "NLP" },
 ];
 
 async function loadSubscriptions() {
@@ -21,6 +32,8 @@ async function loadSubscriptions() {
         const saved = localStorage.getItem('subscriptions');
         if (saved) subscriptions = JSON.parse(saved);
     }
+    if (!subscriptions.conferences) subscriptions.conferences = [];
+    if (!subscriptions.search) subscriptions.search = { keywords: [], useProfile: true };
     renderSubscriptionUI();
     return subscriptions;
 }
@@ -44,29 +57,42 @@ async function saveSubscriptions(newSubs) {
 }
 
 function renderSubscriptionUI() {
-    renderArxivCategories();
     renderCrossrefJournals();
+    renderConferenceChips();
 }
 
-function renderArxivCategories() {
-    const container = document.getElementById('arxiv-categories-chips');
+function renderConferenceChips() {
+    const container = document.getElementById('conference-chips');
     if (!container) return;
-    const selected = new Set(subscriptions.arxiv.categories);
-    container.innerHTML = ARXIV_CATEGORIES.map(cat => `
-        <label class="sub-chip ${selected.has(cat) ? 'selected' : ''}" data-cat="${cat}">
-            <input type="checkbox" ${selected.has(cat) ? 'checked' : ''}
-                   onchange="toggleArxivCategory('${cat}', this.checked)">
-            ${cat}
-        </label>
-    `).join('');
+    const selected = new Set((subscriptions.conferences || []).map(c => c.venue));
+    let html = '';
+    let currentGroup = '';
+    for (const conf of CONFERENCES) {
+        if (conf.group !== currentGroup) {
+            if (currentGroup) html += '<div style="height:8px"></div>';
+            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px">${conf.group}</div>`;
+            currentGroup = conf.group;
+        }
+        const sel = selected.has(conf.venue);
+        html += `<label class="sub-chip ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px">
+            <input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleConference('${conf.venue}', this.checked)">
+            ${conf.label}
+        </label>`;
+    }
+    container.innerHTML = html;
 }
 
-function toggleArxivCategory(cat, checked) {
-    const cats = new Set(subscriptions.arxiv.categories);
-    if (checked) cats.add(cat); else cats.delete(cat);
-    subscriptions.arxiv.categories = [...cats].sort();
+function toggleConference(venue, checked) {
+    if (!subscriptions.conferences) subscriptions.conferences = [];
+    if (checked) {
+        if (!subscriptions.conferences.some(c => c.venue === venue)) {
+            subscriptions.conferences.push({ venue, lastUpdated: null });
+        }
+    } else {
+        subscriptions.conferences = subscriptions.conferences.filter(c => c.venue !== venue);
+    }
     saveSubscriptions(subscriptions);
-    renderArxivCategories();
+    renderConferenceChips();
 }
 
 function renderCrossrefJournals() {
@@ -105,6 +131,26 @@ function closeSubscriptionModal() {
 function switchSubTab(tab, el) {
     document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
-    document.getElementById('sub-tab-arxiv').style.display = tab === 'arxiv' ? 'block' : 'none';
-    document.getElementById('sub-tab-crossref').style.display = tab === 'crossref' ? 'block' : 'none';
+    ['journals', 'conferences', 'search'].forEach(t => {
+        const tabEl = document.getElementById(`sub-tab-${t}`);
+        if (tabEl) tabEl.style.display = t === tab ? 'block' : 'none';
+    });
+}
+
+function toggleCustomKeywords() {
+    const useProfile = document.getElementById('use-profile-keywords').checked;
+    document.getElementById('custom-keywords').style.display = useProfile ? 'none' : 'block';
+}
+
+async function saveSearchKeywords() {
+    const useProfile = document.getElementById('use-profile-keywords').checked;
+    if (useProfile) {
+        subscriptions.search = { keywords: [], useProfile: true };
+    } else {
+        const text = document.getElementById('custom-keywords').value;
+        const keywords = text.split('\n').map(k => k.trim()).filter(k => k);
+        subscriptions.search = { keywords, useProfile: false };
+    }
+    await saveSubscriptions(subscriptions);
+    fetch('/api/trigger/s2', { method: 'POST' }).catch(() => {});
 }

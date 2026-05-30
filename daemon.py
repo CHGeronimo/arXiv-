@@ -17,6 +17,8 @@ from ai.digest import generate_digest
 from ai.enhance import enhance_single, build_chain, load_research_profile
 from crawler.arxiv_crawler import ArxivCrawler
 from crawler.crossref_crawler import CrossrefCrawler
+from crawler.dblp_crawler import DblpCrawler
+from crawler.s2_crawler import S2Crawler
 from crawler.models import Paper
 from crawler.subs_store import Subscriptions
 
@@ -163,12 +165,15 @@ def put_profile():
 
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
-    if job not in ("arxiv", "crossref"):
+    if job not in ("arxiv", "crossref", "dblp", "s2"):
         return jsonify({"error": "unknown job"}), 400
-    threading.Thread(
-        target=run_arxiv_job if job == "arxiv" else run_crossref_job,
-        daemon=True,
-    ).start()
+    job_funcs = {
+        "arxiv": run_arxiv_job,
+        "crossref": run_crossref_job,
+        "dblp": run_dblp_job,
+        "s2": run_s2_job,
+    }
+    threading.Thread(target=job_funcs[job], daemon=True).start()
     logger.info(f"Manually triggered {job} job")
     return jsonify({"status": "triggered", "job": job})
 
@@ -343,6 +348,58 @@ def run_crossref_job():
         logger.error(f"Crossref job failed: {e}", exc_info=True)
 
 
+def run_dblp_job():
+    logger.info("Starting DBLP crawl job")
+    try:
+        subs = _load_subs()
+        if not subs.conferences:
+            logger.info("No conferences subscribed, skipping DBLP")
+            return
+        crawler = DblpCrawler(conferences=subs.conferences)
+        fetched, written = 0, 0
+        fetched_venues: set[str] = set()
+        for paper in crawler.crawl_iter():
+            fetched += 1
+            fetched_venues.add(paper.venue)
+            if _append_paper(paper, enhance=True):
+                written += 1
+            if fetched % 20 == 0:
+                logger.info(f"DBLP progress: {fetched} fetched, {written} written")
+        if fetched_venues:
+            now = datetime.now(timezone.utc).isoformat()
+            for c in subs.conferences:
+                if any(c.venue in v for v in fetched_venues):
+                    c.last_updated = now
+            _save_subs(subs)
+        logger.info(f"DBLP job done: {fetched} fetched, {written} new written")
+    except Exception as e:
+        logger.error(f"DBLP job failed: {e}", exc_info=True)
+
+
+def run_s2_job():
+    logger.info("Starting S2 search job")
+    try:
+        subs = _load_subs()
+        keywords = subs.search_keywords
+        if not keywords:
+            profile = load_research_profile()
+            keywords = profile.get("keywords", [])
+        if not keywords:
+            logger.info("No search keywords, skipping S2")
+            return
+        crawler = S2Crawler(keywords=keywords, max_per_keyword=20)
+        fetched, written = 0, 0
+        for paper in crawler.crawl_iter():
+            fetched += 1
+            if _append_paper(paper, enhance=True):
+                written += 1
+            if fetched % 20 == 0:
+                logger.info(f"S2 progress: {fetched} fetched, {written} written")
+        logger.info(f"S2 job done: {fetched} fetched, {written} new written")
+    except Exception as e:
+        logger.error(f"S2 search job failed: {e}", exc_info=True)
+
+
 def run_enhance_job():
     logger.info("Starting AI enhance job")
     try:
@@ -391,6 +448,8 @@ class Scheduler:
         self._running = True
         self._run_and_reschedule("arxiv", interval_hours=3)
         self._run_and_reschedule("crossref", interval_hours=24)
+        self._run_and_reschedule("dblp", interval_hours=24)
+        self._run_and_reschedule("s2", interval_hours=24)
 
     def stop(self):
         self._running = False
@@ -406,6 +465,10 @@ class Scheduler:
                 run_arxiv_job()
             elif job_name == "crossref":
                 run_crossref_job()
+            elif job_name == "dblp":
+                run_dblp_job()
+            elif job_name == "s2":
+                run_s2_job()
         except Exception as e:
             logger.error(f"Scheduled {job_name} job error: {e}")
 
@@ -461,7 +524,7 @@ def main():
 
     sched_thread = threading.Thread(target=sched.start, daemon=True)
     sched_thread.start()
-    logger.info("Scheduler started: arXiv every 3h, Crossref every 24h")
+    logger.info("Scheduler started: arXiv every 3h, Crossref/DBLP/S2 every 24h")
 
     logger.info(f"Starting server on port {args.port}")
     app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
