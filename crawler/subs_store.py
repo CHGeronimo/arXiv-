@@ -5,6 +5,8 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+__all__ = ["Journal", "Subscriptions"]
+
 
 @dataclass
 class Journal:

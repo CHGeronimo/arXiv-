@@ -13,7 +13,9 @@ async function searchJournals(query) {
         return (data.message?.items || []).map(item => ({
             title: item.title || 'Unknown',
             issn: (item.ISSN || [])[0] || '',
+            all_issn: (item.ISSN || []).join(', '),
             publisher: item.publisher || '',
+            subjects: (item.subjects || []).map(s => s.name).join(', '),
         }));
     } catch (e) {
         console.error('Journal search failed:', e);
@@ -48,8 +50,8 @@ function handleJournalSearch() {
                 <div class="journal-item">
                     <div>
                         <span class="journal-name">${j.title}</span>
-                        <span class="journal-issn">${j.issn}</span>
-                        <div style="font-size:0.75rem;color:var(--text-secondary)">${j.publisher}</div>
+                        <span class="journal-issn">${j.all_issn || j.issn}</span>
+                        <div style="font-size:0.75rem;color:var(--text-secondary)">${j.publisher}${j.subjects ? ' · ' + j.subjects : ''}</div>
                     </div>
                     <button class="${followed ? 'unfollow-btn' : 'follow-btn'}"
                             onclick="${followed

@@ -29,11 +29,15 @@ async function saveSubscriptions(newSubs) {
     subscriptions = newSubs;
     localStorage.setItem('subscriptions', JSON.stringify(newSubs));
     try {
-        await fetch('/api/subscriptions', {
+        const resp = await fetch('/api/subscriptions', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newSubs),
         });
+        if (resp.ok) {
+            fetch('/api/trigger/arxiv', { method: 'POST' }).catch(() => {});
+            fetch('/api/trigger/crossref', { method: 'POST' }).catch(() => {});
+        }
     } catch (e) {
         console.error('Failed to save subscriptions to server:', e);
     }

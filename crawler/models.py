@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
 
+__all__ = ["Paper"]
+
 
 @dataclass
 class Paper:

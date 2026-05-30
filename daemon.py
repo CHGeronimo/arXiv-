@@ -126,6 +126,18 @@ def put_subscriptions():
     data = request.get_json()
     if not data:
         return jsonify({"error": "empty body"}), 400
+
+
+@app.route("/api/trigger/<job>", methods=["POST"])
+def trigger_job(job: str):
+    if job not in ("arxiv", "crossref"):
+        return jsonify({"error": "unknown job"}), 400
+    threading.Thread(
+        target=run_arxiv_job if job == "arxiv" else run_crossref_job,
+        daemon=True,
+    ).start()
+    logger.info(f"Manually triggered {job} job")
+    return jsonify({"status": "triggered", "job": job})
     try:
         cats = data.get("arxiv", {}).get("categories", [])
         journals_data = data.get("crossref", {}).get("journals", [])
