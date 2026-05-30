@@ -163,10 +163,6 @@ header h1 {
 .paper-summary {
     font-size: 0.82rem;
     color: var(--text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
 }
 
 .paper-meta {
