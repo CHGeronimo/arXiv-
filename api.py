@@ -10,8 +10,9 @@ from crawler.subs_store import Subscriptions, Journal, Conference, Author
 
 from paper_store import (
     append_paper, find_paper_by_id, load_all_papers,
-    reset_ai_chain, DATA_DIR,
+    reset_ai_chain,
 )
+from db import get_conn, queue_write
 from jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
     run_s2_job, run_author_job, run_retro_enhance, run_digest_job,
@@ -19,8 +20,6 @@ from jobs import (
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
-BASE_DIR = Path(".")
-FEEDBACK_FILE = BASE_DIR / "feedback.json"
 SUBS_PATH = "subscriptions.json"
 
 
@@ -78,21 +77,11 @@ def get_papers():
 
 @app.route("/api/stats")
 def get_stats():
-    from paper_store import _written_ids
-    total = len(_written_ids)
+    conn = get_conn()
+    total = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
     source_counts: dict[str, int] = {}
-    if DATA_DIR.exists():
-        for f in DATA_DIR.glob("*.jsonl"):
-            if "_AI_" in f.name:
-                continue
-            with open(f, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    try:
-                        p = json.loads(line.strip())
-                        s = p.get("source", "unknown")
-                        source_counts[s] = source_counts.get(s, 0) + 1
-                    except json.JSONDecodeError:
-                        pass
+    for row in conn.execute("SELECT source, COUNT(*) as cnt FROM papers GROUP BY source"):
+        source_counts[row[0]] = row[1]
     subs = _load_subs()
     return jsonify({
         "total_papers": total,
@@ -230,13 +219,10 @@ def save_feedback():
     if not paper_id or rating not in ("useful", "not_useful"):
         return jsonify({"error": "invalid"}), 400
 
-    feedback = {}
-    if FEEDBACK_FILE.exists():
-        with open(FEEDBACK_FILE, "r") as f:
-            feedback = json.load(f)
-    feedback[paper_id] = rating
-    with open(FEEDBACK_FILE, "w") as f:
-        json.dump(feedback, f, indent=2, ensure_ascii=False)
+    queue_write(
+        "INSERT OR REPLACE INTO feedback (paper_id, rating) VALUES (?, ?)",
+        (paper_id, rating),
+    )
 
     _update_profile_from_feedback(paper_id, rating)
     return jsonify({"status": "saved"})
@@ -244,14 +230,13 @@ def save_feedback():
 
 @app.route("/api/feedback", methods=["GET"])
 def get_feedback():
-    if FEEDBACK_FILE.exists():
-        with open(FEEDBACK_FILE, "r") as f:
-            return jsonify(json.load(f))
-    return jsonify({})
+    conn = get_conn()
+    rows = conn.execute("SELECT paper_id, rating FROM feedback").fetchall()
+    return jsonify({row[0]: row[1] for row in rows})
 
 
 def _update_profile_from_feedback(paper_id: str, rating: str):
-    profile_path = BASE_DIR / "research_profile.json"
+    profile_path = Path("research_profile.json")
     if not profile_path.exists():
         return
     with open(profile_path, "r") as f:
@@ -320,23 +305,11 @@ def export_bibtex():
     ids = data.get("ids", []) if data else []
     if not ids:
         return jsonify({"error": "no ids provided"}), 400
-    papers_map: dict[str, dict] = {}
-    if DATA_DIR.exists():
-        for f in DATA_DIR.glob("*.jsonl"):
-            with open(f, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    try:
-                        p = json.loads(line.strip())
-                        pid = p.get("id", "")
-                        if pid and pid in ids:
-                            papers_map[pid] = p
-                    except json.JSONDecodeError:
-                        pass
     entries = []
     for pid in ids:
-        p = papers_map.get(pid)
-        if p:
-            entries.append(_bibtex_for(p))
+        paper = find_paper_by_id(pid)
+        if paper:
+            entries.append(_bibtex_for(paper))
     if not entries:
         return jsonify({"error": "no papers found"}), 404
     return "\n\n".join(entries), 200, {"Content-Type": "application/x-bibtex"}

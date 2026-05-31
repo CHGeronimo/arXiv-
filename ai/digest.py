@@ -36,47 +36,34 @@ Papers data:
 
 def generate_digest(date_str: str | None = None, language: str = "Chinese") -> str:
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    data_dir = Path(__file__).parent.parent / "data"
+    from db import get_conn, queue_write
 
-    papers = []
-    ai_file = data_dir / f"{date_str}_AI_enhanced_{language}.jsonl"
-    if not ai_file.exists():
-        logger.warning(f"No AI-enhanced file for {date_str}")
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT p.title, p.source, p.journal_title, p.categories,
+                  ai.tldr, ai.recommendation, ai.quality_score, ai.relevance_score
+           FROM papers p JOIN ai_results ai ON p.id = ai.paper_id
+           WHERE p.published_date = ?
+           ORDER BY ai.relevance_score DESC, ai.quality_score DESC
+           LIMIT 80""",
+        (date_str,),
+    ).fetchall()
+
+    if not rows:
+        logger.warning(f"No AI-enhanced papers for {date_str}")
         return ""
-
-    with open(ai_file, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                papers.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
-
-    if not papers:
-        return ""
-
-    papers.sort(
-        key=lambda p: (
-            (p.get("AI", {}).get("relevance_score", 0)),
-            (p.get("AI", {}).get("quality_score", 0)),
-        ),
-        reverse=True,
-    )
 
     summaries = []
-    for p in papers[:80]:
-        ai = p.get("AI", {})
+    for row in rows:
         summaries.append({
-            "title": p.get("title", ""),
-            "source": p.get("source", ""),
-            "journal": p.get("journal_title", ""),
-            "categories": p.get("categories", []),
-            "tldr": ai.get("tldr", ""),
-            "recommendation": ai.get("recommendation", "skip"),
-            "quality_score": ai.get("quality_score", 0),
-            "relevance_score": ai.get("relevance_score", 0),
+            "title": row[0],
+            "source": row[1],
+            "journal": row[2],
+            "categories": json.loads(row[3]) if row[3] else [],
+            "tldr": row[4],
+            "recommendation": row[5],
+            "quality_score": row[6],
+            "relevance_score": row[7],
         })
 
     model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
@@ -89,12 +76,17 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
         "papers_json": json.dumps(summaries, ensure_ascii=False, indent=2),
     })
 
-    digest_dir = data_dir.parent / "digests"
+    digest_dir = Path(__file__).parent.parent / "digests"
     digest_dir.mkdir(exist_ok=True)
     digest_path = digest_dir / f"{date_str}.md"
-
     content = f"# Research Digest — {date_str}\n\n{result.content}\n"
     digest_path.write_text(content, encoding="utf-8")
+
+    queue_write(
+        "INSERT OR REPLACE INTO digests (date, content) VALUES (?, ?)",
+        (date_str, content),
+    )
+
     logger.info(f"Digest saved to {digest_path}")
     return str(digest_path)
 

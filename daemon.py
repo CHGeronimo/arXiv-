@@ -26,28 +26,28 @@ def main():
     args = parser.parse_args()
 
     # Late import to avoid circular dependencies at module level
-    from api import app, SUBS_PATH
-    from jobs import Scheduler, _save_subs, SUBS_PATH as JOBS_SUBS_PATH
+    from api import app
+    from jobs import Scheduler
     from crawler.subs_store import Subscriptions
-    from paper_store import init_ids
-
-    # Sync subs path
-    import api as _api
-    import jobs as _jobs
-    _api.SUBS_PATH = args.config
-    _jobs.SUBS_PATH = args.config
+    from db import init_db, stop_writer
+    from migrate_jsonl import needs_migration, run_migration
 
     if not Path(args.config).exists():
         Subscriptions().save(args.config)
         logger.info(f"Created default {args.config}")
 
-    init_ids()
+    init_db()
+    if needs_migration():
+        logger.info("Detected JSONL data, running migration...")
+        count = run_migration()
+        logger.info(f"Migrated {count} papers from JSONL to SQLite")
 
     sched = Scheduler()
 
     def _signal_handler(sig, frame):
         logger.info("Shutting down...")
         sched.stop()
+        stop_writer()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _signal_handler)

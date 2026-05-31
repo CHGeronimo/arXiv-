@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 .env
 data/
+data/papers.db
+data/papers.db-wal
+data/papers.db-shm
 logs/
 *.log
 .claude/

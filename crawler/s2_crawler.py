@@ -31,19 +31,23 @@ class S2Crawler:
             try:
                 resp = httpx.get(S2_BASE, params=params, timeout=30)
                 if resp.status_code == 429:
+                    wait = 3 * (2 ** attempt)
                     logger.warning(
-                        f"S2 rate limited on keyword '{keyword}', skipping"
+                        f"S2 rate limited on '{keyword}', backoff {wait}s"
                     )
-                    return []
+                    time.sleep(wait)
+                    continue
                 resp.raise_for_status()
                 data = resp.json()
                 return data.get("data") or []
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429:
+                    wait = 3 * (2 ** attempt)
                     logger.warning(
-                        f"S2 rate limited on keyword '{keyword}', skipping"
+                        f"S2 rate limited on '{keyword}', backoff {wait}s"
                     )
-                    return []
+                    time.sleep(wait)
+                    continue
                 logger.warning(
                     f"S2 search attempt {attempt+1}/3 failed: {e}"
                 )
@@ -121,6 +125,7 @@ class S2Crawler:
                     count += 1
 
             logger.info(f"S2 got {count} papers for '{keyword}'")
+            time.sleep(3)
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())
