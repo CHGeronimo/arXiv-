@@ -1,13 +1,25 @@
+"""Crawler job orchestration with BaseCrawlerJob template pattern.
+
+Each crawler type is a thin subclass that defines:
+- _create_crawler(subs): build the crawler instance (or return None to skip)
+- _skip_reason(subs): human-readable reason for skipping
+- _post_run(subs, fetched_info): optional post-crawl bookkeeping
+
+The base class handles the run/skip/error lifecycle.
+"""
+
 from __future__ import annotations
 
+import json
 import logging
 import os
 import threading
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from ai.digest import generate_digest
-from ai.enhance import enhance_single
+from ai.enhance import enhance_single, load_research_profile
 from crawler.arxiv_crawler import ArxivCrawler
 from crawler.author_crawler import AuthorCrawler
 from crawler.crossref_crawler import CrossrefCrawler
@@ -15,9 +27,12 @@ from crawler.dblp_crawler import DblpCrawler
 from crawler.s2_crawler import S2Crawler
 from crawler.subs_store import Subscriptions
 
+from db import get_conn
 from paper_store import (
-    append_paper, get_ai_chain, get_quick_chain, reset_ai_chain,
-    _enhanced_ids, _written_ids, _ids_lock, DATA_DIR,
+    AI_LANGUAGE,
+    append_paper,
+    get_ai_chain,
+    _insert_ai_row,
 )
 
 logger = logging.getLogger("jobs")
@@ -49,186 +64,270 @@ def _set_job_status(job: str, status: str, msg: str = ""):
     }
 
 
-def run_arxiv_job():
-    _set_job_status("arxiv", "running")
-    logger.info("Starting arXiv crawl job (streaming)")
-    try:
-        subs = _load_subs()
+# ---------------------------------------------------------------------------
+# Base class
+# ---------------------------------------------------------------------------
+
+class BaseCrawlerJob(ABC):
+    """Template method for crawler jobs.
+
+    Subclasses override _create_crawler (required), _skip_reason, and
+    _post_run to specialize behavior.
+    """
+
+    name: str = ""
+
+    def run(self) -> None:
+        _set_job_status(self.name, "running")
+        logger.info(f"Starting {self.name} crawl job")
+        try:
+            subs = _load_subs()
+            crawler = self._create_crawler(subs)
+            if crawler is None:
+                reason = self._skip_reason(subs)
+                logger.info(f"{self.name} job skipped: {reason}")
+                _set_job_status(self.name, "skipped", reason)
+                return
+
+            fetched, written = 0, 0
+            fetched_info = self._init_fetched_info()
+            for paper in crawler.crawl_iter():
+                fetched += 1
+                self._track_fetched(fetched_info, paper)
+                if append_paper(paper, enhance=True):
+                    written += 1
+                if fetched % 20 == 0:
+                    logger.info(
+                        f"{self.name} progress: {fetched} fetched, {written} written"
+                    )
+
+            self._post_run(subs, fetched_info)
+            msg = f"{fetched} fetched, {written} written"
+            logger.info(f"{self.name} job done: {msg}")
+            _set_job_status(self.name, "done", msg)
+        except Exception as e:
+            logger.error(f"{self.name} job failed: {e}", exc_info=True)
+            _set_job_status(self.name, "error", str(e))
+
+    @abstractmethod
+    def _create_crawler(self, subs: Subscriptions):
+        """Return a crawler instance, or None to skip this run."""
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no config"
+
+    def _init_fetched_info(self) -> dict:
+        """Initialize tracking info for the crawl loop."""
+        return {}
+
+    def _track_fetched(self, info: dict, paper) -> None:
+        """Track per-paper info during the crawl loop (e.g. fetched venues)."""
+
+    def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
+        """Post-crawl bookkeeping (e.g. update last_updated timestamps)."""
+
+
+# ---------------------------------------------------------------------------
+# Concrete jobs
+# ---------------------------------------------------------------------------
+
+class ArxivJob(BaseCrawlerJob):
+    name = "arxiv"
+
+    def _create_crawler(self, subs: Subscriptions):
         if not subs.arxiv_categories:
-            logger.info("No arXiv categories subscribed, skipping")
-            _set_job_status("arxiv", "skipped", "no categories")
-            return
-        from paper_store import load_existing_ids
-        existing = load_existing_ids()
-        crawler = ArxivCrawler(categories=subs.arxiv_categories, existing_ids=existing)
-        fetched, written = 0, 0
-        for paper in crawler.crawl_iter():
-            fetched += 1
-            if append_paper(paper, enhance=True):
-                written += 1
-            if fetched % 20 == 0:
-                logger.info(f"arXiv progress: {fetched} fetched, {written} written")
-        logger.info(f"arXiv job done: {fetched} fetched, {written} new written")
-        _set_job_status("arxiv", "done", f"{fetched} fetched, {written} written")
-    except Exception as e:
-        logger.error(f"arXiv job failed: {e}", exc_info=True)
-        _set_job_status("arxiv", "error", str(e))
+            return None
+        conn = get_conn()
+        rows = conn.execute(
+            "SELECT id FROM papers WHERE source='arxiv'"
+        ).fetchall()
+        existing_ids = {row["id"] for row in rows}
+        return ArxivCrawler(
+            categories=subs.arxiv_categories, existing_ids=existing_ids
+        )
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no categories"
 
 
-def run_crossref_job():
-    _set_job_status("crossref", "running")
-    logger.info("Starting Crossref crawl job (streaming)")
-    try:
-        subs = _load_subs()
+class CrossrefJob(BaseCrawlerJob):
+    name = "crossref"
+
+    def _create_crawler(self, subs: Subscriptions):
         if not subs.crossref_journals:
-            _set_job_status("crossref", "skipped", "no journals")
-            return
-        crawler = CrossrefCrawler(journals=subs.crossref_journals)
-        fetched, written = 0, 0
-        fetched_journals: set[str] = set()
-        for paper in crawler.crawl_iter():
-            fetched += 1
-            if paper.journal_title:
-                fetched_journals.add(paper.journal_title)
-            if append_paper(paper, enhance=True):
-                written += 1
-            if fetched % 20 == 0:
-                logger.info(f"Crossref progress: {fetched} fetched, {written} written")
+            return None
+        return CrossrefCrawler(journals=subs.crossref_journals)
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no journals"
+
+    def _init_fetched_info(self) -> dict:
+        return {"journals": set()}
+
+    def _track_fetched(self, info: dict, paper) -> None:
+        if paper.journal_title:
+            info["journals"].add(paper.journal_title)
+
+    def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
+        fetched_journals = fetched_info.get("journals", set())
         if fetched_journals:
             now = datetime.now(timezone.utc).isoformat()
             for j in subs.crossref_journals:
                 if j.name in fetched_journals:
                     j.last_updated = now
             _save_subs(subs)
-        logger.info(f"Crossref job done: {fetched} fetched, {written} new written")
-        _set_job_status("crossref", "done", f"{fetched} fetched, {written} written")
-    except Exception as e:
-        logger.error(f"Crossref job failed: {e}", exc_info=True)
-        _set_job_status("crossref", "error", str(e))
 
 
-def run_dblp_job():
-    _set_job_status("dblp", "running")
-    logger.info("Starting DBLP crawl job")
-    try:
-        subs = _load_subs()
+class DblpJob(BaseCrawlerJob):
+    name = "dblp"
+
+    def _create_crawler(self, subs: Subscriptions):
         if not subs.conferences:
-            _set_job_status("dblp", "skipped", "no conferences")
-            return
-        crawler = DblpCrawler(conferences=subs.conferences)
-        fetched, written = 0, 0
-        fetched_venues: set[str] = set()
-        for paper in crawler.crawl_iter():
-            fetched += 1
-            fetched_venues.add(paper.venue)
-            if append_paper(paper, enhance=True):
-                written += 1
-            if fetched % 20 == 0:
-                logger.info(f"DBLP progress: {fetched} fetched, {written} written")
+            return None
+        return DblpCrawler(conferences=subs.conferences)
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no conferences"
+
+    def _init_fetched_info(self) -> dict:
+        return {"venues": set()}
+
+    def _track_fetched(self, info: dict, paper) -> None:
+        info["venues"].add(paper.venue)
+
+    def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
+        fetched_venues = fetched_info.get("venues", set())
         if fetched_venues:
             now = datetime.now(timezone.utc).isoformat()
             for c in subs.conferences:
                 if any(c.venue in v for v in fetched_venues):
                     c.last_updated = now
             _save_subs(subs)
-        logger.info(f"DBLP job done: {fetched} fetched, {written} new written")
-        _set_job_status("dblp", "done", f"{fetched} fetched, {written} written")
-    except Exception as e:
-        logger.error(f"DBLP job failed: {e}", exc_info=True)
-        _set_job_status("dblp", "error", str(e))
 
 
-def run_s2_job():
-    _set_job_status("s2", "running")
-    logger.info("Starting S2 search job")
-    try:
-        subs = _load_subs()
+class S2Job(BaseCrawlerJob):
+    name = "s2"
+
+    def _create_crawler(self, subs: Subscriptions):
         keywords = subs.search_keywords
         if not keywords:
-            from ai.enhance import load_research_profile
             profile = load_research_profile()
             keywords = profile.get("keywords", [])
         if not keywords:
-            _set_job_status("s2", "skipped", "no keywords")
-            return
-        crawler = S2Crawler(keywords=keywords, max_per_keyword=20)
-        fetched, written = 0, 0
-        for paper in crawler.crawl_iter():
-            fetched += 1
-            if append_paper(paper, enhance=True):
-                written += 1
-            if fetched % 20 == 0:
-                logger.info(f"S2 progress: {fetched} fetched, {written} written")
-        logger.info(f"S2 job done: {fetched} fetched, {written} new written")
-        _set_job_status("s2", "done", f"{fetched} fetched, {written} written")
-    except Exception as e:
-        logger.error(f"S2 search job failed: {e}", exc_info=True)
-        _set_job_status("s2", "error", str(e))
+            return None
+        return S2Crawler(keywords=keywords, max_per_keyword=20)
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no keywords"
 
 
-def run_author_job():
-    _set_job_status("author", "running")
-    logger.info("Starting author crawl job")
-    try:
-        subs = _load_subs()
+class AuthorJob(BaseCrawlerJob):
+    name = "author"
+
+    def _create_crawler(self, subs: Subscriptions):
         if not subs.authors:
-            _set_job_status("author", "skipped", "no authors")
-            return
+            return None
         author_dicts = [
             {"authorId": a.author_id, "name": a.name}
             for a in subs.authors
         ]
-        crawler = AuthorCrawler(authors=author_dicts, papers_per_author=50)
-        fetched, written = 0, 0
-        for paper in crawler.crawl_iter():
-            fetched += 1
-            if append_paper(paper, enhance=True):
-                written += 1
-            if fetched % 20 == 0:
-                logger.info(f"Author crawl progress: {fetched} fetched, {written} written")
+        return AuthorCrawler(authors=author_dicts, papers_per_author=50)
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "no authors"
+
+    def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
         now = datetime.now(timezone.utc).isoformat()
         for a in subs.authors:
             a.last_updated = now
         _save_subs(subs)
-        logger.info(f"Author job done: {fetched} fetched, {written} new written")
-        _set_job_status("author", "done", f"{fetched} fetched, {written} written")
-    except Exception as e:
-        logger.error(f"Author job failed: {e}", exc_info=True)
-        _set_job_status("author", "error", str(e))
 
+
+# ---------------------------------------------------------------------------
+# Job registry
+# ---------------------------------------------------------------------------
+
+JOBS: dict[str, BaseCrawlerJob] = {
+    "arxiv": ArxivJob(),
+    "crossref": CrossrefJob(),
+    "dblp": DblpJob(),
+    "s2": S2Job(),
+    "author": AuthorJob(),
+}
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible top-level functions (used by api.py)
+# ---------------------------------------------------------------------------
+
+def run_arxiv_job():
+    JOBS["arxiv"].run()
+
+
+def run_crossref_job():
+    JOBS["crossref"].run()
+
+
+def run_dblp_job():
+    JOBS["dblp"].run()
+
+
+def run_s2_job():
+    JOBS["s2"].run()
+
+
+def run_author_job():
+    JOBS["author"].run()
+
+
+# ---------------------------------------------------------------------------
+# Retro-enhance (SQLite-based)
+# ---------------------------------------------------------------------------
 
 def run_retro_enhance():
+    """Enhance papers that have no AI results yet."""
     logger.info("Starting retro-enhance for papers without AI data")
     try:
         chain, profile = get_ai_chain()
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        import json
-        from paper_store import AI_LANGUAGE, _enhanced_ids, _written_ids, _ids_lock
 
-        ai_path = DATA_DIR / f"{today}_AI_enhanced_{AI_LANGUAGE}.jsonl"
-        to_enhance = []
-        for f in sorted(DATA_DIR.glob("*.jsonl")):
-            if "_AI_" in f.name:
-                continue
-            with open(f, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    try:
-                        p = json.loads(line.strip())
-                    except json.JSONDecodeError:
-                        continue
-                    pid = p.get("id", "")
-                    if pid in _enhanced_ids or pid in _written_ids:
-                        continue
-                    if not p.get("summary") and not p.get("title"):
-                        continue
-                    to_enhance.append(p)
+        conn = get_conn()
+        paper_cols = ", ".join(f"p.{c}" for c in [
+            "id", "source", "title", "summary",
+            "authors", "categories",
+            "doi", "published_date", "url", "pdf",
+            "publisher", "journal_title", "issn",
+            "comment", "article_type",
+            "venue", "acceptance", "citation_count", "version",
+        ])
+        sql = (
+            f"SELECT {paper_cols} "
+            f"FROM papers p LEFT JOIN ai_results ai ON p.id = ai.paper_id "
+            f"WHERE ai.paper_id IS NULL AND (p.summary != '' OR p.title != '')"
+        )
+        rows = conn.execute(sql).fetchall()
 
-        if not to_enhance:
+        if not rows:
             logger.info("No papers to retro-enhance")
             return
 
+        # Convert rows to dicts, decoding JSON fields
+        json_fields = {"authors", "categories", "issn"}
+        to_enhance: list[dict] = []
+        for row in rows:
+            d = {}
+            for key in row.keys():
+                val = row[key]
+                if key in json_fields and val is not None:
+                    try:
+                        val = json.loads(val)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                d[key] = val
+            to_enhance.append(d)
+
         logger.info(f"Retro-enhance: {len(to_enhance)} papers to process")
         enhanced_count = 0
+
         with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
             futures = {
                 executor.submit(enhance_single, p, chain, profile, AI_LANGUAGE): p
@@ -241,22 +340,26 @@ def run_retro_enhance():
                 try:
                     result = future.result()
                     if result:
-                        with open(ai_path, "a", encoding="utf-8") as af:
-                            af.write(json.dumps(result, ensure_ascii=False) + "\n")
-                        pid = p.get("id", "")
-                        with _ids_lock:
-                            _written_ids.add(pid)
-                        _enhanced_ids.add(pid)
+                        ai_data = result.get("AI", result)
+                        _insert_ai_row(p["id"], ai_data)
                         enhanced_count += 1
                 except Exception as e:
-                    logger.warning(f"Retro-enhance failed for {p.get('id','?')}: {e}")
+                    logger.warning(
+                        f"Retro-enhance failed for {p.get('id', '?')}: {e}"
+                    )
                 if enhanced_count % 10 == 0:
-                    logger.info(f"Retro-enhance progress: {enhanced_count}/{len(to_enhance)}")
+                    logger.info(
+                        f"Retro-enhance progress: {enhanced_count}/{len(to_enhance)}"
+                    )
 
         logger.info(f"Retro-enhance done: {enhanced_count} papers enhanced")
     except Exception as e:
         logger.error(f"Retro-enhance job failed: {e}", exc_info=True)
 
+
+# ---------------------------------------------------------------------------
+# Digest job (unchanged — digest.py will be updated separately)
+# ---------------------------------------------------------------------------
 
 def run_digest_job():
     logger.info("Starting digest generation")
@@ -269,6 +372,10 @@ def run_digest_job():
     except Exception as e:
         logger.error(f"Digest job failed: {e}", exc_info=True)
 
+
+# ---------------------------------------------------------------------------
+# Scheduler (unchanged logic, same timers)
+# ---------------------------------------------------------------------------
 
 JOB_FUNCS = {
     "arxiv": run_arxiv_job,
