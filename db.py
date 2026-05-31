@@ -1,0 +1,290 @@
+"""SQLite storage layer for arxivSCI-daily.
+
+Provides:
+- Schema initialization with 5 tables
+- Thread-local connection management
+- Background write queue for batched writes
+- WAL mode for concurrent reads
+"""
+
+from __future__ import annotations
+
+import logging
+import sqlite3
+import threading
+import time
+from pathlib import Path
+from queue import Queue
+from typing import Any
+
+logger = logging.getLogger("db")
+
+# Database path
+DATA_DIR = Path("data")
+DB_PATH = DATA_DIR / "papers.db"
+
+# Thread-local storage for connections
+_local = threading.local()
+
+# Write queue and worker thread
+_write_queue: Queue[tuple[str, tuple[Any, ...]] | None] = Queue()
+_writer_thread: threading.Thread | None = None
+_shutdown_event = threading.Event()
+
+# Batch configuration
+BATCH_SIZE = 50
+DRAIN_INTERVAL = 0.1  # 100ms
+
+
+def get_conn() -> sqlite3.Connection:
+    """Get a thread-local SQLite connection.
+
+    Each thread gets its own connection to avoid cross-thread issues.
+    Connections are cached in thread-local storage.
+
+    Returns:
+        sqlite3.Connection: Thread-local database connection
+    """
+    if not hasattr(_local, "conn") or _local.conn is None:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(
+            str(DB_PATH),
+            check_same_thread=False,
+            isolation_level=None,  # Autocommit for reads
+        )
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.row_factory = sqlite3.Row
+        _local.conn = conn
+        logger.debug(f"Created new connection for thread {threading.current_thread().name}")
+    return _local.conn
+
+
+def init_db() -> None:
+    """Initialize database schema and start the writer thread.
+
+    Creates all tables if they don't exist and starts the background
+    write queue worker thread.
+    """
+    conn = get_conn()
+
+    # Create tables
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS papers (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            title TEXT NOT NULL,
+            summary TEXT,
+            authors JSON,
+            categories JSON,
+            doi TEXT,
+            published_date TEXT,
+            url TEXT,
+            pdf TEXT,
+            publisher TEXT,
+            journal_title TEXT,
+            issn JSON,
+            comment TEXT,
+            article_type TEXT,
+            venue TEXT,
+            acceptance TEXT,
+            citation_count INTEGER DEFAULT 0,
+            version TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_results (
+            paper_id TEXT PRIMARY KEY,
+            tldr TEXT,
+            motivation TEXT,
+            method TEXT,
+            result TEXT,
+            conclusion TEXT,
+            title_zh TEXT,
+            summary_zh TEXT,
+            quality_score INTEGER,
+            relevance_score INTEGER,
+            recommendation TEXT,
+            skip_reason TEXT,
+            enhanced_at TEXT,
+            FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS feedback (
+            paper_id TEXT PRIMARY KEY,
+            rating TEXT CHECK (rating IN ('useful', 'not_useful')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS digests (
+            date TEXT PRIMARY KEY,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_papers_source ON papers(source);
+        CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_date);
+        CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);
+        CREATE INDEX IF NOT EXISTS idx_ai_results_relevance_score ON ai_results(relevance_score);
+    """)
+
+    logger.info("Database schema initialized")
+
+    # Start writer thread
+    _start_writer()
+
+
+def _start_writer() -> None:
+    """Start the background write queue worker thread."""
+    global _writer_thread
+
+    if _writer_thread is not None and _writer_thread.is_alive():
+        logger.warning("Writer thread already running")
+        return
+
+    _shutdown_event.clear()
+    _writer_thread = threading.Thread(
+        target=_write_worker,
+        name="db-writer",
+        daemon=True,
+    )
+    _writer_thread.start()
+    logger.info("Writer thread started")
+
+
+def _write_worker() -> None:
+    """Background worker that processes the write queue.
+
+    Uses a separate connection (not thread-local) to avoid cross-thread issues.
+    Batches up to BATCH_SIZE writes and drains every DRAIN_INTERVAL.
+    """
+    # Separate connection for the writer thread
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(
+        str(DB_PATH),
+        check_same_thread=False,
+        isolation_level="IMMEDIATE",
+    )
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    logger.debug("Writer thread connection established")
+
+    while not _shutdown_event.is_set():
+        batch: list[tuple[str, tuple[Any, ...]]] = []
+        deadline = time.time() + DRAIN_INTERVAL
+
+        # Collect batch
+        while len(batch) < BATCH_SIZE:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+
+            try:
+                item = _write_queue.get(timeout=remaining)
+                if item is None:  # Sentinel
+                    _flush(conn, batch)
+                    conn.close()
+                    logger.debug("Writer thread received shutdown signal")
+                    return
+                batch.append(item)
+            except Exception:
+                break  # Timeout, flush current batch
+
+        if batch:
+            _flush(conn, batch)
+
+    conn.close()
+    logger.debug("Writer thread exiting")
+
+
+def _flush(conn: sqlite3.Connection, batch: list[tuple[str, tuple[Any, ...]]]) -> None:
+    """Flush a batch of writes to the database.
+
+    Args:
+        conn: Database connection
+        batch: List of (sql, params) tuples
+
+    Wraps the batch in a transaction with rollback on error.
+    """
+    if not batch:
+        return
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        for sql, params in batch:
+            cursor.execute(sql, params)
+        conn.commit()
+        logger.debug(f"Flushed {len(batch)} writes")
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Batch write failed, rolled back {len(batch)} items: {e}")
+
+
+def queue_write(sql: str, params: tuple[Any, ...] = ()) -> None:
+    """Queue a write operation for async processing.
+
+    Args:
+        sql: SQL statement
+        params: Parameters tuple
+
+    The write will be processed by the background worker thread
+    in the next batch.
+    """
+    if _shutdown_event.is_set():
+        logger.warning("Write queue is shutting down, write rejected")
+        return
+    _write_queue.put((sql, params))
+
+
+def sync_write(sql: str, params: tuple[Any, ...] = ()) -> None:
+    """Execute a write operation synchronously.
+
+    Args:
+        sql: SQL statement
+        params: Parameters tuple
+
+    Bypasses the write queue for immediate execution.
+    Use sparingly for critical writes that must complete before proceeding.
+    """
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(sql, params)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Sync write failed: {e}")
+        raise
+
+
+def stop_writer() -> None:
+    """Stop the background writer thread.
+
+    Sets shutdown event, puts sentinel in queue, and joins thread
+    with 5 second timeout.
+    """
+    global _writer_thread
+
+    if _writer_thread is None or not _writer_thread.is_alive():
+        logger.debug("Writer thread not running")
+        return
+
+    _shutdown_event.set()
+    _write_queue.put(None)  # Sentinel
+
+    _writer_thread.join(timeout=5.0)
+
+    if _writer_thread.is_alive():
+        logger.warning("Writer thread did not stop gracefully")
+    else:
+        logger.info("Writer thread stopped")
+
+    _writer_thread = None
