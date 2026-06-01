@@ -54,6 +54,7 @@ export function renderPapers() {
         const idx = start + i;
         const isBookmarked = _bookmarks.has(paper.id);
         const isRead = _readPapers.has(paper.id);
+        const feedback = paper.feedback_rating || '';
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
@@ -65,7 +66,11 @@ export function renderPapers() {
                 ${cardTldr}
                 <div class="paper-footer">
                     <span class="paper-authors">${authors}</span>
-                    <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
+                    <div class="card-actions">
+                        <button class="card-vote-btn ${feedback === 'useful' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" title="有用">&#9757;</button>
+                        <button class="card-vote-btn ${feedback === 'not_useful' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" title="没用">&#9759;</button>
+                        <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
+                    </div>
                 </div>
             </div>`;
     }).join('');
