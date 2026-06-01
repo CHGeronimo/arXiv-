@@ -107,3 +107,10 @@ export async function exportBibtex(paperId) {
     if (!resp.ok) throw new Error('export failed');
     return resp.text();
 }
+
+export async function fetchKnowledgeCard(paperId) {
+    const resp = await fetch(`/api/paper/${encodeURIComponent(paperId)}/card`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return data.card;
+}

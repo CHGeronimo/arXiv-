@@ -1,7 +1,7 @@
 // js/modal.js — paper detail and profile modals
 
 import { markRead, escAttr, showToast } from './state.js';
-import { exportBibtex } from './api.js';
+import { exportBibtex, fetchKnowledgeCard } from './api.js';
 
 export function openPaperDetail(paper) {
     markRead(paper.id);
@@ -72,7 +72,26 @@ export function openPaperDetail(paper) {
             <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
             <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" style="border-color:#22c55e;color:#22c55e">有用</button>
             <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" style="border-color:#ef4444;color:#ef4444">没用</button>
-        </div>`;
+        </div>
+            <div id="knowledge-card-section"></div>`;
+
+    // Knowledge card (L1)
+    fetchKnowledgeCard(paper.id).then(card => {
+        if (!card) return;
+        const el = document.getElementById('knowledge-card-section');
+        if (!el) return;
+        el.innerHTML = `
+            <h3 style="margin-top:16px">知识卡片</h3>
+            <div style="margin:8px 0;padding:12px;background:var(--accent-bg);border-radius:8px">
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Problem</span><p style="margin:4px 0;font-size:0.88rem">${card.problem || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Method</span><p style="margin:4px 0;font-size:0.88rem">${card.method_extracted || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Result</span><p style="margin:4px 0;font-size:0.88rem">${card.result_extracted || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Keywords</span>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${(card.keywords || []).map(k => `<span style="padding:2px 8px;border-radius:3px;font-size:0.75rem;background:var(--badge-bg);color:var(--accent-light)">${k}</span>`).join('')}</div>
+                </div>
+                ${card.relation_to_profile ? `<div><span style="color:var(--accent-light);font-weight:600">Profile Relation</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-secondary)">${card.relation_to_profile}</p></div>` : ''}
+            </div>`;
+    });
 
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
