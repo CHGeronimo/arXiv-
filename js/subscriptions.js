@@ -345,27 +345,70 @@ function renderQuickJournals() {
     }, { once: true });
 }
 
-function renderArxivCategories() {
+function renderArxivCategories(filter = '') {
     const container = document.getElementById('arxiv-category-chips');
     if (!container) return;
     const selected = new Set(subscriptions.arxiv?.categories || []);
-    let html = '';
+    const filterLower = filter.toLowerCase();
+
+    // Search bar
+    let html = '<div style="margin-bottom:8px"><input type="text" id="arxiv-cat-search" placeholder="搜索分类..." value="' + filter.replace(/"/g, '&quot;') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"></div>';
+
+    // Group filter buttons
+    const groups = [...new Set(ARXIV_CATEGORIES.map(c => c.group))];
+    html += '<div style="margin-bottom:8px;display:flex;gap:4px;flex-wrap:wrap"><button class="ccf-tier-filter active" data-arxiv-group="all">全部</button>';
+    for (const g of groups) {
+        const count = ARXIV_CATEGORIES.filter(c => c.group === g).length;
+        html += `<button class="ccf-tier-filter" data-arxiv-group="${g}">${g} (${count})</button>`;
+    }
+    html += '</div>';
+
+    // Category chips
     let currentGroup = '';
+    let shown = 0;
     for (const item of ARXIV_CATEGORIES) {
+        if (filterLower && !item.cat.toLowerCase().includes(filterLower) && !item.label.toLowerCase().includes(filterLower) && !item.group.toLowerCase().includes(filterLower)) continue;
         if (item.group !== currentGroup) {
             if (currentGroup) html += '<div style="height:8px"></div>';
-            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px">${item.group}</div>`;
+            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;font-weight:500">${item.group}</div>`;
             currentGroup = item.group;
         }
         const sel = selected.has(item.cat);
-        html += `<label class="sub-chip ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px">
+        html += `<label class="sub-chip ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px" title="${item.cat}">
             <input type="checkbox" ${sel ? 'checked' : ''} data-arxiv-cat="${item.cat}">
             ${item.label}
         </label>`;
+        shown++;
     }
+    if (!shown) html += '<div style="color:var(--text-secondary);font-size:0.85rem">无匹配分类</div>';
     container.innerHTML = html;
 
-    // Event delegation for arXiv checkboxes
+    // Search handler
+    const searchInput = document.getElementById('arxiv-cat-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(window._arxivSearchTimer);
+            window._arxivSearchTimer = setTimeout(() => renderArxivCategories(e.target.value), 200);
+        });
+        // Keep focus and cursor position
+        if (filter) { searchInput.focus(); searchInput.setSelectionRange(filter.length, filter.length); }
+    }
+
+    // Group filter handler
+    container.querySelectorAll('[data-arxiv-group]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('[data-arxiv-group]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const group = btn.dataset.arxivGroup;
+            container.querySelectorAll('[data-arxiv-cat]').forEach(chip => {
+                if (group === 'all') { chip.closest('label').style.display = ''; return; }
+                const item = ARXIV_CATEGORIES.find(c => c.cat === chip.dataset.arxivCat);
+                chip.closest('label').style.display = item && item.group === group ? '' : 'none';
+            });
+        });
+    });
+
+    // Checkbox handler
     container.addEventListener('change', (e) => {
         const cb = e.target.closest('[data-arxiv-cat]');
         if (!cb) return;
@@ -379,8 +422,8 @@ function renderArxivCategories() {
         }
         subscriptions.arxiv.categories = cats;
         saveSubscriptions(subscriptions, 'arxiv');
-        renderArxivCategories();
-    }, { once: true }); // re-renders on each change so listener is fresh
+        renderArxivCategories(filter);
+    }, { once: true });
 }
 
 function renderConferenceChips() {
@@ -692,36 +735,42 @@ const _KEYWORD_MAP = {
 };
 
 async function autoRecommendSubs() {
+    let direction = '';
     let keywords = [];
     try {
         const resp = await fetch('/api/profile');
         if (resp.ok) {
             const profile = await resp.json();
+            direction = profile.direction || '';
             keywords = profile.keywords || [];
         }
     } catch {}
-    if (!keywords.length) {
+    if (!direction && !keywords.length) {
         if (typeof showToast === 'function') showToast('请先设置研究方向关键词');
         return;
     }
-    const recommendedCats = new Set(subscriptions.arxiv?.categories || []);
-    const recommendedConfs = new Set((subscriptions.conferences || []).map(c => c.venue));
-    for (const kw of keywords) {
-        const kwLower = kw.toLowerCase();
-        for (const [pattern, rec] of Object.entries(_KEYWORD_MAP)) {
-            if (kwLower.includes(pattern)) {
-                rec.cats.forEach(c => recommendedCats.add(c));
-                rec.confs.forEach(c => recommendedConfs.add(c));
-            }
-        }
+
+    if (typeof showToast === 'function') showToast('正在分析研究方向，推荐分类...');
+    try {
+        const resp = await fetch('/api/recommend-categories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction, keywords }),
+        });
+        if (!resp.ok) throw new Error('recommendation failed');
+        const data = await resp.json();
+
+        const recommended = new Set(subscriptions.arxiv?.categories || []);
+        (data.primary || []).forEach(c => recommended.add(c));
+        (data.secondary || []).forEach(c => recommended.add(c));
+
+        subscriptions.arxiv = subscriptions.arxiv || { categories: [] };
+        subscriptions.arxiv.categories = [...recommended];
+        await saveSubscriptions(subscriptions, 'arxiv');
+        renderArxivCategories();
+        if (typeof showToast === 'function') showToast(`智能推荐完成：${recommended.size} 个分类（核心 ${data.primary?.length || 0}，相关 ${data.secondary?.length || 0}）`);
+    } catch (e) {
+        console.error('Smart recommend failed:', e);
+        if (typeof showToast === 'function') showToast('推荐失败，请稍后重试');
     }
-    subscriptions.arxiv = subscriptions.arxiv || { categories: [] };
-    subscriptions.arxiv.categories = [...recommendedCats];
-    subscriptions.conferences = [...recommendedConfs].map(v => {
-        const existing = (subscriptions.conferences || []).find(c => c.venue === v);
-        return existing || { venue: v, lastUpdated: null };
-    });
-    await saveSubscriptions(subscriptions);
-    renderSubscriptionUI();
-    if (typeof showToast === 'function') showToast(`推荐完成：${recommendedCats.size} 分类, ${recommendedConfs.size} 会议`);
 }
