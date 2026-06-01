@@ -13,7 +13,7 @@ from ai.enhance import enhance_single, build_chain, load_research_profile
 from ai.knowledge_extractor import extract_knowledge_card
 from ai.quick_filter import build_quick_filter, quick_filter_paper
 from crawler.models import Paper
-from db import get_conn, queue_write
+from db import get_conn, queue_write, ignore_paper, is_ignored
 
 logger = logging.getLogger("paper_store")
 
@@ -166,6 +166,8 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
     """
     if _paper_exists(paper.id):
         return False
+    if is_ignored(paper.id):
+        return False
 
     paper_dict = json.loads(paper.to_jsonl())
 
@@ -179,7 +181,8 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
         quick_chain = get_quick_chain()
         chain, profile = get_ai_chain()
         if not quick_filter_paper(paper_dict, quick_chain, profile):
-            logger.debug(f"Skipping irrelevant paper: {paper.id}")
+            logger.debug(f"Ignoring irrelevant paper: {paper.id}")
+            ignore_paper(paper.id, "quick_filter_reject")
             return False
 
         # Full enhancement
@@ -188,6 +191,8 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
                 if ai_data.get("recommendation") in ("skip", "ignore"):
+                    reason = ai_data.get("skip_reason", "") or "ai_rated_ignore"
+                    ignore_paper(paper.id, reason)
                     logger.debug(f"Ignoring low-value paper: {paper.id}")
                     return False
                 _insert_paper_row(paper_dict)

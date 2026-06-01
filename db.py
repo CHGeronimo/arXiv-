@@ -158,6 +158,12 @@ def init_db() -> None:
             generated_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS ignored_papers (
+            paper_id TEXT PRIMARY KEY,
+            reason TEXT,
+            ignored_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE INDEX IF NOT EXISTS idx_papers_source ON papers(source);
         CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_date);
         CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);
@@ -294,6 +300,23 @@ def sync_write(sql: str, params: tuple[Any, ...] = ()) -> None:
         conn.rollback()
         logger.error(f"Sync write failed: {e}")
         raise
+
+
+def ignore_paper(paper_id: str, reason: str = "") -> None:
+    """Record a paper as ignored so it won't be re-fetched."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+        (paper_id, reason),
+    )
+    conn.commit()
+
+
+def is_ignored(paper_id: str) -> bool:
+    """Check if a paper was previously ignored."""
+    conn = get_conn()
+    row = conn.execute("SELECT 1 FROM ignored_papers WHERE paper_id = ?", (paper_id,)).fetchone()
+    return row is not None
 
 
 def stop_writer() -> None:

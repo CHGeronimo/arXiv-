@@ -653,9 +653,11 @@ def export_bibtex():
 
 @app.route("/api/paper/<paper_id>", methods=["DELETE"])
 def delete_paper(paper_id: str):
-    """Delete a single paper and all related data (CASCADE)."""
+    """Delete a single paper and all related data (CASCADE). Records as ignored."""
     conn = get_conn()
     cur = conn.execute("DELETE FROM papers WHERE id = ?", (paper_id,))
+    conn.execute("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+                 (paper_id, "user_deleted"))
     conn.commit()
     if cur.rowcount == 0:
         return jsonify({"error": "not found"}), 404
@@ -665,13 +667,16 @@ def delete_paper(paper_id: str):
 
 @app.route("/api/papers/before/<date_str>", methods=["DELETE"])
 def delete_papers_before_date(date_str: str):
-    """Delete all papers published before the given date (YYYY-MM-DD)."""
+    """Delete all papers published before the given date (YYYY-MM-DD). Records as ignored."""
     conn = get_conn()
-    cur = conn.execute("DELETE FROM papers WHERE published_date < ?", (date_str,))
-    conn.commit()
-    count = cur.rowcount
-    logging.getLogger(__name__).info(f"Deleted {count} papers before {date_str}")
-    return jsonify({"deleted_count": count, "before": date_str})
+    ids = [r[0] for r in conn.execute("SELECT id FROM papers WHERE published_date < ?", (date_str,)).fetchall()]
+    if ids:
+        conn.execute("DELETE FROM papers WHERE published_date < ?", (date_str,))
+        conn.executemany("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+                         [(pid, "purge_before_date") for pid in ids])
+        conn.commit()
+    logging.getLogger(__name__).info(f"Deleted {len(ids)} papers before {date_str}")
+    return jsonify({"deleted_count": len(ids), "before": date_str})
 
 
 @app.route("/api/papers/purge", methods=["POST"])
@@ -680,17 +685,31 @@ def purge_papers():
     data = request.get_json() or {}
     conn = get_conn()
     count = 0
+    ignored_ids = []
 
     if data.get("skip_rated"):
-        cur = conn.execute(
-            "DELETE FROM papers WHERE id IN (SELECT paper_id FROM ai_results WHERE recommendation = 'skip')"
-        )
-        count += cur.rowcount
+        rows = conn.execute(
+            "SELECT p.id FROM papers p JOIN ai_results a ON p.id = a.paper_id WHERE a.recommendation IN ('skip', 'ignore')"
+        ).fetchall()
+        ids = [r[0] for r in rows]
+        if ids:
+            conn.execute("DELETE FROM papers WHERE id IN (" + ",".join("?" * len(ids)) + ")", ids)
+            ignored_ids.extend(ids)
+            count += len(ids)
 
     if data.get("older_than_days"):
         cutoff = f"datetime('now', '-{int(data['older_than_days'])} days')"
-        cur = conn.execute(f"DELETE FROM papers WHERE published_date < date({cutoff})")
-        count += cur.rowcount
+        rows = conn.execute(f"SELECT id FROM papers WHERE published_date < date({cutoff})").fetchall()
+        ids = [r[0] for r in rows]
+        if ids:
+            conn.execute("DELETE FROM papers WHERE id IN (" + ",".join("?" * len(ids)) + ")", ids)
+            ignored_ids.extend(ids)
+            count += len(ids)
+
+    if ignored_ids:
+        conn.executemany("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+                         [(pid, "purge") for pid in ignored_ids])
+        conn.commit()
 
     conn.commit()
     logging.getLogger(__name__).info(f"Purged {count} papers")
