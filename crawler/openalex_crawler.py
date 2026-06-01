@@ -15,7 +15,7 @@ OPENALEX_BASE = "https://api.openalex.org/works"
 
 
 class OpenAlexCrawler:
-    def __init__(self, keywords: List[str], max_per_keyword: int = 25, year_from: int = 2024):
+    def __init__(self, keywords: List[str], max_per_keyword: int = 10, year_from: int = 2024):
         self.keywords = keywords
         self.max_per_keyword = max_per_keyword
         self.year_from = year_from

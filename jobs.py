@@ -226,7 +226,7 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"Keyword expansion failed, using seeds: {e}")
             keywords = seed_keywords
-        return OpenAlexCrawler(keywords=keywords, max_per_keyword=25)
+        return OpenAlexCrawler(keywords=keywords, max_per_keyword=10)
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no keywords"
