@@ -204,7 +204,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', async (e) => {
         const active = document.activeElement;
         const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-        if (e.key === 'Escape') { closePaperModal(); window.closeSubscriptionModal?.(); closeProfileModal(); return; }
+        if (e.key === 'Escape') {
+            // Close all modals uniformly
+            document.querySelectorAll('.modal.active, .subscription-modal.active').forEach(m => {
+                m.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+            return;
+        }
         if (typing) return;
         if (e.key === 'j') changePage(1);
         else if (e.key === 'k') changePage(-1);

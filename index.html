@@ -99,14 +99,16 @@
     <div id="profile-modal" class="modal">
         <div class="modal-content">
             <button class="close-btn" id="close-profile-modal">&times;</button>
-            <h2 style="margin-bottom:12px">研究方向设置</h2>
-            <label style="font-size:0.85rem;color:var(--text-secondary)">研究方向描述</label>
-            <textarea id="profile-direction" rows="3" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;resize:vertical" placeholder="描述你的研究方向..."></textarea>
-            <label style="font-size:0.85rem;color:var(--text-secondary)">关键词（逗号分隔）</label>
-            <input id="profile-keywords" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="neural rendering, 3D reconstruction...">
-            <label style="font-size:0.85rem;color:var(--text-secondary)">质量标准（可选）</label>
-            <input id="profile-quality" type="text" style="width:100%;margin:4px 0 12px;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem" placeholder="Prioritize papers with strong results...">
-            <button id="btn-save-profile" class="follow-btn" style="width:100%">保存</button>
+            <div class="profile-form">
+                <h2>研究方向设置</h2>
+                <label>研究方向描述</label>
+                <textarea id="profile-direction" rows="3" placeholder="描述你的研究方向..."></textarea>
+                <label>关键词（逗号分隔）</label>
+                <input id="profile-keywords" type="text" placeholder="neural rendering, 3D reconstruction...">
+                <label>质量标准（可选）</label>
+                <input id="profile-quality" type="text" placeholder="Prioritize papers with strong results...">
+                <button id="btn-save-profile" class="follow-btn save-btn">保存</button>
+            </div>
         </div>
     </div>
 

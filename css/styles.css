@@ -680,3 +680,29 @@ header h1 {
 .idea-result {
     margin-top: 16px;
 }
+
+/* Profile form */
+.profile-form h2 {
+    margin-bottom: 12px;
+}
+.profile-form label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.profile-form textarea,
+.profile-form input[type="text"] {
+    width: 100%;
+    margin: 4px 0 12px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+}
+.profile-form textarea {
+    resize: vertical;
+}
+.profile-form .save-btn {
+    width: 100%;
+}
