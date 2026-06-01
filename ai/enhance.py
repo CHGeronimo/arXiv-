@@ -32,7 +32,7 @@ system = open(os.path.join(_AI_DIR, "system.txt"), "r").read()
 DEFAULT_AI = {
     "tldr": "", "motivation": "", "method": "", "result": "", "conclusion": "",
     "title_zh": "", "summary_zh": "",
-    "quality_score": 0, "relevance_score": 0, "recommendation": "skip",
+    "quality_score": 0, "relevance_score": 0, "recommendation": "ignore",
     "skip_reason": "",
 }
 

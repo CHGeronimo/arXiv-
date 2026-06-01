@@ -187,8 +187,8 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
             enhanced = enhance_single(paper_dict, chain, profile, AI_LANGUAGE)
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
-                if ai_data.get("recommendation") == "skip":
-                    logger.debug(f"Skipping AI-rated paper: {paper.id}")
+                if ai_data.get("recommendation") in ("skip", "ignore"):
+                    logger.debug(f"Ignoring low-value paper: {paper.id}")
                     return False
                 _insert_paper_row(paper_dict)
                 _insert_ai_row(paper.id, ai_data)

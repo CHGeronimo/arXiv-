@@ -39,10 +39,10 @@ export function buildFilterOptions() {
         { key: 'category', label: '领域', options:
             Object.entries(categories).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ value: c, label: c, count: n }))
         },
-        { key: 'type', label: '推荐/类型', options: [
+        { key: 'type', label: '推荐级别', options: [
             { value: 'must-read', label: 'Must Read' },
-            { value: 'worth-reading', label: 'Worth Reading' },
-            { value: 'skim', label: 'Skim' },
+            { value: 'recommended', label: 'Recommended' },
+            { value: 'reference', label: 'Reference' },
             { value: 'unread', label: '未读' },
         ]},
         { key: 'bookmarked', label: '收藏', options: [

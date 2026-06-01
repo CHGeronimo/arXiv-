@@ -558,9 +558,8 @@ header h1 {
 
 /* AI Score Display */
 .paper-card[data-rec="must-read"] { border-left: 3px solid #22c55e; }
-.paper-card[data-rec="worth-reading"] { border-left: 3px solid #3b82f6; }
-.paper-card[data-rec="skim"] { border-left: 3px solid #eab308; }
-.paper-card[data-rec="skip"] { border-left: 3px solid #6b7280; }
+.paper-card[data-rec="recommended"] { border-left: 3px solid #3b82f6; }
+.paper-card[data-rec="reference"] { border-left: 3px solid #8b5cf6; }
 
 .rec-badge {
     display: inline-block;
@@ -571,9 +570,8 @@ header h1 {
     text-transform: uppercase;
 }
 .rec-badge.must-read { background: rgba(34,197,94,0.2); color: #22c55e; }
-.rec-badge.worth-reading { background: rgba(59,130,246,0.2); color: #3b82f6; }
-.rec-badge.skim { background: rgba(234,179,8,0.2); color: #eab308; }
-.rec-badge.skip { background: rgba(107,114,128,0.2); color: #6b7280; }
+.rec-badge.recommended { background: rgba(59,130,246,0.2); color: #3b82f6; }
+.rec-badge.reference { background: rgba(139,92,246,0.2); color: #8b5cf6; }
 
 .card-tldr {
     margin: 4px 0;

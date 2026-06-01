@@ -41,7 +41,8 @@ export function renderPapers() {
         const typeTag = articleType === 'news' ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>' : '';
         const aiBadge = hasAi ? '<span class="ai-badge">AI</span>' : '';
         const rec = ai.recommendation || '';
-        const recBadge = rec ? `<span class="rec-badge ${rec}">${rec}</span>` : '';
+        const recLabels = { 'must-read': 'Must Read', 'recommended': 'Recommended', 'reference': 'Reference' };
+        const recBadge = rec && recLabels[rec] ? `<span class="rec-badge ${rec}">${recLabels[rec]}</span>` : '';
         const tldr = ai.tldr || paper.tldr || '';
         const cardTldr = tldr ? `<div class="card-tldr">${tldr}</div>` : '';
         const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');

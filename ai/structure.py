@@ -11,8 +11,8 @@ class Structure(BaseModel):
     summary_zh: str = Field(description="Chinese translation of the paper abstract")
     quality_score: int = Field(description="paper quality score from 1-10: 1=trivial/incremental, 5=solid contribution, 10=breakthrough work")
     relevance_score: int = Field(description="relevance to user research direction from 1-10: 1=unrelated, 5=tangentially related, 10=directly addresses core topic")
-    recommendation: str = Field(description="one of: must-read, worth-reading, skim, skip")
-    skip_reason: str = Field(default="", description="when skip: one sentence why; otherwise empty string")
+    recommendation: str = Field(description="one of: must-read, recommended, reference, ignore")
+    skip_reason: str = Field(default="", description="when ignore: one sentence why; otherwise empty string")
 
 
 class QuickFilter(BaseModel):
