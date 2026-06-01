@@ -18,3 +18,11 @@ class Structure(BaseModel):
 class QuickFilter(BaseModel):
     is_relevant: bool = Field(description="whether this paper is relevant to the user's research direction and worth detailed analysis")
     relevance_reason: str = Field(description="one sentence explaining why relevant or not")
+
+
+class KnowledgeCard(BaseModel):
+    problem: str = Field(description="the specific problem or research question this paper addresses, in one clear sentence")
+    method_extracted: str = Field(description="the core method, technique, or approach proposed, in one sentence")
+    result_extracted: str = Field(description="the key result or finding, with metrics if available, in one sentence")
+    keywords: list[str] = Field(description="5-10 technical keywords that characterize this paper's contribution and domain")
+    relation_to_profile: str = Field(description="how this paper relates to the user's research direction: direct contribution, related technique, potential application, or tangential")

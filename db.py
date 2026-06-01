@@ -128,10 +128,22 @@ def init_db() -> None:
             value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS knowledge_cards (
+            paper_id TEXT PRIMARY KEY,
+            problem TEXT,
+            method_extracted TEXT,
+            result_extracted TEXT,
+            keywords JSON,
+            relation_to_profile TEXT,
+            extracted_at TEXT,
+            FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_papers_source ON papers(source);
         CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_date);
         CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);
         CREATE INDEX IF NOT EXISTS idx_ai_results_relevance_score ON ai_results(relevance_score);
+        CREATE INDEX IF NOT EXISTS idx_knowledge_cards_keywords ON knowledge_cards(keywords);
     """)
 
     logger.info("Database schema initialized")
