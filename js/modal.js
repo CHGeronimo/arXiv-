@@ -70,6 +70,8 @@ export function openPaperDetail(paper) {
             ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="follow-btn">DOI</a>` : ''}
             ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="follow-btn" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
             <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
+            <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" style="border-color:#22c55e;color:#22c55e">有用</button>
+            <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" style="border-color:#ef4444;color:#ef4444">没用</button>
         </div>`;
 
     modal.classList.add('active');

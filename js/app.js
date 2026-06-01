@@ -138,6 +138,17 @@ document.addEventListener('DOMContentLoaded', () => {
             exportBibtex(bibtexBtn.dataset.exportBibtex)
                 .then(text => navigator.clipboard.writeText(text).then(() => showToast('BibTeX 已复制到剪贴板')))
                 .catch(() => showToast('导出失败'));
+            return;
+        }
+        const fbBtn = e.target.closest('[data-feedback-id]');
+        if (fbBtn) {
+            e.stopPropagation();
+            saveFeedback(fbBtn.dataset.feedbackId, fbBtn.dataset.feedbackRating)
+                .then(() => {
+                    fbBtn.classList.add('voted');
+                    showToast(fbBtn.dataset.feedbackRating === 'useful' ? '已标记为有用' : '已标记为没用');
+                })
+                .catch(() => showToast('反馈失败'));
         }
     });
 

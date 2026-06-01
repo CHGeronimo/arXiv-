@@ -271,6 +271,11 @@ header h1 {
     background: var(--accent);
     color: #fff;
 }
+.follow-btn.voted {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+}
 
 /* Modal */
 .modal {
