@@ -250,7 +250,10 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     return d
 
 
-_IEEE_ABBREV = {
+_IEEEE_ABBREV = {
+    # Maps IEEE/ACM full journal names to CCF_MAP abbreviations.
+    # CCF_MAP uses abbreviated keys (e.g. "IEEE TPAMI"), but crawled papers
+    # have full names (e.g. "IEEE Transactions on Pattern Analysis...").
     "IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE": "IEEE TPAMI",
     "IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING": "IEEE TKDE",
     "IEEE TRANSACTIONS ON INFORMATION FORENSICS AND SECURITY": "IEEE TIFS",
@@ -311,7 +314,10 @@ _IEEE_ABBREV = {
 
 
 def _normalize_venue(field: str) -> str:
-    """Normalize IEEE/ACM full journal names to standard abbreviations."""
+    """Normalize IEEE/ACM full journal names to CCF standard abbreviations.
+
+    Tries exact match first, then substring containment for long names.
+    """
     up = field.upper().rstrip(".")
     if up in _IEEE_ABBREV:
         return _IEEE_ABBREV[up]
@@ -323,7 +329,13 @@ def _normalize_venue(field: str) -> str:
 
 
 def _match_ccf(venue: str, journal_title: str) -> str:
-    """Match venue or journal_title against CCF_MAP. Returns tier or empty string."""
+    """Match venue or journal_title against CCF_MAP using 4 strategies:
+
+    1. Direct key lookup in CCF_MAP
+    2. Normalize IEEE/ACM full names to abbreviations, then lookup
+    3. Strip year suffix (e.g. "CVPR 2025" -> "CVPR")
+    4. Substring match for keys >= 4 chars to handle partial venue names
+    """
     import re
     for field in [venue, journal_title]:
         if not field:

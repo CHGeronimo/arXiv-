@@ -15,6 +15,11 @@ S2_FIELDS = "title,abstract,authors,year,venue,citationCount,externalIds,publica
 
 
 class S2Crawler:
+    """Search Semantic Scholar API for papers by keyword.
+
+    Queries S2 /paper/search for each keyword, deduplicates by paper ID,
+    and yields Paper objects. Handles rate limiting with 3 retries.
+    """
     def __init__(self, keywords: List[str], max_per_keyword: int = 20, year_from: int = 2024):
         self.keywords = keywords
         self.max_per_keyword = max_per_keyword

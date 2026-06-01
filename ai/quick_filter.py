@@ -36,7 +36,12 @@ def build_quick_filter(model_name: str | None = None):
 
 
 def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
-    """Return True if paper should get full enhancement."""
+    """Return True if the paper passes the quick relevance filter.
+
+    Rejects papers clearly outside the research direction to avoid
+    the cost of full AI enhancement (~86% of arXiv papers are rejected).
+    On failure, defaults to True (conservative: let full enhancement decide).
+    """
     try:
         result: QuickFilter = chain.invoke({
             "research_direction": profile.get("direction", ""),

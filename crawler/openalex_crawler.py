@@ -15,6 +15,11 @@ OPENALEX_BASE = "https://api.openalex.org/works"
 
 
 class OpenAlexCrawler:
+    """Search OpenAlex API for papers by keyword.
+
+    Replaces S2Crawler for broader coverage. OpenAlex has no rate limit
+    for small requests, making it more reliable for daily crawls.
+    """
     def __init__(self, keywords: List[str], max_per_keyword: int = 10, year_from: int = 2024):
         self.keywords = keywords
         self.max_per_keyword = max_per_keyword

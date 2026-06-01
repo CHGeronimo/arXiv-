@@ -1,3 +1,13 @@
+"""CCF (China Computer Federation) journal/conference tier mapping.
+
+Generated from the CCF Recommended International Academic Conferences
+and Journals catalog (7th edition). 772 entries covering A/B/C tiers
+across all CS domains. Used by paper_store._match_ccf() to tag papers
+with their CCF ranking for filtering and display.
+
+Keys are abbreviated venue/journal names as used in the CCF catalog.
+Values contain tier, domain, and type (conference/journal).
+"""
 CCF_MAP = {
   "AAAI": {
     "tier": "A",

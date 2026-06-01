@@ -79,7 +79,11 @@ class BaseCrawlerJob(ABC):
     name: str = ""
 
     def run(self) -> None:
-        _set_job_status(self.name, "running")
+        """Execute the crawl job: fetch papers, filter via AI, store results.
+
+        Tracks detailed rejection reasons (filter_reject, ai_reject, exists, ignored)
+        and reports structured progress every 20 papers.
+        """
         logger.info(f"[{self.name}] ▶ start")
         try:
             subs = _load_subs()
@@ -147,6 +151,7 @@ class ArxivJob(BaseCrawlerJob):
     name = "arxiv"
 
     def _create_crawler(self, subs: Subscriptions):
+        """Build ArxivCrawler with categories and all known/ignored IDs excluded."""
         if not subs.arxiv_categories:
             return None
         conn = get_conn()
@@ -154,6 +159,7 @@ class ArxivJob(BaseCrawlerJob):
             "SELECT id FROM papers WHERE source='arxiv'"
         ).fetchall()
         existing_ids = {row["id"] for row in rows}
+        # Exclude previously filtered papers to avoid re-processing
         ignored_rows = conn.execute("SELECT paper_id FROM ignored_papers").fetchall()
         existing_ids |= {row["paper_id"] for row in ignored_rows}
         return ArxivCrawler(
@@ -176,6 +182,7 @@ class CrossrefJob(BaseCrawlerJob):
         return "no journals"
 
     def _init_fetched_info(self) -> dict:
+        """Initialize per-job tracking state for fetched papers."""
         return {"journals": set()}
 
     def _track_fetched(self, info: dict, paper) -> None:
@@ -183,6 +190,7 @@ class CrossrefJob(BaseCrawlerJob):
             info["journals"].add(paper.journal_title)
 
     def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
+        """Update last_updated timestamp for journals that had papers fetched."""
         fetched_journals = fetched_info.get("journals", set())
         if fetched_journals:
             now = datetime.now(timezone.utc).isoformat()
@@ -224,6 +232,7 @@ class S2Job(BaseCrawlerJob):
     name = "s2"
 
     def _create_crawler(self, subs: Subscriptions):
+        """Expand seed keywords via LLM, then search via OpenAlex."""
         profile = load_research_profile()
         seed_keywords = subs.search_keywords or profile.get("keywords", [])
         if not seed_keywords:
@@ -411,6 +420,12 @@ JOB_FUNCS = {
 
 
 class Scheduler:
+    """Periodic job scheduler using threading.Timer.
+
+    Runs arxiv every 3 hours, other sources every 24 hours.
+    After each arxiv run, triggers retro-enhance and digest generation.
+    """
+
     def __init__(self):
         self._timers: list[threading.Timer] = []
         self._running = False
@@ -430,6 +445,7 @@ class Scheduler:
         logger.info("[scheduler] stopped")
 
     def _run_and_reschedule(self, job_name: str, interval_hours: int):
+        """Execute a job and schedule its next run. After arxiv, also runs retro-enhance and digest."""
         if not self._running:
             return
         try:

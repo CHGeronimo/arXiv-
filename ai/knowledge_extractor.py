@@ -53,6 +53,12 @@ def _get_chain():
 
 
 def extract_knowledge_card(paper: dict, profile: dict | None = None) -> dict | None:
+    """Extract a structured knowledge card from an AI-enhanced paper.
+
+    Produces problem/method/result/keywords/relation fields used by the
+    knowledge graph and clustering pipeline. Returns None if the paper
+    lacks AI enhancement data.
+    """
     ai = paper.get("AI") or {}
     if not ai.get("tldr") and not ai.get("method"):
         logger.debug(f"Skipping knowledge extraction for {paper.get('id')}: no AI data")

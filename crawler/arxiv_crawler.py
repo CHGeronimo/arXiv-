@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class ArxivCrawler:
+    """Fetches new papers from arXiv /list/<cat>/new listing pages.
+
+    Parses the HTML listing to get paper IDs that appeared in the latest
+    update, filters out already-known IDs, then fetches metadata via
+    the arxiv Python package.
+    """
     def __init__(
         self,
         categories: List[str],

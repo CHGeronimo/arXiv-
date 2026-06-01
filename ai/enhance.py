@@ -46,6 +46,7 @@ def load_research_profile() -> dict:
 
 
 def build_chain(model_name: str):
+    """Build the AI enhancement LangChain pipeline with structured JSON output."""
     llm = ChatOpenAI(model=model_name).with_structured_output(Structure, method="json_mode")
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system),
