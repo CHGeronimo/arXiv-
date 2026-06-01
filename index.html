@@ -65,7 +65,11 @@
             <button id="btn-refresh-graph" class="follow-btn">刷新图谱</button>
             <button class="follow-btn" onclick="document.getElementById('graph-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
         </div>
-        <svg id="graph-svg" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet" class="graph-svg"></svg>
+        <div id="graph-empty" class="page-empty-state">
+            <p>暂无知识图谱数据</p>
+            <p class="hint">先触发知识卡片提取和聚类，然后刷新图谱</p>
+        </div>
+        <svg id="graph-svg" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet" class="graph-svg" style="display:none"></svg>
     </div>
 
     <div id="trend-page" class="page-section">
@@ -73,6 +77,10 @@
         <div class="page-toolbar page-toolbar--top">
             <button id="btn-generate-trend" class="follow-btn">生成报告</button>
             <button class="follow-btn" onclick="document.getElementById('trend-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+        </div>
+        <div id="trend-empty" class="page-empty-state">
+            <p>暂无趋势报告</p>
+            <p class="hint">点击"生成报告"创建本周趋势雷达</p>
         </div>
         <div id="trend-content"></div>
     </div>
@@ -83,6 +91,9 @@
         <div class="page-toolbar page-toolbar--bottom">
             <button id="btn-check-idea" class="follow-btn">分析</button>
             <button class="follow-btn" onclick="document.getElementById('idea-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+        </div>
+        <div id="idea-empty" class="page-empty-state">
+            <p>输入研究想法，AI 将分析其可行性和差异化</p>
         </div>
         <div id="idea-result" class="idea-result"></div>
     </div>

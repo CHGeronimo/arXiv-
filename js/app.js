@@ -238,7 +238,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-check-idea')?.addEventListener('click', async () => {
         const idea = document.getElementById('idea-input')?.value?.trim();
         if (!idea) return;
+        const emptyEl = document.getElementById('idea-empty');
         const el = document.getElementById('idea-result');
+        // Hide empty state, show loading
+        if (emptyEl) emptyEl.style.display = 'none';
         el.innerHTML = '<div class="spinner"></div>';
         try {
             const resp = await fetch('/api/idea-check', {
@@ -246,7 +249,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({idea})
             });
             const {analysis} = await resp.json();
-            if (!analysis) { el.innerHTML = '<p>分析失败</p>'; return; }
+            if (!analysis) {
+                el.innerHTML = '';
+                if (emptyEl) {
+                    emptyEl.innerHTML = '<p>分析失败</p><p class="hint">请稍后重试</p>';
+                    emptyEl.style.display = '';
+                }
+                return;
+            }
             const colors = {high: '#22c55e', medium: '#eab308', low: '#ef4444'};
             el.innerHTML = `
                 <div style="display:flex;gap:12px;margin-bottom:12px">
@@ -256,7 +266,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h3>相关工作</h3><p style="font-size:0.88rem">${analysis.related_work}</p>
                 <h3>差异化建议</h3><p style="font-size:0.88rem">${analysis.differentiation}</p>
                 <h3>风险</h3><p style="font-size:0.88rem">${analysis.risks}</p>`;
-        } catch { el.innerHTML = '<p>请求失败</p>'; }
+        } catch {
+            el.innerHTML = '';
+            if (emptyEl) {
+                emptyEl.innerHTML = '<p>请求失败</p><p class="hint">请检查网络后重试</p>';
+                emptyEl.style.display = '';
+            }
+        }
     });
 
     // Close dropdowns on outside click (no-op for sidebar)

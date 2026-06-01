@@ -1,9 +1,34 @@
 // js/graph.js — force-directed knowledge graph
 
 export async function loadGraph() {
+    const emptyEl = document.getElementById('graph-empty');
+    const svgEl = document.getElementById('graph-svg');
+
+    // Show loading state
+    if (emptyEl) emptyEl.innerHTML = '<div class="spinner"></div><p style="margin-top:12px">正在加载图谱...</p>';
+    if (svgEl) svgEl.style.display = 'none';
+
     const resp = await fetch('/api/knowledge-graph');
-    if (!resp.ok) return;
+    if (!resp.ok) {
+        if (emptyEl) emptyEl.innerHTML = '<p>加载失败</p><p class="hint">请稍后重试</p>';
+        return;
+    }
     const { nodes, edges } = await resp.json();
+
+    if (!nodes || nodes.length === 0) {
+        // Show empty state, hide SVG
+        if (emptyEl) {
+            emptyEl.innerHTML = '<p>暂无知识图谱数据</p><p class="hint">先触发知识卡片提取和聚类，然后刷新图谱</p>';
+            emptyEl.style.display = '';
+        }
+        if (svgEl) svgEl.style.display = 'none';
+        return;
+    }
+
+    // Hide empty state, show SVG
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (svgEl) svgEl.style.display = '';
+
     renderGraph(nodes, edges);
 }
 
