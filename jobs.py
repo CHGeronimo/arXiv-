@@ -25,7 +25,7 @@ from crawler.arxiv_crawler import ArxivCrawler
 from crawler.author_crawler import AuthorCrawler
 from crawler.crossref_crawler import CrossrefCrawler
 from crawler.dblp_crawler import DblpCrawler
-from crawler.s2_crawler import S2Crawler
+from crawler.openalex_crawler import OpenAlexCrawler
 from crawler.subs_store import Subscriptions
 
 from db import get_conn
@@ -207,6 +207,7 @@ class DblpJob(BaseCrawlerJob):
 
 
 class S2Job(BaseCrawlerJob):
+    """Now backed by OpenAlex instead of Semantic Scholar."""
     name = "s2"
 
     def _create_crawler(self, subs: Subscriptions):
@@ -225,7 +226,7 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"Keyword expansion failed, using seeds: {e}")
             keywords = seed_keywords
-        return S2Crawler(keywords=keywords, max_per_keyword=20)
+        return OpenAlexCrawler(keywords=keywords, max_per_keyword=25)
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no keywords"
