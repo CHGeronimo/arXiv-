@@ -43,6 +43,7 @@ export function renderPapers() {
         const rec = ai.recommendation || '';
         const recLabels = { 'must-read': 'Must Read', 'recommended': 'Recommended', 'reference': 'Reference' };
         const recBadge = rec && recLabels[rec] ? `<span class="rec-badge ${rec}">${recLabels[rec]}</span>` : '';
+        const ccfBadge = paper.ccf_tier ? `<span class="ccf-badge ${window.ccfTierClass?.(paper.ccf_tier) || 'ccf-' + paper.ccf_tier}">${paper.ccf_tier}</span>` : '';
         const tldr = ai.tldr || paper.tldr || '';
         const cardTldr = tldr ? `<div class="card-tldr">${tldr}</div>` : '';
         const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');
@@ -59,7 +60,7 @@ export function renderPapers() {
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
-                    ${sourceBadge}${venueBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
+                    ${sourceBadge}${venueBadge}${ccfBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
                 </div>

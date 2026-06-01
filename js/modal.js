@@ -21,6 +21,7 @@ export function openPaperDetail(paper) {
         ? `<span class="source-badge s2">S2</span>`
         : `<span class="source-badge arxiv">arXiv</span>`;
     const venueInfo = paper.venue ? ` <span class="venue-badge">${paper.venue}</span>` : '';
+    const ccfInfo = paper.ccf_tier ? ` <span class="ccf-badge ${window.ccfTierClass?.(paper.ccf_tier) || 'ccf-' + paper.ccf_tier}">${paper.ccf_tier}</span>` : '';
     const accInfo = paper.acceptance ? ` <span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
     const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary)">&#9733; ${paper.citation_count} citations</div>` : '';
 
@@ -54,7 +55,7 @@ export function openPaperDetail(paper) {
     const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
 
     detail.innerHTML = `
-        <div class="paper-header">${sourceBadge}${venueInfo}${accInfo}
+        <div class="paper-header">${sourceBadge}${venueInfo}${ccfInfo}${accInfo}
             <span class="paper-cat">${paper.published_date || ''}</span>
         </div>
         <h2 style="margin:12px 0">${title}</h2>

@@ -9,6 +9,7 @@ export let activeFilters = {
     venue: new Set(),
     type: new Set(),
     bookmarked: new Set(),
+    ccf: new Set(),
 };
 export let searchQuery = '';
 export let dateFilter = '';

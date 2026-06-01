@@ -48,6 +48,11 @@ export function buildFilterOptions() {
         { key: 'bookmarked', label: '收藏', options: [
             { value: 'yes', label: '⭐ 已收藏' },
         ]},
+        { key: 'ccf', label: 'CCF 等级', options: [
+            { value: 'A', label: 'CCF-A' },
+            { value: 'B', label: 'CCF-B' },
+            { value: 'C', label: 'CCF-C' },
+        ]},
     ];
 
     const container = document.getElementById('sidebar-filter-groups');
@@ -156,6 +161,8 @@ export function applyFiltersAndSort() {
         });
     if (activeFilters.bookmarked.size > 0)
         result = result.filter(p => _bookmarks.has(p.id));
+    if (activeFilters.ccf.size > 0)
+        result = result.filter(p => activeFilters.ccf.has(p.ccf_tier || ''));
 
     const sq = document.getElementById('sidebar-search-input')?.value?.trim().toLowerCase() || '';
     if (sq) {
