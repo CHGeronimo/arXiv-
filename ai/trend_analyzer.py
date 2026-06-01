@@ -24,7 +24,9 @@ Identify:
 1. New methods or techniques that emerged
 2. Problems that appear solved or significantly advanced
 3. Controversies or conflicting findings
-4. Research opportunities visible from these papers"""
+4. Research opportunities visible from these papers
+
+Respond with valid JSON matching the TrendReport schema."""
 
 _CHAIN = None
 

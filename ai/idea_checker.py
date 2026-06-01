@@ -37,7 +37,9 @@ Assess:
 2. Novelty (high/medium/low) — is this already done?
 3. Related work summary — what's closest?
 4. Differentiation — how to make this novel?
-5. Risks — what could go wrong?"""
+5. Risks — what could go wrong?
+
+Respond with valid JSON matching the IdeaAnalysis schema."""
 
 _CHAIN = None
 

@@ -36,7 +36,9 @@ Extract:
 2. **Method**: What is the core method, technique, or approach proposed? One sentence.
 3. **Result**: What is the key result or finding? Include metrics if available. One sentence.
 4. **Keywords**: 5-10 technical keywords characterizing this paper's contribution and domain.
-5. **Relation to Profile**: How does this relate to the user's research direction?"""
+5. **Relation to Profile**: How does this relate to the user's research direction?
+
+Respond with valid JSON matching the KnowledgeCard schema."""
 
 _CHAIN = None
 
