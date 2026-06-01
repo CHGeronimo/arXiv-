@@ -189,6 +189,18 @@ header h1 {
 .acc-badge.spotlight { background: rgba(234,179,8,0.2); color: #eab308; }
 .acc-badge.poster { background: rgba(107,114,128,0.2); color: #9ca3af; }
 
+.ccf-badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.ccf-badge.ccf-a { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.ccf-badge.ccf-b { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+.ccf-badge.ccf-c { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
 .cite-badge {
     font-size: 0.75rem;
     color: var(--text-secondary);
