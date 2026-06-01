@@ -141,11 +141,11 @@ header h1 {
     padding: 16px;
     border: 1px solid var(--border-color);
     cursor: pointer;
-    transition: transform 0.2s, border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 .paper-card:hover {
-    transform: translateY(-2px);
     border-color: var(--accent);
+    box-shadow: 0 2px 8px rgba(110, 64, 201, 0.15);
 }
 
 .paper-header {
