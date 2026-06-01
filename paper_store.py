@@ -179,23 +179,17 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
         quick_chain = get_quick_chain()
         chain, profile = get_ai_chain()
         if not quick_filter_paper(paper_dict, quick_chain, profile):
-            ai_default = {
-                "tldr": "", "motivation": "", "method": "", "result": "",
-                "conclusion": "",
-                "title_zh": "", "summary_zh": "",
-                "quality_score": 0, "relevance_score": 0,
-                "recommendation": "skip",
-                "skip_reason": "Filtered by quick relevance check",
-            }
-            _insert_paper_row(paper_dict)
-            _insert_ai_row(paper.id, ai_default)
-            return True
+            logger.debug(f"Skipping irrelevant paper: {paper.id}")
+            return False
 
         # Full enhancement
         try:
             enhanced = enhance_single(paper_dict, chain, profile, AI_LANGUAGE)
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
+                if ai_data.get("recommendation") == "skip":
+                    logger.debug(f"Skipping AI-rated paper: {paper.id}")
+                    return False
                 _insert_paper_row(paper_dict)
                 _insert_ai_row(paper.id, ai_data)
                 try:
