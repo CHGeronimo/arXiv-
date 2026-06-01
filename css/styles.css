@@ -632,3 +632,48 @@ header h1 {
     header h1 { font-size: 1.1rem; }
     .paper-title { font-size: 0.9rem; }
 }
+
+/* Page Sections (graph / trend / idea) */
+.page-section {
+    display: none;
+    padding: 20px;
+    max-width: 700px;
+    margin: 0 auto;
+}
+#graph-page {
+    max-width: none;
+}
+
+.page-header {
+    margin-bottom: 12px;
+}
+
+.page-toolbar {
+    display: flex;
+    gap: 8px;
+}
+.page-toolbar--top {
+    margin-bottom: 12px;
+}
+.page-toolbar--bottom {
+    margin-top: 8px;
+}
+
+.graph-svg {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.idea-textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.idea-result {
+    margin-top: 16px;
+}
