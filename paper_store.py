@@ -10,6 +10,7 @@ import json
 import logging
 
 from ai.enhance import enhance_single, build_chain, load_research_profile
+from ai.knowledge_extractor import extract_knowledge_card
 from ai.quick_filter import build_quick_filter, quick_filter_paper
 from crawler.models import Paper
 from db import get_conn, queue_write
@@ -136,6 +137,19 @@ def _insert_ai_row(paper_id: str, ai: dict) -> None:
     queue_write(sql, tuple(row[c] for c in AI_COLS))
 
 
+CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
+
+
+def _insert_knowledge_card(paper_id: str, paper: dict) -> None:
+    card = extract_knowledge_card(paper)
+    if card is None:
+        return
+    cols = ", ".join(CARD_COLS)
+    placeholders = ", ".join(f":{c}" for c in CARD_COLS)
+    sql = f"INSERT OR REPLACE INTO knowledge_cards ({cols}) VALUES ({placeholders})"
+    queue_write(sql, tuple(card.get(c) for c in CARD_COLS))
+
+
 # ---------------------------------------------------------------------------
 # Core append
 # ---------------------------------------------------------------------------
@@ -184,6 +198,10 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
                 ai_data = enhanced.get("AI", enhanced)
                 _insert_paper_row(paper_dict)
                 _insert_ai_row(paper.id, ai_data)
+                try:
+                    _insert_knowledge_card(paper.id, enhanced)
+                except Exception as e:
+                    logger.warning(f"Knowledge card extraction failed for {paper.id}: {e}")
                 return True
         except Exception as e:
             logger.warning(f"AI enhance failed for {paper.id}: {e}")
