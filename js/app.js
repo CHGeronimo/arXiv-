@@ -9,6 +9,8 @@ import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibte
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
+import { loadGraph } from './graph.js';
+import { loadTrendRadar } from './trend.js';
 
 // Theme
 const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色' };
@@ -213,6 +215,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         else if (e.key === '/') { e.preventDefault(); document.getElementById('sidebar-search-input')?.focus(); }
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
+    });
+
+    // Knowledge graph
+    document.getElementById('btn-refresh-graph')?.addEventListener('click', loadGraph);
+
+    // Trend radar
+    document.getElementById('btn-generate-trend')?.addEventListener('click', async () => {
+        await fetch('/api/trigger/trend', { method: 'POST' });
+        showToast('趋势报告生成中...');
+        setTimeout(loadTrendRadar, 30000);
+    });
+
+    // Idea check
+    document.getElementById('btn-check-idea')?.addEventListener('click', async () => {
+        const idea = document.getElementById('idea-input')?.value?.trim();
+        if (!idea) return;
+        const el = document.getElementById('idea-result');
+        el.innerHTML = '<div class="spinner"></div>';
+        try {
+            const resp = await fetch('/api/idea-check', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({idea})
+            });
+            const {analysis} = await resp.json();
+            if (!analysis) { el.innerHTML = '<p>分析失败</p>'; return; }
+            const colors = {high: '#22c55e', medium: '#eab308', low: '#ef4444'};
+            el.innerHTML = `
+                <div style="display:flex;gap:12px;margin-bottom:12px">
+                    <span style="color:${colors[analysis.feasibility]}">可行性: ${analysis.feasibility}</span>
+                    <span style="color:${colors[analysis.novelty]}">新颖性: ${analysis.novelty}</span>
+                </div>
+                <h3>相关工作</h3><p style="font-size:0.88rem">${analysis.related_work}</p>
+                <h3>差异化建议</h3><p style="font-size:0.88rem">${analysis.differentiation}</p>
+                <h3>风险</h3><p style="font-size:0.88rem">${analysis.risks}</p>`;
+        } catch { el.innerHTML = '<p>请求失败</p>'; }
     });
 
     // Close dropdowns on outside click (no-op for sidebar)
