@@ -143,6 +143,8 @@ class ArxivJob(BaseCrawlerJob):
             "SELECT id FROM papers WHERE source='arxiv'"
         ).fetchall()
         existing_ids = {row["id"] for row in rows}
+        ignored_rows = conn.execute("SELECT paper_id FROM ignored_papers").fetchall()
+        existing_ids |= {row["paper_id"] for row in ignored_rows}
         return ArxivCrawler(
             categories=subs.arxiv_categories, existing_ids=existing_ids
         )
