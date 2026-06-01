@@ -14,6 +14,7 @@ from ai.knowledge_extractor import extract_knowledge_card
 from ai.quick_filter import build_quick_filter, quick_filter_paper
 from crawler.models import Paper
 from db import get_conn, queue_write, ignore_paper, is_ignored
+from ccf_map import CCF_MAP
 
 logger = logging.getLogger("paper_store")
 
@@ -245,7 +246,106 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     if has_ai:
         d["AI"] = ai
 
+    # Attach CCF tier from venue/journal_title
+    d["ccf_tier"] = _match_ccf(d.get("venue", ""), d.get("journal_title", ""))
+
     return d
+
+
+_IEEE_ABBREV = {
+    "IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE": "IEEE TPAMI",
+    "IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING": "IEEE TKDE",
+    "IEEE TRANSACTIONS ON INFORMATION FORENSICS AND SECURITY": "IEEE TIFS",
+    "IEEE TRANSACTIONS ON SOFTWARE ENGINEERING": "IEEE TSE",
+    "IEEE TRANSACTIONS ON COMPUTERS": "TC",
+    "IEEE TRANSACTIONS ON PARALLEL AND DISTRIBUTED SYSTEMS": "IEEE TPDS",
+    "IEEE TRANSACTIONS ON IMAGE PROCESSING": "IEEE TIP",
+    "IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS": "IEEE TNNLS",
+    "IEEE TRANSACTIONS ON MULTIMEDIA": "IEEE TMM",
+    "IEEE TRANSACTIONS ON MOBILE COMPUTING": "IEEE TMC",
+    "IEEE TRANSACTIONS ON COMMUNICATIONS": "IEEE TCOMM",
+    "IEEE TRANSACTIONS ON WIRELESS COMMUNICATIONS": "IEEE TWC",
+    "IEEE TRANSACTIONS ON INFORMATION THEORY": "IEEE TIT",
+    "IEEE TRANSACTIONS ON VISUALIZATION AND COMPUTER GRAPHICS": "IEEE TVCG",
+    "IEEE TRANSACTIONS ON DEPENDABLE AND SECURE COMPUTING": "IEEE TDSC",
+    "IEEE TRANSACTIONS ON CLOUD COMPUTING": "IEEE TCC",
+    "IEEE TRANSACTIONS ON CYBERNETICS": "IEEE TCYB",
+    "IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS": "IEEE TITS",
+    "IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING": "IEEE TGRS",
+    "IEEE TRANSACTIONS ON ROBOTICS": "IEEE TRO",
+    "IEEE TRANSACTIONS ON AUTOMATION SCIENCE AND ENGINEERING": "IEEE TASE",
+    "IEEE TRANSACTIONS ON COMPUTER-AIDED DESIGN OF INTEGRATED CIRCUITS AND SYSTEMS": "IEEE TCAD",
+    "IEEE TRANSACTIONS ON CIRCUITS AND SYSTEMS FOR VIDEO TECHNOLOGY": "IEEE TCSVT",
+    "IEEE TRANSACTIONS ON SIGNAL PROCESSING": "IEEE TSP",
+    "IEEE TRANSACTIONS ON FUZZY SYSTEMS": "IEEE TFS",
+    "IEEE TRANSACTIONS ON EVOLUTIONARY COMPUTATION": "IEEE TEC",
+    "IEEE TRANSACTIONS ON INTELLIGENT SYSTEMS": "IEEE TIS",
+    "IEEE TRANSACTIONS ON SERVICES COMPUTING": "IEEE TSC",
+    "IEEE TRANSACTIONS ON NETWORK AND SERVICE MANAGEMENT": "IEEE TNSM",
+    "IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT": "IEEE TIM",
+    "IEEE INTERNET OF THINGS JOURNAL": "IEEE TIOT",
+    "IEEE JOURNAL ON SELECTED AREAS IN COMMUNICATIONS": "IEEE JSAC",
+    "IEEE ACCESS": "IEEE ACCESS",
+    "IEEE SENSORS JOURNAL": "IEEE SENSORS JOURNAL",
+    "ACM TRANSACTIONS ON GRAPHICS": "ACM TOG",
+    "ACM TRANSACTIONS ON INFORMATION SYSTEMS": "ACM TOIS",
+    "ACM TRANSACTIONS ON DATABASE SYSTEMS": "ACM TODS",
+    "ACM TRANSACTIONS ON COMPUTER-HUMAN INTERACTION": "ACM TOCHI",
+    "ACM TRANSACTIONS ON PROGRAMMING LANGUAGES AND SYSTEMS": "ACM TOPLAS",
+    "ACM TRANSACTIONS ON SOFTWARE ENGINEERING AND METHODOLOGY": "ACM TOSEM",
+    "ACM TRANSACTIONS ON MATHEMATICAL SOFTWARE": "ACM TOMS",
+    "ACM TRANSACTIONS ON MULTIMEDIA COMPUTING COMMUNICATIONS AND APPLICATIONS": "ACM TOMM",
+    "ACM TRANSACTIONS ON THE WEB": "ACM TWEB",
+    "ACM TRANSACTIONS ON SENSOR NETWORKS": "ACM TOSN",
+    "ACM TRANSACTIONS ON ALGORITHMS": "ACM TALG",
+    "ACM TRANSACTIONS ON EMBEDDED COMPUTING SYSTEMS": "ACM TECS",
+    "ACM TRANSACTIONS ON COMPUTER SYSTEMS": "ACM TOCS",
+    "ACM TRANSACTIONS ON INTELLIGENT SYSTEMS AND TECHNOLOGY": "ACM TIST",
+    "ACM TRANSACTIONS ON ARCHITECTURE AND CODE OPTIMIZATION": "ACM TACO",
+    "ACM TRANSACTIONS ON PRIVACY AND SECURITY": "ACM TOPS",
+    "ACM TRANSACTIONS ON RECONFIGURABLE TECHNOLOGY AND SYSTEMS": "ACM TRETS",
+    "ACM COMPUTING SURVEYS": "ACM CSUR",
+    "ACM TRANSACTIONS ON GRAPHICS": "TOG",
+    "IEEE TRANSACTIONS ON INTELLIGENT TRANSPORTATION SYSTEMS": "TITS",
+    "IEEE TRANSACTIONS ON MOBILE COMPUTING": "TMC",
+    "IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING": "TGRS",
+}
+
+
+def _normalize_venue(field: str) -> str:
+    """Normalize IEEE/ACM full journal names to standard abbreviations."""
+    up = field.upper().rstrip(".")
+    if up in _IEEE_ABBREV:
+        return _IEEE_ABBREV[up]
+    # Partial match for long IEEE/ACM names
+    for full, abbrev in _IEEE_ABBREV.items():
+        if full in up or up in full:
+            return abbrev
+    return field
+
+
+def _match_ccf(venue: str, journal_title: str) -> str:
+    """Match venue or journal_title against CCF_MAP. Returns tier or empty string."""
+    import re
+    for field in [venue, journal_title]:
+        if not field:
+            continue
+        if field in CCF_MAP:
+            return CCF_MAP[field]["tier"]
+        norm = _normalize_venue(field)
+        if norm != field and norm in CCF_MAP:
+            return CCF_MAP[norm]["tier"]
+        # Strip year suffix (e.g. "CVPR 2025" -> "CVPR")
+        stripped = re.sub(r'\s+\d{4}$', '', field).strip()
+        if stripped in CCF_MAP:
+            return CCF_MAP[stripped]["tier"]
+        # Keyword match: >= 4 chars substring or word-boundary for shorter keys
+        upper = field.upper()
+        for key, val in CCF_MAP.items():
+            ku = key.upper()
+            if len(ku) >= 4 and ku in upper:
+                return val["tier"]
+    return ""
 
 
 def find_paper_by_id(paper_id: str) -> dict | None:
