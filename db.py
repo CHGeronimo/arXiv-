@@ -148,6 +148,16 @@ def init_db() -> None:
             updated_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS trend_reports (
+            week_start TEXT PRIMARY KEY,
+            new_methods TEXT,
+            solved_problems TEXT,
+            controversies TEXT,
+            opportunities TEXT,
+            paper_count INTEGER,
+            generated_at TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_papers_source ON papers(source);
         CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_date);
         CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);

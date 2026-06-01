@@ -26,3 +26,10 @@ class KnowledgeCard(BaseModel):
     result_extracted: str = Field(description="the key result or finding, with metrics if available, in one sentence")
     keywords: list[str] = Field(description="5-10 technical keywords that characterize this paper's contribution and domain")
     relation_to_profile: str = Field(description="how this paper relates to the user's research direction: direct contribution, related technique, potential application, or tangential")
+
+
+class TrendReport(BaseModel):
+    new_methods: str = Field(description="new methods or techniques that emerged this week, 2-4 items as bullet points")
+    solved_problems: str = Field(description="problems that appear to have been addressed, 1-3 items")
+    controversies: str = Field(description="debates or conflicting findings, if any")
+    opportunities: str = Field(description="research opportunities or gaps visible from this week's papers")
