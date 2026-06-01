@@ -26,7 +26,7 @@ Rules:
 5. Keep the original seed keywords in the output
 6. Aim for 15-25 total queries
 7. Remove duplicates and near-duplicates
-8. Respond with valid JSON: {"queries": ["query1", "query2", ...]}"""
+8. Respond with valid JSON: {{"queries": ["query1", "query2", ...]}}"""
 
 EXPAND_TEMPLATE = """Research Direction: {direction}
 Seed Keywords: {keywords}
