@@ -714,3 +714,76 @@ def purge_papers():
     conn.commit()
     logging.getLogger(__name__).info(f"Purged {count} papers")
     return jsonify({"purged": count})
+
+
+# ── Ignored papers audit ─────────────────────────────────────────
+
+@app.route("/api/ignored", methods=["GET"])
+def get_ignored_papers():
+    """View papers that were filtered out (quick_filter_reject or AI ignore)."""
+    conn = get_conn()
+    reason = request.args.get("reason", "")
+    page = max(1, int(request.args.get("page", 1)))
+    per_page = min(200, max(1, int(request.args.get("per_page", 50))))
+
+    if reason:
+        if reason == 'ai_ignore':
+            where = "WHERE reason NOT IN ('quick_filter_reject', 'user_deleted', 'purge', 'purge_before_date')"
+            total = conn.execute(f"SELECT COUNT(*) FROM ignored_papers {where}").fetchone()[0]
+            rows = conn.execute(
+                f"SELECT paper_id, reason, ignored_at FROM ignored_papers {where} ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+                (per_page, (page - 1) * per_page),
+            ).fetchall()
+        else:
+            total = conn.execute("SELECT COUNT(*) FROM ignored_papers WHERE reason = ?", (reason,)).fetchone()[0]
+            rows = conn.execute(
+                "SELECT paper_id, reason, ignored_at FROM ignored_papers WHERE reason = ? ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+                (reason, per_page, (page - 1) * per_page),
+            ).fetchall()
+    else:
+        total = conn.execute("SELECT COUNT(*) FROM ignored_papers").fetchone()[0]
+        rows = conn.execute(
+            "SELECT paper_id, reason, ignored_at FROM ignored_papers ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+            (per_page, (page - 1) * per_page),
+        ).fetchall()
+
+    # Group by category for stats
+    stats = conn.execute("""
+        SELECT
+            CASE
+                WHEN reason = 'quick_filter_reject' THEN 'quick_filter_reject'
+                WHEN reason IN ('user_deleted', 'purge', 'purge_before_date') THEN reason
+                ELSE 'ai_ignore'
+            END as category,
+            COUNT(*) as cnt
+        FROM ignored_papers GROUP BY category ORDER BY cnt DESC
+    """).fetchall()
+
+    return jsonify({
+        "ignored": [{"paper_id": r[0], "reason": r[1], "ignored_at": r[2]} for r in rows],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "stats": [{"reason": s[0], "count": s[1]} for s in stats],
+    })
+
+
+@app.route("/api/ignored/stats", methods=["GET"])
+def get_ignored_stats():
+    """Summary stats of ignored papers."""
+    conn = get_conn()
+    total = conn.execute("SELECT COUNT(*) FROM ignored_papers").fetchone()[0]
+    stats = conn.execute("""
+        SELECT
+            CASE
+                WHEN reason = 'quick_filter_reject' THEN 'quick_filter_reject'
+                WHEN reason IN ('user_deleted', 'purge', 'purge_before_date') THEN reason
+                ELSE 'ai_ignore'
+            END as category,
+            COUNT(*) as cnt
+        FROM ignored_papers GROUP BY category ORDER BY cnt DESC
+    """).fetchall()
+    return jsonify({
+        "total_ignored": total,
+        "by_reason": [{"reason": s[0], "count": s[1]} for s in stats],
+    })
