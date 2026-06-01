@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 from ai.digest import generate_digest
 from ai.enhance import enhance_single, load_research_profile
+from ai.keyword_expander import expand_keywords
 from crawler.arxiv_crawler import ArxivCrawler
 from crawler.author_crawler import AuthorCrawler
 from crawler.crossref_crawler import CrossrefCrawler
@@ -209,12 +210,21 @@ class S2Job(BaseCrawlerJob):
     name = "s2"
 
     def _create_crawler(self, subs: Subscriptions):
-        keywords = subs.search_keywords
-        if not keywords:
-            profile = load_research_profile()
-            keywords = profile.get("keywords", [])
-        if not keywords:
+        profile = load_research_profile()
+        seed_keywords = subs.search_keywords or profile.get("keywords", [])
+        if not seed_keywords:
             return None
+        try:
+            keywords = expand_keywords(
+                direction=profile.get("direction", ""),
+                seed_keywords=seed_keywords,
+                quality_criteria=profile.get("quality_criteria", ""),
+                liked=profile.get("liked_topics", []),
+                disliked=profile.get("disliked_topics", []),
+            )
+        except Exception as e:
+            logger.warning(f"Keyword expansion failed, using seeds: {e}")
+            keywords = seed_keywords
         return S2Crawler(keywords=keywords, max_per_keyword=20)
 
     def _skip_reason(self, subs: Subscriptions) -> str:
