@@ -155,7 +155,7 @@ def _insert_knowledge_card(paper_id: str, paper: dict) -> None:
 # Core append
 # ---------------------------------------------------------------------------
 
-def append_paper(paper: Paper, enhance: bool = False) -> bool:
+def append_paper(paper: Paper, enhance: bool = False) -> str | None:
     """Insert a paper into the store, optionally running AI enhancement.
 
     Args:
@@ -163,30 +163,28 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
         enhance: If True, run quick filter and AI enhancement.
 
     Returns:
-        True if the paper was newly inserted, False if it already existed.
+        "written" if inserted, or the rejection reason string:
+        "exists", "ignored", "filter_reject", "ai_reject", "error".
     """
     if _paper_exists(paper.id):
-        return False
+        return "exists"
     if is_ignored(paper.id):
-        return False
+        return "ignored"
 
     paper_dict = json.loads(paper.to_jsonl())
 
     if enhance:
-        # If AI result already exists, just insert the paper row
         if _ai_exists(paper.id):
             _insert_paper_row(paper_dict)
-            return True
+            return "written"
 
-        # Quick relevance filter
         quick_chain = get_quick_chain()
         chain, profile = get_ai_chain()
         if not quick_filter_paper(paper_dict, quick_chain, profile):
-            logger.debug(f"Ignoring irrelevant paper: {paper.id}")
+            logger.debug(f"Quick filter rejected: {paper.id}")
             ignore_paper(paper.id, "quick_filter_reject")
-            return False
+            return "filter_reject"
 
-        # Full enhancement
         try:
             enhanced = enhance_single(paper_dict, chain, profile, AI_LANGUAGE)
             if enhanced:
@@ -194,21 +192,21 @@ def append_paper(paper: Paper, enhance: bool = False) -> bool:
                 if ai_data.get("recommendation") in ("skip", "ignore"):
                     reason = ai_data.get("skip_reason", "") or "ai_rated_ignore"
                     ignore_paper(paper.id, reason)
-                    logger.debug(f"Ignoring low-value paper: {paper.id}")
-                    return False
+                    logger.debug(f"AI rated ignore: {paper.id}")
+                    return "ai_reject"
                 _insert_paper_row(paper_dict)
                 _insert_ai_row(paper.id, ai_data)
                 try:
                     _insert_knowledge_card(paper.id, enhanced)
                 except Exception as e:
-                    logger.warning(f"Knowledge card extraction failed for {paper.id}: {e}")
-                return True
+                    logger.warning(f"Knowledge card failed for {paper.id}: {e}")
+                return "written"
         except Exception as e:
             logger.warning(f"AI enhance failed for {paper.id}: {e}")
+            return "error"
 
-    # No enhance, or enhance failed — insert paper row only
     _insert_paper_row(paper_dict)
-    return True
+    return "written"
 
 
 # ---------------------------------------------------------------------------

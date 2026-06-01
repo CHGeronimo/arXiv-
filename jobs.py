@@ -80,34 +80,45 @@ class BaseCrawlerJob(ABC):
 
     def run(self) -> None:
         _set_job_status(self.name, "running")
-        logger.info(f"Starting {self.name} crawl job")
+        logger.info(f"[{self.name}] ▶ start")
         try:
             subs = _load_subs()
             crawler = self._create_crawler(subs)
             if crawler is None:
                 reason = self._skip_reason(subs)
-                logger.info(f"{self.name} job skipped: {reason}")
+                logger.info(f"[{self.name}] ⊘ skipped: {reason}")
                 _set_job_status(self.name, "skipped", reason)
                 return
 
             fetched, written = 0, 0
+            skipped = {"exists": 0, "ignored": 0, "filter_reject": 0, "ai_reject": 0, "error": 0}
             fetched_info = self._init_fetched_info()
             for paper in crawler.crawl_iter():
                 fetched += 1
                 self._track_fetched(fetched_info, paper)
-                if append_paper(paper, enhance=True):
+                result = append_paper(paper, enhance=True)
+                if result == "written":
                     written += 1
+                else:
+                    skipped[result] = skipped.get(result, 0) + 1
                 if fetched % 20 == 0:
-                    logger.info(
-                        f"{self.name} progress: {fetched} fetched, {written} written"
-                    )
+                    parts = [f"{written} accepted"]
+                    if skipped.get("filter_reject"):
+                        parts.append(f"{skipped['filter_reject']} filtered")
+                    if skipped.get("exists"):
+                        parts.append(f"{skipped['exists']} dup")
+                    ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
+                    if ignored_total:
+                        parts.append(f"{ignored_total} rejected")
+                    logger.info(f"[{self.name}] {fetched}/{written} │ {' │ '.join(parts)}")
 
             self._post_run(subs, fetched_info)
-            msg = f"{fetched} fetched, {written} written"
-            logger.info(f"{self.name} job done: {msg}")
+            total_rejected = fetched - written
+            msg = f"{written} accepted, {total_rejected} rejected (of {fetched})"
+            logger.info(f"[{self.name}] ✔ done: {msg}")
             _set_job_status(self.name, "done", msg)
         except Exception as e:
-            logger.error(f"{self.name} job failed: {e}", exc_info=True)
+            logger.error(f"[{self.name}] ✖ failed: {e}", exc_info=True)
             _set_job_status(self.name, "error", str(e))
 
     @abstractmethod
@@ -299,7 +310,7 @@ def run_author_job():
 
 def run_retro_enhance():
     """Enhance papers that have no AI results yet."""
-    logger.info("Starting retro-enhance for papers without AI data")
+    logger.info("[retro-enhance] ▶ start")
     try:
         chain, profile = get_ai_chain()
 
@@ -320,7 +331,7 @@ def run_retro_enhance():
         rows = conn.execute(sql).fetchall()
 
         if not rows:
-            logger.info("No papers to retro-enhance")
+            logger.info("[retro-enhance] ⊘ no papers need enhancement")
             return
 
         # Convert rows to dicts, decoding JSON fields
@@ -338,7 +349,7 @@ def run_retro_enhance():
                 d[key] = val
             to_enhance.append(d)
 
-        logger.info(f"Retro-enhance: {len(to_enhance)} papers to process")
+        logger.info(f"[retro-enhance] {len(to_enhance)} papers to process")
         enhanced_count = 0
 
         with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
@@ -358,16 +369,16 @@ def run_retro_enhance():
                         enhanced_count += 1
                 except Exception as e:
                     logger.warning(
-                        f"Retro-enhance failed for {p.get('id', '?')}: {e}"
+                        f"[retro-enhance] failed {p.get('id', '?')}: {e}"
                     )
                 if enhanced_count % 10 == 0:
                     logger.info(
-                        f"Retro-enhance progress: {enhanced_count}/{len(to_enhance)}"
+                        f"[retro-enhance] {enhanced_count}/{len(to_enhance)}"
                     )
 
-        logger.info(f"Retro-enhance done: {enhanced_count} papers enhanced")
+        logger.info(f"[retro-enhance] ✔ {enhanced_count} enhanced")
     except Exception as e:
-        logger.error(f"Retro-enhance job failed: {e}", exc_info=True)
+        logger.error(f"[retro-enhance] ✖ failed: {e}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -375,15 +386,15 @@ def run_retro_enhance():
 # ---------------------------------------------------------------------------
 
 def run_digest_job():
-    logger.info("Starting digest generation")
+    logger.info("[digest] ▶ start")
     try:
         path = generate_digest()
         if path:
-            logger.info(f"Digest generated: {path}")
+            logger.info(f"[digest] ✔ saved: {path}")
         else:
-            logger.info("No papers to digest today")
+            logger.info("[digest] ⊘ no papers today")
     except Exception as e:
-        logger.error(f"Digest job failed: {e}", exc_info=True)
+        logger.error(f"[digest] ✖ failed: {e}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -416,7 +427,7 @@ class Scheduler:
         self._running = False
         for t in self._timers:
             t.cancel()
-        logger.info("Scheduler stopped")
+        logger.info("[scheduler] stopped")
 
     def _run_and_reschedule(self, job_name: str, interval_hours: int):
         if not self._running:
