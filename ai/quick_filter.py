@@ -14,7 +14,7 @@ Given the paper title and abstract, and the researcher's profile, classify if th
 IMPORTANT: Be generous — classify as relevant if there is ANY chance the paper relates to the researcher's work.
 Only mark as not-relevant if the paper is clearly in a completely different field.
 
-Respond with valid JSON: {"is_relevant": bool, "relevance_reason": "one sentence"}"""
+Respond with valid JSON: {{"is_relevant": bool, "relevance_reason": "one sentence"}}"""
 
 QUICK_TEMPLATE = """Research Direction: {research_direction}
 Keywords: {keywords}
