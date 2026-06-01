@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from jobs import (
 app = Flask(__name__, static_folder=".", static_url_path="")
 
 SUBS_PATH = "subscriptions.json"
+CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
 
 
 def _load_subs() -> Subscriptions:
@@ -166,6 +168,9 @@ def put_profile():
 
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
+    if job == "knowledge-extract":
+        threading.Thread(target=_retro_knowledge_extract, daemon=True).start()
+        return jsonify({"status": "triggered", "job": job})
     job_funcs = {
         "arxiv": run_arxiv_job,
         "crossref": run_crossref_job,
@@ -233,6 +238,190 @@ def get_feedback():
     conn = get_conn()
     rows = conn.execute("SELECT paper_id, rating FROM feedback").fetchall()
     return jsonify({row[0]: row[1] for row in rows})
+
+
+# ── Knowledge Cards (L1) ──────────────────────────────────────────
+
+@app.route("/api/knowledge-cards", methods=["GET"])
+def get_knowledge_cards():
+    query = request.args.get("q", "").strip()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (ValueError, TypeError):
+        page = 1
+    try:
+        per_page = min(200, max(1, int(request.args.get("per_page", 50))))
+    except (ValueError, TypeError):
+        per_page = 50
+
+    conn = get_conn()
+    if query:
+        like_q = f"%{query}%"
+        rows = conn.execute("""
+            SELECT kc.paper_id, kc.problem, kc.method_extracted, kc.result_extracted,
+                   kc.keywords, kc.relation_to_profile, kc.extracted_at, p.title, p.source
+            FROM knowledge_cards kc JOIN papers p ON kc.paper_id = p.id
+            WHERE kc.keywords LIKE ? OR kc.problem LIKE ? OR kc.method_extracted LIKE ? OR kc.result_extracted LIKE ?
+            ORDER BY kc.extracted_at DESC
+        """, (like_q, like_q, like_q, like_q)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT kc.paper_id, kc.problem, kc.method_extracted, kc.result_extracted,
+                   kc.keywords, kc.relation_to_profile, kc.extracted_at, p.title, p.source
+            FROM knowledge_cards kc JOIN papers p ON kc.paper_id = p.id
+            ORDER BY kc.extracted_at DESC
+        """).fetchall()
+
+    cards = []
+    for row in rows:
+        keywords = row["keywords"]
+        if isinstance(keywords, str):
+            try:
+                keywords = json.loads(keywords)
+            except (json.JSONDecodeError, TypeError):
+                keywords = []
+        cards.append({
+            "paper_id": row["paper_id"], "problem": row["problem"],
+            "method_extracted": row["method_extracted"], "result_extracted": row["result_extracted"],
+            "keywords": keywords, "relation_to_profile": row["relation_to_profile"],
+            "extracted_at": row["extracted_at"], "title": row["title"], "source": row["source"],
+        })
+
+    total = len(cards)
+    start = (page - 1) * per_page
+    return jsonify({"cards": cards[start:start + per_page], "total": total, "page": page})
+
+
+@app.route("/api/paper/<paper_id>/card", methods=["GET"])
+def get_paper_card(paper_id: str):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM knowledge_cards WHERE paper_id = ?", (paper_id,)).fetchone()
+    if row is None:
+        return jsonify({"card": None})
+    keywords = row["keywords"]
+    if isinstance(keywords, str):
+        try:
+            keywords = json.loads(keywords)
+        except (json.JSONDecodeError, TypeError):
+            keywords = []
+    return jsonify({"card": {
+        "paper_id": row["paper_id"], "problem": row["problem"],
+        "method_extracted": row["method_extracted"], "result_extracted": row["result_extracted"],
+        "keywords": keywords, "relation_to_profile": row["relation_to_profile"],
+        "extracted_at": row["extracted_at"],
+    }})
+
+
+@app.route("/api/trigger/knowledge-extract", methods=["POST"])
+def trigger_knowledge_extract():
+    threading.Thread(target=_retro_knowledge_extract, daemon=True).start()
+    return jsonify({"status": "triggered", "job": "knowledge-extract"})
+
+
+def _retro_knowledge_extract():
+    from ai.knowledge_extractor import extract_knowledge_card
+    from ai.enhance import load_research_profile
+
+    conn = get_conn()
+    profile = load_research_profile()
+    rows = conn.execute("""
+        SELECT a.paper_id, a.tldr, a.motivation, a.method, a.result, a.conclusion, p.title, p.summary
+        FROM ai_results a JOIN papers p ON a.paper_id = p.id
+        LEFT JOIN knowledge_cards kc ON a.paper_id = kc.paper_id
+        WHERE kc.paper_id IS NULL AND a.recommendation != 'skip'
+    """).fetchall()
+
+    logger = logging.getLogger("knowledge-extract")
+    logger.info(f"Retro knowledge extraction: {len(rows)} papers to process")
+
+    for i, row in enumerate(rows):
+        paper = {
+            "id": row["paper_id"], "title": row["title"], "summary": row["summary"],
+            "AI": {"tldr": row["tldr"], "motivation": row["motivation"], "method": row["method"], "result": row["result"], "conclusion": row["conclusion"]},
+        }
+        card = extract_knowledge_card(paper, profile)
+        if card:
+            queue_write(
+                "INSERT OR REPLACE INTO knowledge_cards (paper_id, problem, method_extracted, result_extracted, keywords, relation_to_profile) VALUES (?,?,?,?,?,?)",
+                (card["paper_id"], card["problem"], card["method_extracted"], card["result_extracted"], card["keywords"], card["relation_to_profile"]),
+            )
+        if (i + 1) % 50 == 0:
+            logger.info(f"Processed {i + 1}/{len(rows)} cards")
+    logger.info(f"Retro knowledge extraction complete: {len(rows)} processed")
+
+
+# ── Knowledge Graph (L2) ──────────────────────────────────────────
+
+@app.route("/api/knowledge-graph", methods=["GET"])
+def get_knowledge_graph():
+    from ai.knowledge_clustering import compute_clusters
+    clusters = compute_clusters()
+    nodes, edges = [], []
+    for i, c in enumerate(clusters):
+        pids = json.loads(c["paper_ids"]) if isinstance(c["paper_ids"], str) else c["paper_ids"]
+        kws = json.loads(c["method_keywords"]) if isinstance(c["method_keywords"], str) else c["method_keywords"]
+        nodes.append({"id": i, "name": c["cluster_name"], "size": len(pids), "keywords": kws[:5]})
+    for i in range(len(clusters)):
+        ki = set(json.loads(clusters[i]["method_keywords"]) if isinstance(clusters[i]["method_keywords"], str) else clusters[i]["method_keywords"])
+        for j in range(i + 1, len(clusters)):
+            kj = set(json.loads(clusters[j]["method_keywords"]) if isinstance(clusters[j]["method_keywords"], str) else clusters[j]["method_keywords"])
+            shared = ki & kj
+            if shared:
+                edges.append({"source": i, "target": j, "weight": len(shared), "keywords": sorted(shared)})
+    return jsonify({"nodes": nodes, "edges": edges})
+
+
+@app.route("/api/trigger/clustering", methods=["POST"])
+def trigger_clustering():
+    threading.Thread(target=_run_clustering_job, daemon=True).start()
+    return jsonify({"status": "triggered"})
+
+
+def _run_clustering_job():
+    from ai.knowledge_clustering import run_clustering
+    run_clustering()
+
+
+# ── Trend Radar (L3a) ─────────────────────────────────────────────
+
+@app.route("/api/trend-radar", methods=["GET"])
+def get_latest_trend():
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM trend_reports ORDER BY week_start DESC LIMIT 1").fetchone()
+    if not row:
+        return jsonify({"report": None})
+    return jsonify({"report": dict(row)})
+
+
+@app.route("/api/trend-radar/<week>", methods=["GET"])
+def get_trend_by_week(week: str):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM trend_reports WHERE week_start = ?", (week,)).fetchone()
+    if not row:
+        return jsonify({"report": None})
+    return jsonify({"report": dict(row)})
+
+
+@app.route("/api/trigger/trend", methods=["POST"])
+def trigger_trend():
+    from ai.trend_analyzer import generate_trend_report
+    threading.Thread(target=generate_trend_report, daemon=True).start()
+    return jsonify({"status": "triggered"})
+
+
+# ── Idea Check (L3b) ───────────────────────────────────────────────
+
+@app.route("/api/idea-check", methods=["POST"])
+def idea_check():
+    data = request.get_json() or {}
+    idea = data.get("idea", "").strip()
+    if not idea:
+        return jsonify({"error": "idea is required"}), 400
+    from ai.idea_checker import check_idea
+    result = check_idea(idea)
+    if result is None:
+        return jsonify({"error": "analysis failed"}), 500
+    return jsonify({"analysis": result})
 
 
 def _update_profile_from_feedback(paper_id: str, rating: str):
