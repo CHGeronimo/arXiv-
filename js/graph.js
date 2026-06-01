@@ -10,7 +10,18 @@ export async function loadGraph() {
 function renderGraph(nodes, edges) {
     const svg = d3.select('#graph-svg');
     svg.selectAll('*').remove();
-    const w = +svg.attr('width'), h = +svg.attr('height');
+    // Derive dimensions from viewBox (responsive) rather than fixed width/height attributes
+    const vb = svg.attr('viewBox');
+    let w, h;
+    if (vb) {
+        const parts = vb.split(/[\s,]+/).map(Number);
+        w = parts[2] || 960;
+        h = parts[3] || 600;
+    } else {
+        const rect = svg.node().getBoundingClientRect();
+        w = rect.width || 960;
+        h = rect.height || 600;
+    }
 
     const sim = d3.forceSimulation(nodes)
         .force('link', d3.forceLink(edges).id(d => d.id).distance(80))
