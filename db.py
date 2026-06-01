@@ -139,6 +139,15 @@ def init_db() -> None:
             FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS knowledge_clusters (
+            cluster_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cluster_name TEXT NOT NULL,
+            method_keywords JSON NOT NULL,
+            paper_ids JSON NOT NULL,
+            problem_domains JSON,
+            updated_at TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_papers_source ON papers(source);
         CREATE INDEX IF NOT EXISTS idx_papers_published_date ON papers(published_date);
         CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);
