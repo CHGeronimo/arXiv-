@@ -5,7 +5,7 @@ import {
     refreshTimer, toggleBookmark, showToast,
     filteredPapers, currentPage, setCurrentTheme, currentTheme, setSidebarOpen, sidebarOpen,
 } from './state.js';
-import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex } from './api.js';
+import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
@@ -151,6 +151,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(fbBtn.dataset.feedbackRating === 'useful' ? '已标记为有用' : '已标记为没用');
                 })
                 .catch(() => showToast('反馈失败'));
+            return;
+        }
+        const delBtn = e.target.closest('[data-delete-id]');
+        if (delBtn) {
+            e.stopPropagation();
+            const paperId = delBtn.dataset.deleteId;
+            if (!confirm('确定删除这篇论文？此操作不可恢复。')) return;
+            apiDeletePaper(paperId).then(() => {
+                showToast('论文已删除');
+                closePaperModal();
+                loadPapers();
+            }).catch(() => showToast('删除失败'));
         }
     });
 
@@ -278,5 +290,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // Close dropdowns on outside click (no-op for sidebar)
     document.addEventListener('click', (e) => {
         // Sidebar doesn't need outside click handling
+    });
+
+    // Data management
+    const toggleMgmt = document.getElementById('toggle-data-mgmt');
+    const mgmtBody = document.getElementById('data-mgmt-body');
+    toggleMgmt?.addEventListener('click', () => {
+        const open = mgmtBody.style.display !== 'none';
+        mgmtBody.style.display = open ? 'none' : 'block';
+        toggleMgmt.classList.toggle('expanded', !open);
+    });
+
+    document.getElementById('btn-purge-skip')?.addEventListener('click', async () => {
+        if (!confirm('确定删除所有 AI 标记为 skip 的论文？此操作不可恢复。')) return;
+        try {
+            const { purgePapers } = await import('./api.js');
+            const result = await purgePapers({ skip_rated: true });
+            showToast(`已删除 ${result.purged} 篇 skip 论文`);
+            loadPapers();
+        } catch { showToast('删除失败'); }
+    });
+
+    document.getElementById('btn-purge-before')?.addEventListener('click', async () => {
+        const dateInput = document.getElementById('purge-date-input');
+        const dateStr = dateInput?.value;
+        if (!dateStr) { showToast('请选择日期'); return; }
+        if (!confirm(`确定删除 ${dateStr} 之前的所有论文？此操作不可恢复。`)) return;
+        try {
+            const { deletePapersBefore } = await import('./api.js');
+            const result = await deletePapersBefore(dateStr);
+            showToast(`已删除 ${result.deleted_count} 篇论文`);
+            loadPapers();
+        } catch { showToast('删除失败'); }
     });
 });

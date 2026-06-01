@@ -3,7 +3,7 @@
 import { showToast } from './state.js';
 
 export async function fetchPapers() {
-    const resp = await fetch('/api/papers?per_page=1000');
+    const resp = await fetch('/api/papers?per_page=10000');
     if (!resp.ok) throw new Error('fetch failed');
     const data = await resp.json();
     return data.papers || [];
@@ -113,4 +113,26 @@ export async function fetchKnowledgeCard(paperId) {
     if (!resp.ok) return null;
     const data = await resp.json();
     return data.card;
+}
+
+export async function deletePaper(paperId) {
+    const resp = await fetch(`/api/paper/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('delete failed');
+    return resp.json();
+}
+
+export async function deletePapersBefore(dateStr) {
+    const resp = await fetch(`/api/papers/before/${encodeURIComponent(dateStr)}`, { method: 'DELETE' });
+    if (!resp.ok) throw new Error('delete failed');
+    return resp.json();
+}
+
+export async function purgePapers(options) {
+    const resp = await fetch('/api/papers/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options),
+    });
+    if (!resp.ok) throw new Error('purge failed');
+    return resp.json();
 }

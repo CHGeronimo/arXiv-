@@ -13,7 +13,7 @@ from paper_store import (
     append_paper, find_paper_by_id, load_all_papers,
     reset_ai_chain,
 )
-from db import get_conn, queue_write
+from db import get_conn, queue_write, sync_write
 from jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
     run_s2_job, run_author_job, run_retro_enhance, run_digest_job,
@@ -530,7 +530,7 @@ def recommend_categories():
 
     cat_list = "\n".join(f"- {code}: {name}" for code, name in ARXIV_CATEGORY_MAP.items())
 
-    prompt = f"""Given a researcher's direction and keywords, select the most relevant arXiv categories.
+    prompt = f"""Given a researcher's direction and keywords, select the most relevant arXiv categories. Return your answer as json with "primary" and "secondary" fields.
 
 Research Direction: {direction}
 Keywords: {', '.join(keywords) if keywords else 'N/A'}
@@ -545,10 +545,24 @@ Select categories that would contain papers relevant to this researcher."""
         llm = ChatOpenAI(model=model_name).with_structured_output(CategoryRecommendation, method="json_mode")
         from langchain_core.prompts import ChatPromptTemplate
         chain = ChatPromptTemplate.from_template(prompt) | llm
-        result = chain.invoke({})
+        try:
+            result = chain.invoke({})
+            primary = result.primary if isinstance(result.primary, list) else [result.primary]
+            secondary = result.secondary if isinstance(result.secondary, list) else [result.secondary]
+        except Exception as parse_err:
+            # DeepSeek sometimes returns strings instead of lists; extract manually
+            import json, re
+            err_str = str(parse_err)
+            json_match = re.search(r'\{.*\}', err_str)
+            if json_match:
+                raw = json.loads(json_match.group())
+                primary = raw.get("primary", []) if isinstance(raw.get("primary"), list) else [raw.get("primary", "")] if raw.get("primary") else []
+                secondary = raw.get("secondary", []) if isinstance(raw.get("secondary"), list) else [raw.get("secondary", "")] if raw.get("secondary") else []
+            else:
+                primary, secondary = [], []
         all_codes = set(ARXIV_CATEGORY_MAP.keys())
-        primary = [c for c in result.primary if c in all_codes]
-        secondary = [c for c in result.secondary if c in all_codes]
+        primary = [c for c in primary if c in all_codes]
+        secondary = [c for c in secondary if c in all_codes]
         return jsonify({"primary": primary, "secondary": secondary})
     except Exception as e:
         logging.getLogger(__name__).error(f"Category recommendation failed: {e}")
@@ -633,3 +647,51 @@ def export_bibtex():
     if not entries:
         return jsonify({"error": "no papers found"}), 404
     return "\n\n".join(entries), 200, {"Content-Type": "application/x-bibtex"}
+
+
+# ── Paper deletion ───────────────────────────────────────────────
+
+@app.route("/api/paper/<paper_id>", methods=["DELETE"])
+def delete_paper(paper_id: str):
+    """Delete a single paper and all related data (CASCADE)."""
+    conn = get_conn()
+    cur = conn.execute("DELETE FROM papers WHERE id = ?", (paper_id,))
+    conn.commit()
+    if cur.rowcount == 0:
+        return jsonify({"error": "not found"}), 404
+    logging.getLogger(__name__).info(f"Deleted paper {paper_id}")
+    return jsonify({"deleted": paper_id})
+
+
+@app.route("/api/papers/before/<date_str>", methods=["DELETE"])
+def delete_papers_before_date(date_str: str):
+    """Delete all papers published before the given date (YYYY-MM-DD)."""
+    conn = get_conn()
+    cur = conn.execute("DELETE FROM papers WHERE published_date < ?", (date_str,))
+    conn.commit()
+    count = cur.rowcount
+    logging.getLogger(__name__).info(f"Deleted {count} papers before {date_str}")
+    return jsonify({"deleted_count": count, "before": date_str})
+
+
+@app.route("/api/papers/purge", methods=["POST"])
+def purge_papers():
+    """Delete papers matching criteria: skip-rated, older-than-N-days, or specific recommendation."""
+    data = request.get_json() or {}
+    conn = get_conn()
+    count = 0
+
+    if data.get("skip_rated"):
+        cur = conn.execute(
+            "DELETE FROM papers WHERE id IN (SELECT paper_id FROM ai_results WHERE recommendation = 'skip')"
+        )
+        count += cur.rowcount
+
+    if data.get("older_than_days"):
+        cutoff = f"datetime('now', '-{int(data['older_than_days'])} days')"
+        cur = conn.execute(f"DELETE FROM papers WHERE published_date < date({cutoff})")
+        count += cur.rowcount
+
+    conn.commit()
+    logging.getLogger(__name__).info(f"Purged {count} papers")
+    return jsonify({"purged": count})

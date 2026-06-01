@@ -1,7 +1,7 @@
 // js/modal.js — paper detail and profile modals
 
-import { markRead, escAttr, showToast } from './state.js';
-import { exportBibtex, fetchKnowledgeCard } from './api.js';
+import { markRead, escAttr, showToast, setAllPapers } from './state.js';
+import { exportBibtex, fetchKnowledgeCard, deletePaper } from './api.js';
 
 export function openPaperDetail(paper) {
     markRead(paper.id);
@@ -72,6 +72,7 @@ export function openPaperDetail(paper) {
             <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
             <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" style="border-color:#22c55e;color:#22c55e">有用</button>
             <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" style="border-color:#ef4444;color:#ef4444">没用</button>
+            <button class="follow-btn" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
         </div>
             <div id="knowledge-card-section"></div>`;
 
