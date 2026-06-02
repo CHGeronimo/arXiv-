@@ -12,7 +12,7 @@ class Structure(BaseModel):
     quality_score: int = Field(description="paper quality score from 1-10: 1=trivial/incremental, 5=solid contribution, 10=breakthrough work")
     relevance_score: int = Field(description="relevance to user research direction from 1-10: 1=unrelated, 5=tangentially related, 10=directly addresses core topic")
     recommendation: str = Field(description="one of: must-read, recommended, reference, ignore")
-    skip_reason: str = Field(default="", description="when ignore: one sentence why; otherwise empty string")
+    skip_reason: str = Field(default="", description='when recommendation is ignore: one of "low_relevance", "weak_method", "no_empirical", "domain_mismatch", "poor_quality"; otherwise empty string')
 
 
 class QuickFilter(BaseModel):

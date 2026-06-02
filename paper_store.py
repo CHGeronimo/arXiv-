@@ -20,6 +20,14 @@ logger = logging.getLogger("paper_store")
 
 AI_LANGUAGE = "Chinese"
 
+_SKIP_REASON_MAP = {
+    "low_relevance": "low_relevance",
+    "weak_method": "weak_method",
+    "no_empirical": "no_empirical",
+    "domain_mismatch": "domain_mismatch",
+    "poor_quality": "poor_quality",
+}
+
 # ---------------------------------------------------------------------------
 # AI chain lazy init (unchanged from original)
 # ---------------------------------------------------------------------------
@@ -193,9 +201,10 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
                 if ai_data.get("recommendation") in ("skip", "ignore"):
-                    reason = ai_data.get("skip_reason", "") or "ai_rated_ignore"
+                    raw_reason = ai_data.get("skip_reason", "") or "low_relevance"
+                    reason = _SKIP_REASON_MAP.get(raw_reason, "low_relevance")
                     ignore_paper(paper.id, reason)
-                    logger.debug(f"AI rated ignore: {paper.id}")
+                    logger.debug(f"AI rated ignore ({reason}): {paper.id}")
                     return "ai_reject"
                 _insert_paper_row(paper_dict)
                 _insert_ai_row(paper.id, ai_data)

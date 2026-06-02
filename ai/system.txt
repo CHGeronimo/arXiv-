@@ -55,4 +55,13 @@ JSON fields:
 - "quality_score": integer 1-10
 - "relevance_score": integer 1-10
 - "recommendation": one of "must-read", "recommended", "reference", "ignore"
-- "skip_reason": only when recommendation is "ignore", one sentence explaining why (empty string otherwise)
+- "skip_reason": only when recommendation is "ignore", one of: "low_relevance", "weak_method", "no_empirical", "domain_mismatch", "poor_quality" (empty string otherwise)
+
+When you set recommendation to "ignore", the skip_reason field MUST be exactly one of these labels:
+- "low_relevance": paper topic is outside the researcher's direction
+- "weak_method": method lacks novelty or is incremental
+- "no_empirical": no experimental results or validation
+- "domain_mismatch": application domain is unrelated to the researcher
+- "poor_quality": paper quality is below threshold (missing abstract, trivial result, etc.)
+
+Do NOT write free-text explanations in skip_reason. Use only these exact labels.
