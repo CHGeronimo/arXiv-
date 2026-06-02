@@ -38,7 +38,7 @@ Extract:
 4. **Keywords**: 5-10 technical keywords characterizing this paper's contribution and domain.
 5. **Relation to Profile**: How does this relate to the user's research direction?
 
-Respond with valid JSON matching the KnowledgeCard schema."""
+Respond with valid JSON using these exact keys: "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"."""
 
 _CHAIN = None
 

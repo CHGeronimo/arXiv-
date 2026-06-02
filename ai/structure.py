@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class Structure(BaseModel):
@@ -21,11 +21,13 @@ class QuickFilter(BaseModel):
 
 
 class KnowledgeCard(BaseModel):
-    problem: str = Field(description="the specific problem or research question this paper addresses, in one clear sentence")
-    method_extracted: str = Field(description="the core method, technique, or approach proposed, in one sentence")
-    result_extracted: str = Field(description="the key result or finding, with metrics if available, in one sentence")
-    keywords: list[str] = Field(description="5-10 technical keywords that characterize this paper's contribution and domain")
-    relation_to_profile: str = Field(description="how this paper relates to the user's research direction: direct contribution, related technique, potential application, or tangential")
+    model_config = ConfigDict(populate_by_name=True)
+
+    problem: str = Field(description="the specific problem or research question this paper addresses, in one clear sentence", alias="Problem")
+    method_extracted: str = Field(description="the core method, technique, or approach proposed, in one sentence", alias="Method")
+    result_extracted: str = Field(description="the key result or finding, with metrics if available, in one sentence", alias="Result")
+    keywords: list[str] = Field(description="5-10 technical keywords that characterize this paper's contribution and domain", alias="Keywords")
+    relation_to_profile: str = Field(description="how this paper relates to the user's research direction: direct contribution, related technique, potential application, or tangential", alias="RelationToProfile")
 
 
 class TrendReport(BaseModel):
