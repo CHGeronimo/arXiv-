@@ -35,3 +35,14 @@ class TrendReport(BaseModel):
     solved_problems: str = Field(description="problems that appear to have been addressed, 1-3 items")
     controversies: str = Field(description="debates or conflicting findings, if any")
     opportunities: str = Field(description="research opportunities or gaps visible from this week's papers")
+
+
+class FulltextAnalysis(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    method_implementation: str = Field(description="detailed description of how the method works: architecture, key algorithms, training procedure, design choices. 2-3 sentences", alias="MethodImplementation")
+    experimental_design: str = Field(description="experimental setup: datasets, baselines, metrics, evaluation protocol, ablation studies. 2-3 sentences", alias="ExperimentalDesign")
+    key_results_detail: str = Field(description="specific quantitative results: numbers, comparisons, state-of-the-art achievements. 2-3 sentences", alias="KeyResults")
+    limitations: str = Field(description="stated or inferred limitations: assumptions, scalability issues, domain restrictions, negative results. 1-2 sentences", alias="Limitations")
+    reproducibility: str = Field(description="reproducibility assessment: code available, hyperparameters specified, datasets accessible. 1 sentence", alias="Reproducibility")
+    relevance_to_profile: str = Field(description="specific relevance to user's research: which techniques could transfer, what gaps this fills, potential collaborations. 1-2 sentences", alias="RelevanceToProfile")

@@ -152,6 +152,18 @@ def init_db() -> None:
             updated_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS fulltext_analysis (
+            paper_id TEXT PRIMARY KEY,
+            method_implementation TEXT,
+            experimental_design TEXT,
+            key_results_detail TEXT,
+            limitations TEXT,
+            reproducibility TEXT,
+            relevance_to_profile TEXT,
+            analyzed_at TEXT,
+            FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS trend_reports (
             week_start TEXT PRIMARY KEY,
             new_methods TEXT,
