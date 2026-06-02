@@ -459,6 +459,11 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"Retro-enhance after arxiv error: {e}")
             try:
+                from api import _retro_knowledge_extract
+                _retro_knowledge_extract()
+            except Exception as e:
+                logger.error(f"Knowledge extract after arxiv error: {e}")
+            try:
                 run_digest_job()
             except Exception as e:
                 logger.error(f"Digest after arxiv error: {e}")

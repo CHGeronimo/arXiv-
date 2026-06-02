@@ -168,9 +168,6 @@ def put_profile():
 
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
-    if job == "knowledge-extract":
-        threading.Thread(target=_retro_knowledge_extract, daemon=True).start()
-        return jsonify({"status": "triggered", "job": job})
     job_funcs = {
         "arxiv": run_arxiv_job,
         "crossref": run_crossref_job,
