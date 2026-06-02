@@ -89,6 +89,7 @@ def init_db() -> None:
             venue TEXT,
             acceptance TEXT,
             citation_count INTEGER DEFAULT 0,
+            ccf_tier TEXT,
             version TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
@@ -169,6 +170,7 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_ai_results_recommendation ON ai_results(recommendation);
         CREATE INDEX IF NOT EXISTS idx_ai_results_relevance_score ON ai_results(relevance_score);
         CREATE INDEX IF NOT EXISTS idx_knowledge_cards_keywords ON knowledge_cards(keywords);
+        CREATE INDEX IF NOT EXISTS idx_papers_ccf_tier ON papers(ccf_tier);
     """)
 
     logger.info("Database schema initialized")

@@ -67,7 +67,7 @@ PAPER_COLS = [
     "doi", "published_date", "url", "pdf",
     "publisher", "journal_title", "issn",
     "comment", "article_type",
-    "venue", "acceptance", "citation_count", "version",
+    "venue", "acceptance", "citation_count", "ccf_tier", "version",
 ]
 
 AI_COLS = [
@@ -119,6 +119,9 @@ def _insert_paper_row(p: dict) -> None:
         if col in _JSON_FIELDS and val is not None:
             val = json.dumps(val, ensure_ascii=False)
         row[col] = val
+
+    if not row.get("ccf_tier"):
+        row["ccf_tier"] = _match_ccf(row.get("venue", ""), row.get("journal_title", "")) or None
 
     placeholders = ", ".join(f":{c}" for c in PAPER_COLS)
     cols = ", ".join(PAPER_COLS)
@@ -244,13 +247,14 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     if has_ai:
         d["AI"] = ai
 
-    # Attach CCF tier from venue/journal_title
-    d["ccf_tier"] = _match_ccf(d.get("venue", ""), d.get("journal_title", ""))
-
+    ccf = d.get("ccf_tier")
+    if not ccf:
+        ccf = _match_ccf(d.get("venue", ""), d.get("journal_title", ""))
+    d["ccf_tier"] = ccf
     return d
 
 
-_IEEEE_ABBREV = {
+_IEEE_ABBREV = {
     # Maps IEEE/ACM full journal names to CCF_MAP abbreviations.
     # CCF_MAP uses abbreviated keys (e.g. "IEEE TPAMI"), but crawled papers
     # have full names (e.g. "IEEE Transactions on Pattern Analysis...").
