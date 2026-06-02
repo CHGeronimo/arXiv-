@@ -151,6 +151,12 @@ def _insert_ai_row(paper_id: str, ai: dict) -> None:
 
 CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
 
+FULLTEXT_COLS = [
+    "paper_id", "method_implementation", "experimental_design",
+    "key_results_detail", "limitations", "reproducibility",
+    "relevance_to_profile",
+]
+
 
 def _insert_knowledge_card(paper_id: str, paper: dict) -> None:
     card = extract_knowledge_card(paper)
@@ -160,6 +166,13 @@ def _insert_knowledge_card(paper_id: str, paper: dict) -> None:
     placeholders = ", ".join(f":{c}" for c in CARD_COLS)
     sql = f"INSERT OR REPLACE INTO knowledge_cards ({cols}) VALUES ({placeholders})"
     queue_write(sql, tuple(card.get(c) for c in CARD_COLS))
+
+
+def _insert_fulltext_analysis(paper_id: str, analysis: dict) -> None:
+    cols = ", ".join(FULLTEXT_COLS + ["analyzed_at"])
+    placeholders = ", ".join("?" for _ in FULLTEXT_COLS) + ", datetime('now')"
+    sql = f"INSERT OR REPLACE INTO fulltext_analysis ({cols}) VALUES ({placeholders})"
+    queue_write(sql, tuple(analysis.get(c) for c in FULLTEXT_COLS))
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +225,15 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
                     _insert_knowledge_card(paper.id, enhanced)
                 except Exception as e:
                     logger.warning(f"Knowledge card failed for {paper.id}: {e}")
+                if ai_data.get("recommendation") in ("must-read", "recommended"):
+                    try:
+                        from ai.fulltext_analyzer import analyze_fulltext
+                        ft_result = analyze_fulltext(paper_dict, profile)
+                        if ft_result:
+                            _insert_fulltext_analysis(paper.id, ft_result)
+                            logger.debug(f"Fulltext analysis done for {paper.id}")
+                    except Exception as e:
+                        logger.warning(f"Fulltext analysis failed for {paper.id}: {e}")
                 return "written"
         except Exception as e:
             logger.warning(f"AI enhance failed for {paper.id}: {e}")

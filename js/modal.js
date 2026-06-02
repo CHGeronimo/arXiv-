@@ -1,7 +1,7 @@
 // js/modal.js — paper detail and profile modals
 
 import { markRead, escAttr, showToast, setAllPapers, getFeedbackForPaper } from './state.js';
-import { exportBibtex, fetchKnowledgeCard, deletePaper } from './api.js';
+import { exportBibtex, fetchKnowledgeCard, fetchFulltextAnalysis, deletePaper } from './api.js';
 
 export function openPaperDetail(paper) {
     markRead(paper.id);
@@ -85,7 +85,8 @@ export function openPaperDetail(paper) {
             </div>
             <button class="follow-btn" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
         </div>
-            <div id="knowledge-card-section"></div>`;
+            <div id="knowledge-card-section"></div>
+            <div id="fulltext-analysis-section"></div>`;
 
     // Knowledge card (L1)
     fetchKnowledgeCard(paper.id).then(card => {
@@ -102,6 +103,21 @@ export function openPaperDetail(paper) {
                     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${(card.keywords || []).map(k => `<span style="padding:2px 8px;border-radius:3px;font-size:0.75rem;background:var(--badge-bg);color:var(--accent-light)">${k}</span>`).join('')}</div>
                 </div>
                 ${card.relation_to_profile ? `<div><span style="color:var(--accent-light);font-weight:600">Profile Relation</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-secondary)">${card.relation_to_profile}</p></div>` : ''}
+            </div>`;
+    });
+    fetchFulltextAnalysis(paper.id).then(analysis => {
+        if (!analysis) return;
+        const el = document.getElementById('fulltext-analysis-section');
+        if (!el) return;
+        el.innerHTML = `
+            <h3 style="margin-top:16px">正文深度分析</h3>
+            <div style="margin:8px 0;padding:12px;background:var(--accent-bg);border-radius:8px">
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">方法实现</span><p style="margin:4px 0;font-size:0.88rem">${analysis.method_implementation || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">实验设计</span><p style="margin:4px 0;font-size:0.88rem">${analysis.experimental_design || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">关键结果</span><p style="margin:4px 0;font-size:0.88rem">${analysis.key_results_detail || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">局限性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.limitations || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">可复现性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.reproducibility || 'N/A'}</p></div>
+                ${analysis.relevance_to_profile ? `<div><span style="color:var(--accent-light);font-weight:600">与研究方向的关系</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-secondary)">${analysis.relevance_to_profile}</p></div>` : ''}
             </div>`;
     });
 

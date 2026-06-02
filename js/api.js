@@ -115,6 +115,19 @@ export async function fetchKnowledgeCard(paperId) {
     return data.card;
 }
 
+export async function fetchFulltextAnalysis(paperId) {
+    try {
+        const resp = await fetch(`/api/paper/${paperId}/fulltext`);
+        if (resp.ok) {
+            const data = await resp.json();
+            return data.analysis || null;
+        }
+    } catch (e) {
+        console.error('Failed to fetch fulltext analysis:', e);
+    }
+    return null;
+}
+
 export async function deletePaper(paperId) {
     const resp = await fetch(`/api/paper/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('delete failed');

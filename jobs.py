@@ -464,6 +464,11 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"Knowledge extract after arxiv error: {e}")
             try:
+                from api import _retro_fulltext_analyze
+                _retro_fulltext_analyze()
+            except Exception as e:
+                logger.error(f"Fulltext analyze after arxiv error: {e}")
+            try:
                 run_digest_job()
             except Exception as e:
                 logger.error(f"Digest after arxiv error: {e}")

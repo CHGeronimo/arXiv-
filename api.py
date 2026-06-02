@@ -358,6 +358,64 @@ def _retro_knowledge_extract():
     logger.info(f"Retro knowledge extraction complete: {len(rows)} processed")
 
 
+# ── Fulltext Analysis ─────────────────────────────────────────────
+
+@app.route("/api/trigger/fulltext-analyze", methods=["POST"])
+def trigger_fulltext_analyze():
+    threading.Thread(target=_retro_fulltext_analyze, daemon=True).start()
+    return jsonify({"status": "triggered", "job": "fulltext-analyze"})
+
+
+def _retro_fulltext_analyze():
+    from ai.fulltext_analyzer import analyze_fulltext
+    from ai.enhance import load_research_profile
+
+    conn = get_conn()
+    profile = load_research_profile()
+    rows = conn.execute("""
+        SELECT a.paper_id, a.tldr, a.motivation, a.method, a.result, a.conclusion,
+               p.title, p.summary, p.source, p.id
+        FROM ai_results a JOIN papers p ON a.paper_id = p.id
+        LEFT JOIN fulltext_analysis ft ON a.paper_id = ft.paper_id
+        WHERE ft.paper_id IS NULL AND a.recommendation IN ('must-read', 'recommended')
+              AND p.source = 'arxiv'
+    """).fetchall()
+
+    logger = logging.getLogger("fulltext-analyze")
+    logger.info(f"Retro fulltext analysis: {len(rows)} papers to process")
+
+    analyzed = 0
+    for i, row in enumerate(rows):
+        paper = {
+            "id": row["id"], "source": row["source"],
+            "title": row["title"], "summary": row["summary"],
+            "AI": {"tldr": row["tldr"], "motivation": row["motivation"],
+                   "method": row["method"], "result": row["result"], "conclusion": row["conclusion"]},
+        }
+        result = analyze_fulltext(paper, profile)
+        if result:
+            queue_write(
+                "INSERT OR REPLACE INTO fulltext_analysis (paper_id, method_implementation, experimental_design, key_results_detail, limitations, reproducibility, relevance_to_profile, analyzed_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                (result["paper_id"], result["method_implementation"], result["experimental_design"],
+                 result["key_results_detail"], result["limitations"], result["reproducibility"],
+                 result["relevance_to_profile"]),
+            )
+            analyzed += 1
+        if (i + 1) % 10 == 0:
+            logger.info(f"Processed {i + 1}/{len(rows)} ({analyzed} analyzed)")
+
+    logger.info(f"Retro fulltext analysis complete: {analyzed}/{len(rows)}")
+
+
+@app.route("/api/paper/<paper_id>/fulltext", methods=["GET"])
+def get_paper_fulltext(paper_id: str):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM fulltext_analysis WHERE paper_id = ?", (paper_id,)).fetchone()
+    if row is None:
+        return jsonify({"analysis": None})
+    return jsonify({"analysis": dict(row)})
+
+
 # ── Knowledge Graph (L2) ──────────────────────────────────────────
 
 @app.route("/api/knowledge-graph", methods=["GET"])
