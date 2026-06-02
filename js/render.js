@@ -3,7 +3,7 @@
 import {
     filteredPapers, allPapers, activeFilters, sortOrder, currentPage, PAGE_SIZE,
     _bookmarks, _readPapers, escAttr, inferType, showToast,
-    setCurrentPage,
+    setCurrentPage, getFeedbackForPaper,
 } from './state.js';
 import { applyFiltersAndSort, updateFilterBadges } from './filters.js';
 
@@ -56,7 +56,11 @@ export function renderPapers() {
         const idx = start + i;
         const isBookmarked = _bookmarks.has(paper.id);
         const isRead = _readPapers.has(paper.id);
-        const feedback = paper.feedback_rating || '';
+        const fb = getFeedbackForPaper(paper.id);
+        const userRating = fb.rating || '';
+        const userRel = fb.relevance || 0;
+        const userNov = fb.novelty || 0;
+        const hasFeedback = userRating || userRel || userNov;
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
@@ -69,11 +73,15 @@ export function renderPapers() {
                 <div class="paper-footer">
                     <span class="paper-authors">${authors}</span>
                     <div class="card-actions">
-                        <button class="card-vote-btn ${feedback === 'useful' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" title="有用">&#9757;</button>
-                        <button class="card-vote-btn ${feedback === 'not_useful' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" title="没用">&#9759;</button>
+                        <button class="card-vote-btn ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" title="有用">&#9757;</button>
+                        <button class="card-vote-btn ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" title="没用">&#9759;</button>
                         <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                     </div>
                 </div>
+                ${hasFeedback ? `<div class="card-feedback-detail" data-feedback-detail="${escAttr(paper.id)}">
+                    <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
+                    <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
+                </div>` : ''}
             </div>`;
     }).join('');
 

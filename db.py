@@ -113,8 +113,11 @@ def init_db() -> None:
 
         CREATE TABLE IF NOT EXISTS feedback (
             paper_id TEXT PRIMARY KEY,
-            rating TEXT CHECK (rating IN ('useful', 'not_useful')),
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            rating TEXT CHECK (rating IN ('like', 'dislike', '')),
+            relevance INTEGER CHECK (relevance BETWEEN 1 AND 5),
+            novelty INTEGER CHECK (novelty BETWEEN 1 AND 5),
+            note TEXT,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (paper_id) REFERENCES papers(id) ON DELETE CASCADE
         );
 

@@ -1,6 +1,6 @@
 // js/modal.js — paper detail and profile modals
 
-import { markRead, escAttr, showToast, setAllPapers } from './state.js';
+import { markRead, escAttr, showToast, setAllPapers, getFeedbackForPaper } from './state.js';
 import { exportBibtex, fetchKnowledgeCard, deletePaper } from './api.js';
 
 export function openPaperDetail(paper) {
@@ -54,6 +54,12 @@ export function openPaperDetail(paper) {
     const codeUrl = paper.code_url || '';
     const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
 
+    const fb = getFeedbackForPaper(paper.id);
+    const userRating = fb.rating || '';
+    const userRel = fb.relevance || 0;
+    const userNov = fb.novelty || 0;
+    const hasFeedback = userRating || userRel || userNov;
+
     detail.innerHTML = `
         <div class="paper-header">${sourceBadge}${venueInfo}${ccfInfo}${accInfo}
             <span class="paper-cat">${paper.published_date || ''}</span>
@@ -71,8 +77,12 @@ export function openPaperDetail(paper) {
             ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="follow-btn">DOI</a>` : ''}
             ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="follow-btn" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
             <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
-            <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="useful" style="border-color:#22c55e;color:#22c55e">有用</button>
-            <button class="follow-btn" data-feedback-id="${escAttr(paper.id)}" data-feedback-rating="not_useful" style="border-color:#ef4444;color:#ef4444">没用</button>
+            <button class="follow-btn ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" style="border-color:#22c55e;color:#22c55e">${userRating === 'like' ? '★ 有用' : '有用'}</button>
+            <button class="follow-btn ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" style="border-color:#ef4444;color:#ef4444">${userRating === 'dislike' ? '★ 没用' : '没用'}</button>
+            <div class="modal-feedback-sliders" style="margin-top:12px;display:${hasFeedback ? 'block' : 'none'}">
+                <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
+                <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
+            </div>
             <button class="follow-btn" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
         </div>
             <div id="knowledge-card-section"></div>`;

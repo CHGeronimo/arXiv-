@@ -4,8 +4,9 @@ import {
     setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
     refreshTimer, toggleBookmark, showToast,
     filteredPapers, currentPage, setCurrentTheme, currentTheme, setSidebarOpen, sidebarOpen,
+    setFeedbackData, feedbackData,
 } from './state.js';
-import { fetchPapers, quickFollowAuthor, triggerCrawl, saveFeedback, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
+import { fetchPapers, quickFollowAuthor, triggerCrawl, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
@@ -47,6 +48,18 @@ async function loadPapers() {
     renderPapers();
 }
 
+async function fetchFeedback() {
+    try {
+        const resp = await fetch('/api/feedback');
+        if (resp.ok) {
+            const data = await resp.json();
+            setFeedbackData(data);
+        }
+    } catch (e) {
+        console.error('Failed to load feedback:', e);
+    }
+}
+
 function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     const timer = setInterval(async () => {
@@ -66,6 +79,7 @@ function startAutoRefresh() {
 // Init
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
+    fetchFeedback();
     startAutoRefresh();
     window.addEventListener('beforeunload', () => { if (refreshTimer) clearInterval(refreshTimer); });
 
@@ -142,18 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .catch(() => showToast('导出失败'));
             return;
         }
-        const fbBtn = e.target.closest('[data-feedback-id]');
-        if (fbBtn) {
-            e.stopPropagation();
-            saveFeedback(fbBtn.dataset.feedbackId, fbBtn.dataset.feedbackRating)
-                .then(() => {
-                    fbBtn.classList.add('voted');
-                    showToast(fbBtn.dataset.feedbackRating === 'useful' ? '已标记为有用' : '已标记为没用');
-                })
-                .catch(() => showToast('反馈失败'));
-            return;
-        }
-        const delBtn = e.target.closest('[data-delete-id]');
+                const delBtn = e.target.closest('[data-delete-id]');
         if (delBtn) {
             e.stopPropagation();
             const paperId = delBtn.dataset.deleteId;
@@ -186,16 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paper-container').addEventListener('click', async (e) => {
         const bmBtn = e.target.closest('.bookmark-btn');
         if (bmBtn) { e.stopPropagation(); toggleBookmark(bmBtn.dataset.bmId); renderPapers(); return; }
-        const fbBtn = e.target.closest('[data-feedback-id]');
-        if (fbBtn) {
-            e.stopPropagation();
-            try {
-                await saveFeedback(fbBtn.dataset.feedbackId, fbBtn.dataset.feedbackRating);
-                fbBtn.classList.add('voted');
-                showToast(fbBtn.dataset.feedbackRating === 'useful' ? '已标记为有用' : '已标记为没用');
-            } catch {}
-            return;
-        }
         const authorLink = e.target.closest('.author-link');
         if (authorLink) {
             e.stopPropagation();
@@ -353,4 +346,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const pages = Math.ceil(data.total / data.per_page);
         pagEl.textContent = pages > 1 ? `第 ${page}/${pages} 页 (共 ${data.total} 篇)` : `共 ${data.total} 篇`;
     }
+
+    // Feedback: like/dislike buttons (delegation from card and modal)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-feedback-action]');
+        if (!btn) return;
+        e.stopPropagation();
+        const paperId = btn.dataset.feedbackId;
+        const action = btn.dataset.feedbackAction;
+        const current = feedbackData[paperId] || {};
+        const newRating = current.rating === action ? '' : action;
+
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paper_id: paperId,
+                rating: newRating,
+                relevance: current.relevance || null,
+                novelty: current.novelty || null,
+            }),
+        }).then(r => r.ok ? fetchFeedback() : null).then(() => renderPapers());
+    });
+
+    // Feedback: sliders (delegation from card and modal)
+    document.addEventListener('change', (e) => {
+        if (!e.target.classList.contains('feedback-slider')) return;
+        const paperId = e.target.dataset.sliderId;
+        const type = e.target.dataset.sliderType;
+        const value = parseInt(e.target.value);
+        const current = feedbackData[paperId] || {};
+
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paper_id: paperId,
+                rating: current.rating || '',
+                relevance: type === 'relevance' ? value : (current.relevance || null),
+                novelty: type === 'novelty' ? value : (current.novelty || null),
+            }),
+        }).then(r => r.ok ? fetchFeedback() : null).then(() => {
+            const valSpan = e.target.nextElementSibling;
+            if (valSpan) valSpan.textContent = value;
+        });
+    });
 });

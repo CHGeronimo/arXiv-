@@ -220,24 +220,35 @@ def list_digests():
 def save_feedback():
     data = request.json or {}
     paper_id = data.get("paper_id", "")
+    if not paper_id:
+        return jsonify({"error": "paper_id required"}), 400
+
     rating = data.get("rating", "")
-    if not paper_id or rating not in ("useful", "not_useful"):
-        return jsonify({"error": "invalid"}), 400
+    relevance = data.get("relevance")
+    novelty = data.get("novelty")
+    note = data.get("note", "")
+
+    if rating and rating not in ("like", "dislike"):
+        return jsonify({"error": "invalid rating"}), 400
 
     queue_write(
-        "INSERT OR REPLACE INTO feedback (paper_id, rating) VALUES (?, ?)",
-        (paper_id, rating),
+        "INSERT OR REPLACE INTO feedback (paper_id, rating, relevance, novelty, note, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
+        (paper_id, rating or None, relevance, novelty, note or None),
     )
-
-    _update_profile_from_feedback(paper_id, rating)
     return jsonify({"status": "saved"})
 
 
 @app.route("/api/feedback", methods=["GET"])
 def get_feedback():
     conn = get_conn()
-    rows = conn.execute("SELECT paper_id, rating FROM feedback").fetchall()
-    return jsonify({row[0]: row[1] for row in rows})
+    rows = conn.execute("SELECT paper_id, rating, relevance, novelty, note, updated_at FROM feedback").fetchall()
+    result = {}
+    for row in rows:
+        result[row[0]] = {
+            "rating": row[1], "relevance": row[2],
+            "novelty": row[3], "note": row[4], "updated_at": row[5],
+        }
+    return jsonify(result)
 
 
 # ── Knowledge Cards (L1) ──────────────────────────────────────────
@@ -570,31 +581,7 @@ Select categories that would contain papers relevant to this researcher."""
 
 
 def _update_profile_from_feedback(paper_id: str, rating: str):
-    profile_path = Path("research_profile.json")
-    if not profile_path.exists():
-        return
-    with open(profile_path, "r") as f:
-        profile = json.load(f)
-
-    paper = find_paper_by_id(paper_id)
-    if not paper:
-        return
-
-    title = paper.get("title", "")
-    if rating == "useful":
-        liked = profile.get("liked_topics", [])
-        if title not in liked:
-            liked.append(title)
-        profile["liked_topics"] = liked[-20:]
-    else:
-        disliked = profile.get("disliked_topics", [])
-        if title not in disliked:
-            disliked.append(title)
-        profile["disliked_topics"] = disliked[-20:]
-
-    reset_ai_chain()
-    with open(profile_path, "w") as f:
-        json.dump(profile, f, indent=2, ensure_ascii=False)
+    pass
 
 
 # ── Author Search ─────────────────────────────────────────────────

@@ -92,3 +92,13 @@ export function inferType(p) {
     if (doi.includes('/d41586-')) return 'news';
     return p.summary ? 'research' : 'news';
 }
+
+export let feedbackData = {};
+
+export function setFeedbackData(data) {
+    feedbackData = data;
+}
+
+export function getFeedbackForPaper(paperId) {
+    return feedbackData[paperId] || {};
+}

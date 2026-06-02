@@ -758,3 +758,41 @@ header h1 {
     font-size: 0.8rem;
     color: var(--text-muted);
 }
+
+/* Feedback rating sliders */
+.card-feedback-detail {
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: var(--accent-bg);
+    border-radius: 6px;
+}
+.feedback-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+}
+.feedback-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    min-width: 40px;
+}
+.feedback-slider {
+    flex: 1;
+    accent-color: var(--accent);
+    height: 4px;
+    cursor: pointer;
+}
+.feedback-val {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-light);
+    min-width: 16px;
+    text-align: center;
+}
+.modal-feedback-sliders {
+    padding: 8px 0;
+}
+.modal-feedback-sliders .feedback-slider-row {
+    margin: 6px 0;
+}
