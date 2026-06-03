@@ -45,7 +45,7 @@
     </header>
 
     <div class="sidebar-hover-zone"></div>
-    <aside id="filter-sidebar" class="filter-sidebar">
+    <aside id="filter-sidebar" class="sidebar">
         <div class="filter-sidebar-header">
             <h3>筛选</h3>
             <button id="sidebar-clear">清除全部</button>
@@ -61,13 +61,13 @@
         <div class="sidebar-data-mgmt">
             <div class="filter-group-header" id="toggle-data-mgmt">数据管理 <span class="group-arrow">▼</span></div>
             <div class="filter-group-body" id="data-mgmt-body" style="display:none">
-                <button class="follow-btn" id="btn-purge-skip" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">删除所有 skip 论文</button>
+                <button class="btn btn--secondary" id="btn-purge-skip" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">删除所有 skip 论文</button>
                 <div style="display:flex;gap:4px;margin-bottom:6px">
-                    <input type="date" id="purge-date-input" style="flex:1;padding:4px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);font-size:0.78rem">
-                    <button class="follow-btn" id="btn-purge-before" style="font-size:0.78rem;padding:4px 8px">删除</button>
+                    <input type="date" id="purge-date-input" style="flex:1;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.78rem">
+                    <button class="btn btn--secondary" id="btn-purge-before" style="font-size:0.78rem;padding:4px 8px">删除</button>
                 </div>
-                <p style="font-size:0.7rem;color:var(--text-muted)">删除指定日期之前的所有论文，不可恢复</p>
-                <button class="follow-btn" id="btn-view-ignored" style="width:100%;margin-top:6px;font-size:0.78rem;padding:4px 8px">查看被过滤的论文</button>
+                <p style="font-size:0.7rem;color:var(--text-3)">删除指定日期之前的所有论文，不可恢复</p>
+                <button class="btn btn--secondary" id="btn-view-ignored" style="width:100%;margin-top:6px;font-size:0.78rem;padding:4px 8px">查看被过滤的论文</button>
             </div>
         </div>
     </aside>
