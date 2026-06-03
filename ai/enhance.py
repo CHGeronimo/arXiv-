@@ -98,15 +98,15 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
         partial = _extract_partial(str(e))
         paper["AI"] = {**DEFAULT_AI, **partial}
         if partial:
-            logger.warning(f"Partial AI data for {paper.get('id', '?')}: {list(partial.keys())}")
+            logger.warning(f"论文 {paper.get('id', '?')} AI 数据不完整: {list(partial.keys())}")
     except Exception as e:
-        logger.error(f"Enhance error for {paper.get('id', '?')}: {e}")
+        logger.error(f"论文 {paper.get('id', '?')} 增强失败: {e}")
         paper["AI"] = dict(DEFAULT_AI)
 
     # Sanitize recommendation to exact allowed values
     rec = paper["AI"].get("recommendation", "ignore")
     if rec not in ("must-read", "recommended", "reference", "ignore"):
-        logger.warning(f"Non-standard recommendation '{rec}' for {paper.get('id', '?')}, mapping to 'reference'")
+        logger.warning(f"非标准推荐 '{rec}' 论文 {paper.get('id', '?')}，映射为 'reference'")
         paper["AI"]["recommendation"] = "reference"
 
     # Ensure every key from DEFAULT_AI exists
@@ -150,13 +150,13 @@ def main():
                     item = json.loads(line)
                     existing_data.append(item)
                     existing_ids.add(item['id'])
-        logger.info(f"Incremental: {len(existing_ids)} papers already processed")
+        logger.info(f"增量处理: 已有 {len(existing_ids)} 篇论文")
 
     new_data = [item for item in unique_data if item['id'] not in existing_ids]
-    logger.info(f"To process: {len(new_data)} (skipping {len(unique_data) - len(new_data)} existing)")
+    logger.info(f"待处理: {len(new_data)} 篇（跳过 {len(unique_data) - len(new_data)} 篇已有）")
 
     if not new_data:
-        logger.info("No new papers to process")
+        logger.info("没有新论文需要处理")
         return
 
     # Write existing data back (overwrite file)
@@ -166,7 +166,7 @@ def main():
 
     # Build chain and process
     chain = build_chain(model_name)
-    logger.info(f"Model: {model_name}")
+    logger.info(f"模型: {model_name}")
 
     def _process(paper: dict) -> dict:
         profile = load_research_profile()
@@ -186,13 +186,13 @@ def main():
                     try:
                         result = future.result()
                     except Exception as e:
-                        logger.error(f"Item {item.get('id', '?')} exception: {e}")
+                        logger.error(f"论文 {item.get('id', '?')} 异常: {e}")
                         item["AI"] = dict(DEFAULT_AI)
                         result = item
                     f.write(json.dumps(result) + "\n")
                     f.flush()
 
-    logger.info(f"Done: {target_file}")
+    logger.info(f"完成: {target_file}")
 
 
 if __name__ == "__main__":

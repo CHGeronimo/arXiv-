@@ -51,5 +51,5 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
         })
         return result.is_relevant
     except Exception as e:
-        logger.warning(f"Quick filter failed for {paper.get('id','?')}: {e}, defaulting to relevant")
+        logger.warning(f"快速过滤失败 {paper.get('id','?')}: {e}，默认保留")
         return True

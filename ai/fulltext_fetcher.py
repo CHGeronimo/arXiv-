@@ -23,7 +23,7 @@ def fetch_arxiv_html(arxiv_id: str, timeout: int = 30) -> Optional[str]:
         resp = httpx.get(url, follow_redirects=True, timeout=timeout)
         if resp.status_code == 200:
             return resp.text
-        logger.warning(f"ar5iv 返回 {resp.status_code} for {arxiv_id}")
+        logger.warning(f"ar5iv 对 {arxiv_id} 返回 {resp.status_code}")
         return None
     except Exception as e:
         logger.warning(f"获取 {arxiv_id} 的 ar5iv HTML 失败: {e}")

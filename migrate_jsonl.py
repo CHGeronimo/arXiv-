@@ -99,7 +99,7 @@ def _load_jsonl(path: Path) -> list[dict]:
             try:
                 papers.append(json.loads(line))
             except json.JSONDecodeError:
-                logger.warning(f"Skipping malformed line {line_no} in {path.name}")
+                logger.warning(f"跳过格式错误的第 {line_no} 行，文件 {path.name}")
     return papers
 
 
@@ -122,7 +122,7 @@ def run_migration() -> int:
 
     # Phase 1: Raw JSONL files
     for path in raw_files:
-        logger.info(f"Phase 1: processing {path.name}")
+        logger.info(f"阶段 1: 处理 {path.name}")
         papers = _load_jsonl(path)
         file_count = 0
         conn.execute("BEGIN IMMEDIATE")
@@ -135,11 +135,11 @@ def run_migration() -> int:
             file_count += 1
         conn.commit()
         total_inserted += file_count
-        logger.info(f"  Inserted {file_count} papers from {path.name}")
+        logger.info(f"  从 {path.name} 插入 {file_count} 篇论文")
 
     # Phase 2: AI-enhanced JSONL files
     for path in ai_files:
-        logger.info(f"Phase 2: processing {path.name}")
+        logger.info(f"阶段 2: 处理 {path.name}")
         papers = _load_jsonl(path)
         file_papers = 0
         file_ai = 0
@@ -164,8 +164,8 @@ def run_migration() -> int:
         conn.commit()
         total_inserted += file_papers
         logger.info(
-            f"  Inserted {file_papers} papers + {file_ai} AI results from {path.name}"
+            f"  从 {path.name} 插入 {file_papers} 篇论文 + {file_ai} 项 AI 结果"
         )
 
-    logger.info(f"Migration complete: {total_inserted} papers, {len(seen_ids)} unique IDs")
+    logger.info(f"迁移完成: {total_inserted} 篇论文, {len(seen_ids)} 个唯一 ID")
     return total_inserted

@@ -56,7 +56,7 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
     """, (week_ago, week_start)).fetchall()
 
     if not rows:
-        logger.info(f"No papers for trend report week {week_start}")
+        logger.info(f"趋势报告周 {week_start} 无论文")
         return None
 
     summaries = "\n".join(f"- {r['title']}: {r['tldr']}" for r in rows[:30])
@@ -70,7 +70,7 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
             "research_direction": profile.get("direction", ""),
         })
     except Exception as e:
-        logger.error(f"Trend report generation failed: {e}")
+        logger.error(f"趋势报告生成失败: {e}")
         return None
 
     result = {
