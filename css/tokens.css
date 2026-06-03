@@ -35,22 +35,6 @@
   --text-2xl: 1.6rem;
 }
 
-/* --- Legacy variable aliases (compatibility) --- */
-:root {
-  --bg-primary: var(--surface-0);
-  --bg-secondary: var(--surface-1);
-  --text-primary: var(--text-0);
-  --text-secondary: var(--text-2);
-  --text-muted: var(--text-3);
-  --border-color: var(--border);
-  --accent-light: var(--accent-primary);
-  --accent: var(--accent-primary);
-  --accent-bg: var(--accent-muted);
-  --badge-bg: var(--surface-2);
-  --sidebar-bg: var(--surface-0);
-  --sidebar-border: var(--border);
-}
-
 /* --- Dark theme (default) --- */
 :root[data-theme="dark"],
 :root {
