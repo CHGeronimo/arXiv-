@@ -197,8 +197,9 @@ export function applyFiltersAndSort() {
         if (sortOrder === 'quality') return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
         if (sortOrder === 'citations') return (b.citation_count || 0) - (a.citation_count || 0);
         if (sortOrder === 'rec') {
-            const ra = (b.AI || {}).recommendation === 'must_read' ? 3 : (b.AI || {}).recommendation === 'recommended' ? 2 : (b.AI || {}).recommendation === 'worth_reading' ? 1 : 0;
-            const la = (a.AI || {}).recommendation === 'must_read' ? 3 : (a.AI || {}).recommendation === 'recommended' ? 2 : (a.AI || {}).recommendation === 'worth_reading' ? 1 : 0;
+            const recRank = { 'must-read': 4, 'recommended': 3, 'reference': 2, 'ignore': 1 };
+            const ra = recRank[(b.AI || {}).recommendation] || 0;
+            const la = recRank[(a.AI || {}).recommendation] || 0;
             if (ra !== la) return ra - la;
             return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
         }

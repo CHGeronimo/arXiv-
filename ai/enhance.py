@@ -103,6 +103,12 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
         logger.error(f"Enhance error for {paper.get('id', '?')}: {e}")
         paper["AI"] = dict(DEFAULT_AI)
 
+    # Sanitize recommendation to exact allowed values
+    rec = paper["AI"].get("recommendation", "ignore")
+    if rec not in ("must-read", "recommended", "reference", "ignore"):
+        logger.warning(f"Non-standard recommendation '{rec}' for {paper.get('id', '?')}, mapping to 'reference'")
+        paper["AI"]["recommendation"] = "reference"
+
     # Ensure every key from DEFAULT_AI exists
     for k, v in DEFAULT_AI.items():
         paper["AI"].setdefault(k, v)

@@ -336,11 +336,11 @@ def _retro_knowledge_extract():
         SELECT a.paper_id, a.tldr, a.motivation, a.method, a.result, a.conclusion, p.title, p.summary
         FROM ai_results a JOIN papers p ON a.paper_id = p.id
         LEFT JOIN knowledge_cards kc ON a.paper_id = kc.paper_id
-        WHERE kc.paper_id IS NULL AND a.recommendation != 'skip'
+        WHERE kc.paper_id IS NULL AND a.recommendation != 'ignore'
     """).fetchall()
 
     logger = logging.getLogger("knowledge-extract")
-    logger.info(f"Retro knowledge extraction: {len(rows)} papers to process")
+    logger.info(f"知识卡片抽取: {len(rows)} 篇待处理")
 
     for i, row in enumerate(rows):
         paper = {
@@ -354,8 +354,8 @@ def _retro_knowledge_extract():
                 (card["paper_id"], card["problem"], card["method_extracted"], card["result_extracted"], card["keywords"], card["relation_to_profile"]),
             )
         if (i + 1) % 50 == 0:
-            logger.info(f"Processed {i + 1}/{len(rows)} cards")
-    logger.info(f"Retro knowledge extraction complete: {len(rows)} processed")
+            logger.info(f"知识卡片进度: {i + 1}/{len(rows)}")
+    logger.info(f"知识卡片抽取完成: {len(rows)} 篇已处理")
 
 
 # ── Fulltext Analysis ─────────────────────────────────────────────
@@ -382,7 +382,7 @@ def _retro_fulltext_analyze():
     """).fetchall()
 
     logger = logging.getLogger("fulltext-analyze")
-    logger.info(f"Retro fulltext analysis: {len(rows)} papers to process")
+    logger.info(f"正文深度分析: {len(rows)} 篇待处理")
 
     analyzed = 0
     for i, row in enumerate(rows):
@@ -402,9 +402,9 @@ def _retro_fulltext_analyze():
             )
             analyzed += 1
         if (i + 1) % 10 == 0:
-            logger.info(f"Processed {i + 1}/{len(rows)} ({analyzed} analyzed)")
+            logger.info(f"正文分析进度: {i + 1}/{len(rows)} ({analyzed} 篇已分析)")
 
-    logger.info(f"Retro fulltext analysis complete: {analyzed}/{len(rows)}")
+    logger.info(f"正文深度分析完成: {analyzed}/{len(rows)}")
 
 
 @app.route("/api/paper/<paper_id>/fulltext", methods=["GET"])
@@ -631,7 +631,7 @@ Select categories that would contain papers relevant to this researcher."""
         secondary = [c for c in secondary if c in all_codes]
         return jsonify({"primary": primary, "secondary": secondary})
     except Exception as e:
-        logging.getLogger(__name__).error(f"Category recommendation failed: {e}")
+        logging.getLogger(__name__).error(f"分类推荐失败: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -703,7 +703,7 @@ def delete_paper(paper_id: str):
     conn.commit()
     if cur.rowcount == 0:
         return jsonify({"error": "not found"}), 404
-    logging.getLogger(__name__).info(f"Deleted paper {paper_id}")
+    logging.getLogger(__name__).info(f"已删除论文 {paper_id}")
     return jsonify({"deleted": paper_id})
 
 
@@ -717,7 +717,7 @@ def delete_papers_before_date(date_str: str):
         conn.executemany("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
                          [(pid, "purge_before_date") for pid in ids])
         conn.commit()
-    logging.getLogger(__name__).info(f"Deleted {len(ids)} papers before {date_str}")
+    logging.getLogger(__name__).info(f"已删除 {len(ids)} 篇 {date_str} 之前的论文")
     return jsonify({"deleted_count": len(ids), "before": date_str})
 
 
@@ -731,7 +731,7 @@ def purge_papers():
 
     if data.get("skip_rated"):
         rows = conn.execute(
-            "SELECT p.id FROM papers p JOIN ai_results a ON p.id = a.paper_id WHERE a.recommendation IN ('skip', 'ignore')"
+            "SELECT p.id FROM papers p JOIN ai_results a ON p.id = a.paper_id WHERE a.recommendation = 'ignore'"
         ).fetchall()
         ids = [r[0] for r in rows]
         if ids:
