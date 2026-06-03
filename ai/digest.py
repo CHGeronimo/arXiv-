@@ -50,7 +50,7 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
     ).fetchall()
 
     if not rows:
-        logger.warning(f"No AI-enhanced papers for {date_str}")
+        logger.warning(f"{date_str} 无 AI 增强论文")
         return ""
 
     summaries = []
@@ -87,7 +87,7 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
         (date_str, content),
     )
 
-    logger.info(f"Digest saved to {digest_path}")
+    logger.info(f"摘要已保存到 {digest_path}")
     return str(digest_path)
 
 

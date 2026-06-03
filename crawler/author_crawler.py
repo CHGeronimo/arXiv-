@@ -22,13 +22,13 @@ def search_authors(query: str, limit: int = 10) -> List[dict]:
         try:
             resp = httpx.get(S2_AUTHOR_SEARCH, params=params, timeout=15)
             if resp.status_code == 429:
-                logger.warning("S2 author search rate limited")
+                logger.warning("S2 作者搜索被限流")
                 time.sleep(2)
                 continue
             resp.raise_for_status()
             return resp.json().get("data") or []
         except Exception as e:
-            logger.warning(f"S2 author search attempt {attempt+1}/3 failed: {e}")
+            logger.warning(f"S2 作者搜索第 {attempt+1}/3 次尝试失败: {e}")
             if attempt < 2:
                 time.sleep(1)
     return []
@@ -50,13 +50,13 @@ def get_author_papers(
         try:
             resp = httpx.get(url, params=params, timeout=30)
             if resp.status_code == 429:
-                logger.warning(f"S2 author papers rate limited for {author_id}")
+                logger.warning(f"S2 作者论文被限流: {author_id}")
                 time.sleep(2)
                 continue
             resp.raise_for_status()
             return resp.json().get("data") or []
         except Exception as e:
-            logger.warning(f"S2 author papers attempt {attempt+1}/3 failed: {e}")
+            logger.warning(f"S2 作者论文第 {attempt+1}/3 次尝试失败: {e}")
             if attempt < 2:
                 time.sleep(1)
     return []
@@ -126,7 +126,7 @@ class AuthorCrawler:
             if not author_id:
                 continue
 
-            logger.info(f"Fetching papers for author: {author_name} ({author_id})")
+            logger.info(f"获取作者论文: {author_name} ({author_id})")
             items = get_author_papers(
                 author_id,
                 limit=self.papers_per_author,
@@ -141,7 +141,7 @@ class AuthorCrawler:
                     yield paper
                     count += 1
 
-            logger.info(f"Author {author_name}: {count} papers")
+            logger.info(f"作者 {author_name}: {count} 篇论文")
             time.sleep(0.5)
 
     def crawl(self) -> List[Paper]:
@@ -162,7 +162,7 @@ def resolve_orcid_to_author(orcid_id: str) -> dict | None:
             timeout=15,
         )
         if resp.status_code != 200:
-            logger.warning(f"ORCID lookup failed for {orcid_id}: {resp.status_code}")
+            logger.warning(f"ORCID 查询失败: {orcid_id}: {resp.status_code}")
             return None
         data = resp.json()
         person = data.get("person", {}).get("name", {})
@@ -190,5 +190,5 @@ def resolve_orcid_to_author(orcid_id: str) -> dict | None:
             best["_orcid"] = orcid_id
             return best
     except Exception as e:
-        logger.warning(f"ORCID resolution failed: {e}")
+        logger.warning(f"ORCID 解析失败: {e}")
     return None

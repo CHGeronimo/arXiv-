@@ -45,7 +45,7 @@ def get_ai_chain():
         model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
         _ai_chain = build_chain(model_name)
         _ai_profile = load_research_profile()
-        logger.info(f"AI chain initialized: {model_name}")
+        logger.info(f"AI 链已初始化: {model_name}")
     return _ai_chain, _ai_profile
 
 
@@ -61,7 +61,7 @@ def get_quick_chain():
     global _quick_chain
     if _quick_chain is None:
         _quick_chain = build_quick_filter()
-        logger.info("Quick filter chain initialized")
+        logger.info("快速过滤链已初始化")
     return _quick_chain
 
 
@@ -213,7 +213,7 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
             enhanced = enhance_single(paper_dict, chain, profile, AI_LANGUAGE)
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
-                if ai_data.get("recommendation") in ("skip", "ignore"):
+                if ai_data.get("recommendation") in ("ignore",):
                     raw_reason = ai_data.get("skip_reason", "") or "low_relevance"
                     reason = _SKIP_REASON_MAP.get(raw_reason, "low_relevance")
                     ignore_paper(paper.id, reason)
@@ -224,7 +224,7 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
                 try:
                     _insert_knowledge_card(paper.id, enhanced)
                 except Exception as e:
-                    logger.warning(f"Knowledge card failed for {paper.id}: {e}")
+                    logger.warning(f"知识卡片抽取失败 {paper.id}: {e}")
                 if ai_data.get("recommendation") in ("must-read", "recommended"):
                     try:
                         from ai.fulltext_analyzer import analyze_fulltext
@@ -233,10 +233,10 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
                             _insert_fulltext_analysis(paper.id, ft_result)
                             logger.debug(f"Fulltext analysis done for {paper.id}")
                     except Exception as e:
-                        logger.warning(f"Fulltext analysis failed for {paper.id}: {e}")
+                        logger.warning(f"正文分析失败 {paper.id}: {e}")
                 return "written"
         except Exception as e:
-            logger.warning(f"AI enhance failed for {paper.id}: {e}")
+            logger.warning(f"AI 增强失败 {paper.id}: {e}")
             return "error"
 
     _insert_paper_row(paper_dict)

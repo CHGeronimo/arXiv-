@@ -40,7 +40,7 @@ class OpenAlexCrawler:
             data = resp.json()
             return data.get("results") or []
         except Exception as e:
-            logger.warning(f"OpenAlex search failed for '{keyword}': {e}")
+            logger.warning(f"OpenAlex 搜索 '{keyword}' 失败: {e}")
             return []
 
     def _decode_abstract(self, inv_index: dict | None) -> str:
@@ -114,7 +114,7 @@ class OpenAlexCrawler:
         seen_ids: Set[str] = set()
 
         for keyword in self.keywords:
-            logger.info(f"OpenAlex searching: '{keyword}'")
+            logger.info(f"OpenAlex 搜索: '{keyword}'")
             items = self._search(keyword)
 
             count = 0
@@ -125,7 +125,7 @@ class OpenAlexCrawler:
                     yield paper
                     count += 1
 
-            logger.info(f"OpenAlex got {count} papers for '{keyword}'")
+            logger.info(f"OpenAlex '{keyword}' 获取到 {count} 篇论文")
             time.sleep(0.5)
 
     def crawl(self) -> List[Paper]:

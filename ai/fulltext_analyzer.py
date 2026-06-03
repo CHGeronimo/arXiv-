@@ -66,7 +66,7 @@ def analyze_fulltext(paper: dict, profile: dict | None = None) -> Optional[dict]
 
     sections = fetch_and_extract(arxiv_id)
     if not sections:
-        logger.warning(f"No sections extracted for {arxiv_id}")
+        logger.warning(f"未能从 {arxiv_id} 提取任何章节")
         return None
 
     # Format sections for prompt
@@ -92,7 +92,7 @@ def analyze_fulltext(paper: dict, profile: dict | None = None) -> Optional[dict]
             "keywords": ", ".join(profile.get("keywords", [])),
         })
     except Exception as e:
-        logger.error(f"Fulltext analysis failed for {arxiv_id}: {e}")
+        logger.error(f"正文分析失败 {arxiv_id}: {e}")
         return None
 
     return {

@@ -84,13 +84,13 @@ class BaseCrawlerJob(ABC):
         Tracks detailed rejection reasons (filter_reject, ai_reject, exists, ignored)
         and reports structured progress every 20 papers.
         """
-        logger.info(f"[{self.name}] ▶ start")
+        logger.info(f"[{self.name}] ▶ 开始")
         try:
             subs = _load_subs()
             crawler = self._create_crawler(subs)
             if crawler is None:
                 reason = self._skip_reason(subs)
-                logger.info(f"[{self.name}] ⊘ skipped: {reason}")
+                logger.info(f"[{self.name}] ⊘ 跳过: {reason}")
                 _set_job_status(self.name, "skipped", reason)
                 return
 
@@ -106,23 +106,23 @@ class BaseCrawlerJob(ABC):
                 else:
                     skipped[result] = skipped.get(result, 0) + 1
                 if fetched % 20 == 0:
-                    parts = [f"{written} accepted"]
+                    parts = [f"{written} 接受"]
                     if skipped.get("filter_reject"):
-                        parts.append(f"{skipped['filter_reject']} filtered")
+                        parts.append(f"{skipped['filter_reject']} 过滤")
                     if skipped.get("exists"):
-                        parts.append(f"{skipped['exists']} dup")
+                        parts.append(f"{skipped['exists']} 重复")
                     ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
                     if ignored_total:
-                        parts.append(f"{ignored_total} rejected")
+                        parts.append(f"{ignored_total} 拒绝")
                     logger.info(f"[{self.name}] {fetched}/{written} │ {' │ '.join(parts)}")
 
             self._post_run(subs, fetched_info)
             total_rejected = fetched - written
-            msg = f"{written} accepted, {total_rejected} rejected (of {fetched})"
-            logger.info(f"[{self.name}] ✔ done: {msg}")
+            msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
+            logger.info(f"[{self.name}] ✔ 完成: {msg}")
             _set_job_status(self.name, "done", msg)
         except Exception as e:
-            logger.error(f"[{self.name}] ✖ failed: {e}", exc_info=True)
+            logger.error(f"[{self.name}] ✖ 失败: {e}", exc_info=True)
             _set_job_status(self.name, "error", str(e))
 
     @abstractmethod
@@ -246,7 +246,7 @@ class S2Job(BaseCrawlerJob):
                 disliked=profile.get("disliked_topics", []),
             )
         except Exception as e:
-            logger.warning(f"Keyword expansion failed, using seeds: {e}")
+            logger.warning(f"关键词扩展失败，使用原始关键词: {e}")
             keywords = seed_keywords
         return OpenAlexCrawler(keywords=keywords, max_per_keyword=10)
 
@@ -319,7 +319,7 @@ def run_author_job():
 
 def run_retro_enhance():
     """Enhance papers that have no AI results yet."""
-    logger.info("[retro-enhance] ▶ start")
+    logger.info("[retro-enhance] ▶ 开始")
     try:
         chain, profile = get_ai_chain()
 
@@ -340,7 +340,7 @@ def run_retro_enhance():
         rows = conn.execute(sql).fetchall()
 
         if not rows:
-            logger.info("[retro-enhance] ⊘ no papers need enhancement")
+            logger.info("[retro-enhance] ⊘ 无需增强的论文")
             return
 
         # Convert rows to dicts, decoding JSON fields
@@ -358,7 +358,7 @@ def run_retro_enhance():
                 d[key] = val
             to_enhance.append(d)
 
-        logger.info(f"[retro-enhance] {len(to_enhance)} papers to process")
+        logger.info(f"[retro-enhance] {len(to_enhance)} 篇待增强")
         enhanced_count = 0
 
         with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
@@ -378,16 +378,16 @@ def run_retro_enhance():
                         enhanced_count += 1
                 except Exception as e:
                     logger.warning(
-                        f"[retro-enhance] failed {p.get('id', '?')}: {e}"
+                        f"[retro-enhance] 失败 {p.get('id', '?')}: {e}"
                     )
                 if enhanced_count % 10 == 0:
                     logger.info(
                         f"[retro-enhance] {enhanced_count}/{len(to_enhance)}"
                     )
 
-        logger.info(f"[retro-enhance] ✔ {enhanced_count} enhanced")
+        logger.info(f"[retro-enhance] ✔ 完成: {enhanced_count} 篇已增强")
     except Exception as e:
-        logger.error(f"[retro-enhance] ✖ failed: {e}", exc_info=True)
+        logger.error(f"[retro-enhance] ✖ 失败: {e}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -395,15 +395,15 @@ def run_retro_enhance():
 # ---------------------------------------------------------------------------
 
 def run_digest_job():
-    logger.info("[digest] ▶ start")
+    logger.info("[digest] ▶ 开始")
     try:
         path = generate_digest()
         if path:
-            logger.info(f"[digest] ✔ saved: {path}")
+            logger.info(f"[digest] ✔ 已保存: {path}")
         else:
-            logger.info("[digest] ⊘ no papers today")
+            logger.info("[digest] ⊘ 今日无新论文")
     except Exception as e:
-        logger.error(f"[digest] ✖ failed: {e}", exc_info=True)
+        logger.error(f"[digest] ✖ 失败: {e}", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +442,7 @@ class Scheduler:
         self._running = False
         for t in self._timers:
             t.cancel()
-        logger.info("[scheduler] stopped")
+        logger.info("[调度器] 已停止")
 
     def _run_and_reschedule(self, job_name: str, interval_hours: int):
         """Execute a job and schedule its next run. After arxiv, also runs retro-enhance and digest."""
@@ -451,27 +451,27 @@ class Scheduler:
         try:
             JOB_FUNCS[job_name]()
         except Exception as e:
-            logger.error(f"Scheduled {job_name} job error: {e}")
+            logger.error(f"定时任务 {job_name} 执行错误: {e}")
 
         if job_name == "arxiv":
             try:
                 run_retro_enhance()
             except Exception as e:
-                logger.error(f"Retro-enhance after arxiv error: {e}")
+                logger.error(f"回溯增强执行错误: {e}")
             try:
                 from api import _retro_knowledge_extract
                 _retro_knowledge_extract()
             except Exception as e:
-                logger.error(f"Knowledge extract after arxiv error: {e}")
+                logger.error(f"知识卡片抽取执行错误: {e}")
             try:
                 from api import _retro_fulltext_analyze
                 _retro_fulltext_analyze()
             except Exception as e:
-                logger.error(f"Fulltext analyze after arxiv error: {e}")
+                logger.error(f"正文分析执行错误: {e}")
             try:
                 run_digest_job()
             except Exception as e:
-                logger.error(f"Digest after arxiv error: {e}")
+                logger.error(f"摘要生成执行错误: {e}")
 
         if self._running:
             t = threading.Timer(

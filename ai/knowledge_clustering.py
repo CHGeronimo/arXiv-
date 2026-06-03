@@ -68,5 +68,5 @@ def save_clusters(clusters: list[dict]) -> None:
 def run_clustering() -> int:
     clusters = compute_clusters()
     save_clusters(clusters)
-    logger.info(f"Computed {len(clusters)} clusters")
+    logger.info(f"计算了 {len(clusters)} 个聚类")
     return len(clusters)

@@ -38,7 +38,7 @@ class S2Crawler:
                 if resp.status_code == 429:
                     wait = 3 * (2 ** attempt)
                     logger.warning(
-                        f"S2 rate limited on '{keyword}', backoff {wait}s"
+                        f"S2 限流 '{keyword}'，退避 {wait}s"
                     )
                     time.sleep(wait)
                     continue
@@ -49,20 +49,20 @@ class S2Crawler:
                 if e.response.status_code == 429:
                     wait = 3 * (2 ** attempt)
                     logger.warning(
-                        f"S2 rate limited on '{keyword}', backoff {wait}s"
+                        f"S2 限流 '{keyword}'，退避 {wait}s"
                     )
                     time.sleep(wait)
                     continue
                 logger.warning(
-                    f"S2 search attempt {attempt+1}/3 failed: {e}"
+                    f"S2 搜索第 {attempt+1}/3 次尝试失败: {e}"
                 )
             except Exception as e:
                 logger.warning(
-                    f"S2 search attempt {attempt+1}/3 failed: {e}"
+                    f"S2 搜索第 {attempt+1}/3 次尝试失败: {e}"
                 )
             if attempt < 2:
                 time.sleep(1)
-        logger.error(f"S2 search failed for keyword '{keyword}' after 3 retries")
+        logger.error(f"S2 搜索关键词 '{keyword}' 在 3 次重试后失败")
         return []
 
     def _parse_paper(self, item: dict, keyword: str) -> Paper | None:
@@ -118,7 +118,7 @@ class S2Crawler:
         seen_ids: Set[str] = set()
 
         for keyword in self.keywords:
-            logger.info(f"S2 searching: '{keyword}'")
+            logger.info(f"S2 搜索: '{keyword}'")
             items = self._search(keyword)
 
             count = 0
@@ -129,7 +129,7 @@ class S2Crawler:
                     yield paper
                     count += 1
 
-            logger.info(f"S2 got {count} papers for '{keyword}'")
+            logger.info(f"S2 '{keyword}' 获取到 {count} 篇论文")
             time.sleep(3)
 
     def crawl(self) -> List[Paper]:

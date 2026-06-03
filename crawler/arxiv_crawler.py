@@ -96,9 +96,9 @@ class ArxivCrawler:
                         if pid not in seen:
                             seen.add(pid)
                             all_ids.append(pid)
-                    logger.info(f"  {cat}: {len(ids)} papers")
+                    logger.info(f"  {cat}: {len(ids)} 篇")
                 except Exception as e:
-                    logger.error(f"Failed to fetch {cat}/new: {e}")
+                    logger.error(f"获取 {cat}/new 失败: {e}")
 
         return all_ids
 
@@ -124,12 +124,12 @@ class ArxivCrawler:
                     comment=result.comment,
                 )
             except Exception as e:
-                logger.error(f"Failed to fetch metadata for {pid}: {e}")
+                logger.error(f"获取元数据失败 {pid}: {e}")
 
     def crawl_iter(self) -> Generator[Paper, None, None]:
         ids = self.fetch_new_ids()
         new_ids = [i for i in ids if i not in self.existing_ids]
-        logger.info(f"[arxiv] {len(ids)} total, {len(new_ids)} new (skipping {len(ids) - len(new_ids)} known)")
+        logger.info(f"[arxiv] 共 {len(ids)} 篇, {len(new_ids)} 篇新增 (跳过 {len(ids) - len(new_ids)} 篇已知)")
         yield from self.fetch_metadata_iter(new_ids)
 
     def crawl(self) -> List[Paper]:

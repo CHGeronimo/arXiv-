@@ -188,7 +188,7 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_papers_ccf_tier ON papers(ccf_tier);
     """)
 
-    logger.info("Database schema initialized")
+    logger.info("数据库架构已初始化")
 
     # Start writer thread
     _start_writer()
@@ -209,7 +209,7 @@ def _start_writer() -> None:
         daemon=True,
     )
     _writer_thread.start()
-    logger.info("Writer thread started")
+    logger.info("写入线程已启动")
 
 
 def _write_worker() -> None:
@@ -356,6 +356,6 @@ def stop_writer() -> None:
     if _writer_thread.is_alive():
         logger.warning("Writer thread did not stop gracefully")
     else:
-        logger.info("Writer thread stopped")
+        logger.info("写入线程已停止")
 
     _writer_thread = None

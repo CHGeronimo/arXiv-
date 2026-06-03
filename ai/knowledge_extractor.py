@@ -82,7 +82,7 @@ def extract_knowledge_card(paper: dict, profile: dict | None = None) -> dict | N
             "research_direction": profile.get("direction", ""),
         })
     except Exception as e:
-        logger.error(f"Knowledge extraction failed for {paper.get('id')}: {e}")
+        logger.error(f"知识卡片抽取失败 {paper.get('id')}: {e}")
         return None
 
     return {

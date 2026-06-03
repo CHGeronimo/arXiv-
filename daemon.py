@@ -34,18 +34,18 @@ def main():
 
     if not Path(args.config).exists():
         Subscriptions().save(args.config)
-        logger.info(f"Created default {args.config}")
+        logger.info(f"已创建默认配置 {args.config}")
 
     init_db()
     if needs_migration():
-        logger.info("Detected JSONL data, running migration...")
+        logger.info("检测到 JSONL 数据，正在迁移...")
         count = run_migration()
-        logger.info(f"Migrated {count} papers from JSONL to SQLite")
+        logger.info(f"已迁移 {count} 篇论文从 JSONL 到 SQLite")
 
     sched = Scheduler()
 
     def _signal_handler(sig, frame):
-        logger.info("Shutting down...")
+        logger.info("正在关闭...")
         sched.stop()
         stop_writer()
         sys.exit(0)
@@ -55,9 +55,9 @@ def main():
 
     sched_thread = threading.Thread(target=sched.start, daemon=True)
     sched_thread.start()
-    logger.info("Scheduler started: arXiv every 3h, Crossref/DBLP/S2/Author every 24h")
+    logger.info("调度器已启动: arXiv 每3小时, Crossref/DBLP/S2/作者 每24小时")
 
-    logger.info(f"Starting server on port {args.port}")
+    logger.info(f"服务启动，端口 {args.port}")
     app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
 
 

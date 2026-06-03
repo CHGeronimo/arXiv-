@@ -53,7 +53,7 @@ def expand_keywords(
     if not force:
         cached = _load_cache()
         if cached and cached.get("key") == cache_key:
-            logger.info(f"Using cached expanded keywords ({len(cached['queries'])} queries)")
+            logger.info(f"使用缓存的扩展关键词（{len(cached['queries'])} 条查询）")
             return cached["queries"]
 
     model_name = os.environ.get("KEYWORD_MODEL", os.environ.get("MODEL_NAME", "deepseek-v4-flash"))
@@ -76,7 +76,7 @@ def expand_keywords(
         data = json.loads(response.content)
         queries = data.get("queries", seed_keywords)
     except (json.JSONDecodeError, AttributeError):
-        logger.warning("Failed to parse LLM keyword expansion, falling back to seeds")
+        logger.warning("LLM 关键词扩展解析失败，回退到种子关键词")
         queries = seed_keywords
 
     # Deduplicate (case-insensitive)
@@ -88,7 +88,7 @@ def expand_keywords(
             seen.add(ql)
             unique.append(q)
 
-    logger.info(f"Expanded {len(seed_keywords)} keywords → {len(unique)} queries")
+    logger.info(f"扩展 {len(seed_keywords)} 个关键词 → {len(unique)} 条查询")
 
     _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     _CACHE_PATH.write_text(

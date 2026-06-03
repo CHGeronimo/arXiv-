@@ -23,10 +23,10 @@ def fetch_arxiv_html(arxiv_id: str, timeout: int = 30) -> Optional[str]:
         resp = httpx.get(url, follow_redirects=True, timeout=timeout)
         if resp.status_code == 200:
             return resp.text
-        logger.warning(f"ar5iv returned {resp.status_code} for {arxiv_id}")
+        logger.warning(f"ar5iv 返回 {resp.status_code} for {arxiv_id}")
         return None
     except Exception as e:
-        logger.warning(f"Failed to fetch ar5iv HTML for {arxiv_id}: {e}")
+        logger.warning(f"获取 {arxiv_id} 的 ar5iv HTML 失败: {e}")
         return None
 
 
@@ -118,7 +118,7 @@ def fetch_and_extract(arxiv_id: str) -> Optional[dict[str, str]]:
         return None
     sections = extract_sections(html)
     if not sections:
-        logger.warning(f"No sections extracted for {arxiv_id}")
+        logger.warning(f"未能从 {arxiv_id} 提取任何章节")
         return None
     logger.debug(f"Extracted {len(sections)} sections for {arxiv_id}: {list(sections.keys())}")
     return sections

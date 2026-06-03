@@ -84,7 +84,7 @@ def check_idea(idea: str) -> dict | None:
             "relevant_papers": relevant,
         })
     except Exception as e:
-        logger.error(f"Idea check failed: {e}")
+        logger.error(f"想法可行性检查失败: {e}")
         return None
 
     return analysis.model_dump()
