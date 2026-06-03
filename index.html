@@ -167,20 +167,24 @@
             </div>
 
             <div id="sub-tab-journals" style="display:none">
-                <div style="margin-bottom:12px">
-                    <h3 style="font-size:0.85rem;color:var(--text-2);margin-bottom:6px">CCF 推荐期刊</h3>
-                    <div id="ccf-journal-section"></div>
+                <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="ccf-tier-filter active" data-journal-view="ccf">CCF 期刊</button>
+                    <button class="ccf-tier-filter" data-journal-view="quick">快捷订阅</button>
+                    <button class="ccf-tier-filter" data-journal-view="search">搜索期刊</button>
                 </div>
-                <hr style="margin:12px 0">
-                <div style="margin-bottom:12px">
-                    <h3 style="font-size:0.85rem;color:var(--text-2);margin-bottom:6px">快捷订阅</h3>
+                <div id="ccf-journal-section"></div>
+                <div id="quick-journal-section" style="display:none">
                     <div id="quick-journal-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
                 </div>
-                <hr style="margin:12px 0">
-                <input id="journal-search-input" type="text" placeholder="搜索期刊名称..." style="width:100%;padding:8px;margin-bottom:8px;box-sizing:border-box">
-                <div id="journal-search-results"></div>
-                <hr style="margin:16px 0">
-                <h3>已订阅期刊</h3>
+                <div id="journal-search-section" style="display:none">
+                    <input id="journal-search-input" type="text" placeholder="输入期刊名称搜索..." style="width:100%;padding:8px 10px;margin-bottom:8px;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;background:var(--surface-0);color:var(--text-0);font-size:0.85rem">
+                    <div id="journal-search-results"></div>
+                </div>
+                <hr style="margin:12px 0;border-color:var(--border)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <h3 style="font-size:0.85rem;margin:0">已订阅期刊</h3>
+                    <span id="journal-count" style="font-size:0.75rem;color:var(--text-3)"></span>
+                </div>
                 <div id="crossref-journals-list"></div>
             </div>
 

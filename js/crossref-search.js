@@ -86,5 +86,8 @@ async function followJournal(issn, name) {
     });
     await saveSubscriptions(subscriptions, 'crossref');
     renderCrossrefJournals();
+    renderCCFJournals();
+    renderQuickJournals();
+    renderSubStats();
     handleJournalSearch();
 }

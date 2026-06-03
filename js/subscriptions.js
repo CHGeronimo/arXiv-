@@ -324,7 +324,7 @@ function renderCCFJournals() {
 
     container.innerHTML = html;
 
-    // Tier filter (rebind each render is fine — buttons are recreated)
+    // Tier filter — rebind each render since buttons are recreated
     container.querySelectorAll('.ccf-tier-filter').forEach(btn => {
         btn.addEventListener('click', () => {
             container.querySelectorAll('.ccf-tier-filter').forEach(b => b.classList.remove('active'));
@@ -336,7 +336,7 @@ function renderCCFJournals() {
         });
     });
 
-    // Bind change handler once via flag on container
+    // Bind change handler once via delegation flag on container
     if (!container._ccfJournalBound) {
         container._ccfJournalBound = true;
         container.addEventListener('change', (e) => {
@@ -366,6 +366,9 @@ function toggleCCFJournal(issn, name, checked) {
     }
     saveSubscriptions(subscriptions, 'crossref');
     renderCCFJournals();
+    renderQuickJournals();
+    renderCrossrefJournals();
+    renderSubStats();
 }
 
 function renderQuickJournals() {
@@ -374,7 +377,7 @@ function renderQuickJournals() {
     const subscribed = new Set((subscriptions.crossref?.journals || []).map(j => j.issn));
     container.innerHTML = QUICK_JOURNALS.map(j => {
         const sub = subscribed.has(j.issn);
-        return `<button class="badge badge--secondary ${sub ? 'selected' : ''}" data-quick-issn="${j.issn}" data-quick-name="${j.name}" style="cursor:pointer">${sub ? '✓ ' : ''}${j.name}</button>`;
+        return `<button class="badge badge--secondary ${sub ? 'selected' : ''}" data-quick-issn="${j.issn}" data-quick-name="${j.name}" style="cursor:pointer">${j.name}</button>`;
     }).join('');
 
     if (!container._quickJournalBound) {
@@ -389,7 +392,6 @@ function renderQuickJournals() {
             } else {
                 followJournal(issn, name);
             }
-            renderQuickJournals();
         });
     }
 }
@@ -423,8 +425,8 @@ function renderArxivCategories(filter = '') {
             currentGroup = item.group;
         }
         const sel = selected.has(item.cat);
-        html += `<label class="badge badge--secondary ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px" title="${item.cat}">
-            <input type="checkbox" ${sel ? 'checked' : ''} data-arxiv-cat="${item.cat}">
+        html += `<label class="badge badge--secondary ${sel ? 'selected' : ''}" style="display:inline-flex;align-items:center;margin:2px 4px" title="${item.cat}">
+            <input type="checkbox" ${sel ? 'checked' : ''} data-arxiv-cat="${item.cat}" style="display:none">
             ${item.label}
         </label>`;
         shown++;
@@ -510,7 +512,7 @@ function renderConferenceChips() {
         const tierCls = conf.tier ? ` badge--ccf` : '';
         const tierTag = conf.tier ? `<span class="badge badge--ccf">${conf.tier}</span>` : '';
         html += `<label class="badge badge--secondary${tierCls}${sel ? ' selected' : ''}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 4px" data-ccf-tier="${conf.tier || ''}">
-            <input type="checkbox" ${sel ? 'checked' : ''} data-conf-venue="${conf.venue}">
+            <input type="checkbox" ${sel ? 'checked' : ''} data-conf-venue="${conf.venue}" style="display:none">
             ${tierTag}${conf.label}
         </label>`;
     }
@@ -554,22 +556,30 @@ function toggleConference(venue, checked) {
 function renderCrossrefJournals() {
     const container = document.getElementById('crossref-journals-list');
     if (!container) return;
-    if (!subscriptions.crossref.journals.length) {
-        container.innerHTML = '<p class="empty-hint">No journals subscribed yet. Search above to add.</p>';
+    const countEl = document.getElementById('journal-count');
+    const journals = subscriptions.crossref?.journals || [];
+    if (countEl) countEl.textContent = journals.length ? `${journals.length} 本` : '';
+    if (!journals.length) {
+        container.innerHTML = '<p class="empty-hint">暂无已订阅期刊。在上方添加。</p>';
         return;
     }
-    container.innerHTML = subscriptions.crossref.journals.map(j => `
+    container.innerHTML = journals.map(j => `
         <div class="journal-item">
             <span class="journal-name">${j.name}</span>
             <span class="journal-issn">${j.issn}</span>
-            <button class="unfollow-btn" data-unfollow-issn="${j.issn}">Unfollow</button>
+            <button class="unfollow-btn" data-unfollow-issn="${j.issn}">取消订阅</button>
         </div>
     `).join('');
 
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-unfollow-issn]');
-        if (btn) { unfollowJournal(btn.dataset.unfollowIssn); }
-    }, { once: true });
+    // Use delegation flag to avoid stacking listeners
+    if (!container._unfollowBound) {
+        container._unfollowBound = true;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-unfollow-issn]');
+            if (!btn) return;
+            unfollowJournal(btn.dataset.unfollowIssn);
+        });
+    }
 }
 
 function unfollowJournal(issn) {
@@ -578,6 +588,9 @@ function unfollowJournal(issn) {
     );
     saveSubscriptions(subscriptions, 'crossref');
     renderCrossrefJournals();
+    renderCCFJournals();
+    renderQuickJournals();
+    renderSubStats();
 }
 
 function openSubscriptionModal() {
@@ -767,6 +780,18 @@ document.addEventListener('DOMContentLoaded', () => {
         e.target.value = '';
     });
     document.getElementById('btn-auto-recommend')?.addEventListener('click', autoRecommendSubs);
+
+    // Journal tab view switcher
+    document.querySelectorAll('[data-journal-view]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-journal-view]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const view = btn.dataset.journalView;
+            document.getElementById('ccf-journal-section').style.display = view === 'ccf' ? '' : 'none';
+            document.getElementById('quick-journal-section').style.display = view === 'quick' ? '' : 'none';
+            document.getElementById('journal-search-section').style.display = view === 'search' ? '' : 'none';
+        });
+    });
 });
 
 const _KEYWORD_MAP = {
