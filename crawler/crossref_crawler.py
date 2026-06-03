@@ -60,6 +60,11 @@ class CrossrefCrawler:
         # Generic: has abstract = likely research
         if item.get("abstract"):
             return "research"
+        # Many publishers (IEEE, ACM) don't provide abstracts to Crossref
+        # but their items are still research articles. Use type as fallback.
+        item_type = item.get("type", "").lower()
+        if "journal" in item_type or "article" in item_type:
+            return "research"
         return "news"
 
     _SKIP_PREFIXES = (
@@ -127,6 +132,32 @@ class CrossrefCrawler:
             article_type=self._classify_article(item),
         )
 
+    def _fill_abstracts_openalex(self, papers: List[Paper]) -> None:
+        dois = [p.doi for p in papers if p.doi and not p.summary]
+        if not dois:
+            return
+        logger.info(f"通过 OpenAlex 补充 {len(dois)} 篇论文的摘要")
+        doi_to_paper = {p.doi: p for p in papers if p.doi}
+
+        for doi in dois:
+            try:
+                url = f"https://api.openalex.org/works/doi:{doi}"
+                resp = httpx.get(url, timeout=10)
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                inv_index = data.get("abstract_inverted_index")
+                if inv_index:
+                    words = sorted(
+                        [(pos, w) for w, positions in inv_index.items() for pos in positions]
+                    )
+                    abstract = " ".join(w for _, w in words)
+                    paper = doi_to_paper.get(doi)
+                    if paper:
+                        paper.summary = abstract
+            except Exception:
+                continue
+
     def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_dois: Set[str] = set()
 
@@ -138,15 +169,22 @@ class CrossrefCrawler:
             logger.info(f"Fetching {journal.name} (ISSN: {journal.issn})")
             items = self._fetch_recent([journal.issn])
 
-            count = 0
+            batch: List[Paper] = []
             for item in items:
                 paper = self._parse_item(item, journal)
-                if paper and paper.doi not in seen_dois:
-                    seen_dois.add(paper.doi)
-                    yield paper
-                    count += 1
+                if paper is None:
+                    continue
+                dedup_key = paper.doi if paper.doi else paper.title.lower().strip()
+                if dedup_key in seen_dois:
+                    continue
+                seen_dois.add(dedup_key)
+                batch.append(paper)
 
-            logger.info(f"Got {count} new papers from {journal.name}")
+            self._fill_abstracts_openalex(batch)
+
+            for paper in batch:
+                yield paper
+            logger.info(f"从 {journal.name} 获取到 {len(batch)} 篇新论文")
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())
