@@ -11,34 +11,34 @@ from .structure import KnowledgeCard
 
 logger = logging.getLogger(__name__)
 
-_EXTRACT_PROMPT = """You are a research knowledge extraction assistant.
+_EXTRACT_PROMPT = """你是一位学术知识抽取助手。请用中文回答。
 
-Given a paper's title, abstract, and AI analysis, extract a structured knowledge card.
+根据论文的标题、摘要和 AI 分析结果，抽取结构化知识卡片。
 
-## Paper Title
+## 论文标题
 {title}
 
-## Abstract
+## 摘要
 {abstract}
 
-## AI Analysis
+## AI 分析
 - TL;DR: {tldr}
-- Motivation: {motivation}
-- Method: {method}
-- Result: {result}
-- Conclusion: {conclusion}
+- 动机: {motivation}
+- 方法: {method}
+- 结果: {result}
+- 结论: {conclusion}
 
-## User's Research Direction
+## 用户研究方向
 {research_direction}
 
-Extract:
-1. **Problem**: What specific problem or research question does this paper address? One clear sentence.
-2. **Method**: What is the core method, technique, or approach proposed? One sentence.
-3. **Result**: What is the key result or finding? Include metrics if available. One sentence.
-4. **Keywords**: 5-10 technical keywords characterizing this paper's contribution and domain.
-5. **Relation to Profile**: How does this relate to the user's research direction?
+请抽取以下信息：
+1. **问题**: 这篇论文解决的具体问题或研究问题是什么？一句话概括。
+2. **方法**: 提出的核心方法、技术或方案是什么？一句话概括。
+3. **结果**: 关键结果或发现是什么？如有指标请包含。一句话概括。
+4. **关键词**: 5-10 个表征该论文贡献和领域的技术关键词。
+5. **与研究方向的关系**: 这篇论文与用户的研究方向有什么关联？
 
-Respond with valid JSON using these exact keys: "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"."""
+请用中文输出，使用以下 JSON 键名: "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"。"""
 
 _CHAIN = None
 
