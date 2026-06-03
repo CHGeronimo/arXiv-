@@ -301,8 +301,13 @@ function renderCCFJournals() {
         html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin:8px 0 4px;font-weight:500">${domain}</div>`;
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
         for (const j of journals) {
+            const sel = subscribedIssns.has(j.issn);
+            const tierCls = j.tier ? ` ${ccfTierClass(j.tier)}` : '';
             const tierTag = `<span class="ccf-badge ${ccfTierClass(j.tier)}">${j.tier}</span>`;
-            html += `<span class="sub-chip" data-ccf-jtier="${j.tier}" title="${j.name} (${j.publisher})" style="display:inline-flex;align-items:center;gap:3px;cursor:default">${tierTag}<span style="font-size:0.8rem">${j.abbr}</span></span>`;
+            html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" title="${j.name} (${j.publisher})" style="display:inline-flex;align-items:center;gap:3px">
+                <input type="checkbox" ${sel ? 'checked' : ''} data-ccf-jissn="${j.issn}" data-ccf-jname="${j.name}" style="display:none">
+                ${tierTag}<span style="font-size:0.8rem">${j.abbr}</span>
+            </label>`;
         }
         html += '</div>';
     }
@@ -320,6 +325,30 @@ function renderCCFJournals() {
             });
         });
     });
+
+    // Click to toggle subscription
+    container.addEventListener('click', (e) => {
+        const label = e.target.closest('label[data-ccf-jissn]');
+        if (!label) return;
+        const cb = label.querySelector('input[type="checkbox"]');
+        if (!cb) return;
+        cb.checked = !cb.checked;
+        label.classList.toggle('selected', cb.checked);
+        toggleCCFJournal(cb.dataset.ccfJissn, cb.dataset.ccfJname, cb.checked);
+    });
+}
+
+function toggleCCFJournal(issn, name, checked) {
+    if (!subscriptions.crossref) subscriptions.crossref = { journals: [] };
+    if (!subscriptions.crossref.journals) subscriptions.crossref.journals = [];
+    if (checked) {
+        if (!subscriptions.crossref.journals.some(j => j.issn === issn)) {
+            subscriptions.crossref.journals.push({ issn, name, lastUpdated: null });
+        }
+    } else {
+        subscriptions.crossref.journals = subscriptions.crossref.journals.filter(j => j.issn !== issn);
+    }
+    saveSubscriptions(subscriptions, 'crossref');
 }
 
 function renderQuickJournals() {
