@@ -43,6 +43,7 @@ export function buildFilterOptions() {
             { value: 'must-read', label: 'Must Read' },
             { value: 'recommended', label: 'Recommended' },
             { value: 'reference', label: 'Reference' },
+            { value: 'ref-low', label: '浅参考' },
             { value: 'unread', label: '未读' },
         ]},
         { key: 'bookmarked', label: '收藏', options: [
@@ -197,9 +198,15 @@ export function applyFiltersAndSort() {
         if (sortOrder === 'quality') return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
         if (sortOrder === 'citations') return (b.citation_count || 0) - (a.citation_count || 0);
         if (sortOrder === 'rec') {
-            const recRank = { 'must-read': 4, 'recommended': 3, 'reference': 2, 'ignore': 1 };
-            const ra = recRank[(b.AI || {}).recommendation] || 0;
-            const la = recRank[(a.AI || {}).recommendation] || 0;
+            const recRank = { 'must-read': 5, 'recommended': 4, 'reference': 3, 'ref-low': 2, 'ignore': 1 };
+            const getRecKey = (p) => {
+                const rec = (p.AI || {}).recommendation || '';
+                const rel = (p.AI || {}).relevance_score || 0;
+                if (rec === 'reference' && rel < 7) return 'ref-low';
+                return rec;
+            };
+            const ra = recRank[getRecKey(b)] || 0;
+            const la = recRank[getRecKey(a)] || 0;
             if (ra !== la) return ra - la;
             return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
         }
