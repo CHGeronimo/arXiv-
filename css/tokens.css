@@ -47,6 +47,8 @@
   --accent: var(--accent-primary);
   --accent-bg: var(--accent-muted);
   --badge-bg: var(--surface-2);
+  --sidebar-bg: var(--surface-0);
+  --sidebar-border: var(--border);
 }
 
 /* --- Dark theme (default) --- */

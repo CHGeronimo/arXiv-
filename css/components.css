@@ -574,34 +574,52 @@
 
 /* ============================================
    LEGACY COMPATIBILITY LAYER
-   Maps old class names to new design system
+   Maps old class names to new design system.
+   Only adds styles for OLD class names that the
+   design system section above does NOT cover.
    ============================================ */
 
-/* Header gear buttons */
+/* --- Header h1 (old: color: var(--accent-light)) --- */
+header h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--accent-light);
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* --- Gear button (old: border + hover fill) --- */
 .gear-btn {
   background: none;
-  border: none;
-  font-size: 1.1rem;
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: var(--radius-full);
+  font-size: 1.2rem;
+  padding: 6px 10px;
+  border-radius: 6px;
   color: var(--text-2);
-  transition: var(--transition-fast);
+  transition: all 0.2s;
   line-height: 1;
 }
 .gear-btn:hover {
-  background: var(--surface-2);
-  color: var(--text-0);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.gear-btn.open {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
-/* Paper count */
+/* --- Paper count --- */
 .paper-count {
   font-size: var(--text-sm);
   color: var(--text-2);
   margin-right: var(--sp-2);
 }
 
-/* Dropdown */
+/* --- Dropdown --- */
 .filter-dropdown {
   position: relative;
   display: inline-block;
@@ -642,21 +660,35 @@
   margin-left: var(--sp-2);
 }
 
-/* Sidebar (legacy filter-sidebar) */
+/* --- Sidebar hover zone (critical: reveals sidebar on left-edge hover) --- */
+.sidebar-hover-zone {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  z-index: 84;
+  cursor: pointer;
+}
+.sidebar-hover-zone:hover ~ .filter-sidebar,
+.filter-sidebar:hover {
+  transform: translateX(0);
+}
+
+/* --- Filter sidebar (old: 280px, specific bg/border, padding-top 56px) --- */
 .filter-sidebar {
   position: fixed;
   top: 0;
   left: 0;
-  width: 320px;
+  width: 280px;
   height: 100vh;
-  background: var(--surface-2);
-  border-right: 1px solid var(--border);
-  z-index: 50;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  z-index: 85;
   overflow-y: auto;
-  padding: var(--sp-5) var(--sp-4);
+  padding: 56px 0 16px;
   transform: translateX(-100%);
   transition: transform var(--transition-base);
-  padding-top: 60px;
 }
 .filter-sidebar.open {
   transform: translateX(0);
@@ -665,7 +697,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--sp-4);
+  padding: 0 16px 16px;
 }
 .filter-sidebar-header h3 {
   font-size: var(--text-md);
@@ -680,18 +712,13 @@
   border: none;
   cursor: pointer;
 }
-.sidebar-hover-zone {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 48px;
-  height: 100vh;
-  z-index: 49;
-}
+
+/* --- Sidebar inner sections --- */
 .sidebar-search,
 .sidebar-date,
 .sidebar-sort {
   margin-bottom: var(--sp-3);
+  padding: 0 16px;
 }
 .sidebar-search input,
 .sidebar-date input {
@@ -713,9 +740,80 @@
   margin-top: var(--sp-4);
   border-top: 1px solid var(--border);
   padding-top: var(--sp-3);
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
-/* Follow button (used pervasively) */
+/* --- Filter group (old: display:none/block toggle, group-count badge, group-arrow rotation) --- */
+.filter-group {
+  margin-bottom: var(--sp-3);
+  padding: 0 16px;
+}
+.filter-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: var(--sp-2) 0;
+  color: var(--text-1);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  user-select: none;
+}
+.filter-group-header:hover {
+  color: var(--accent-primary);
+}
+.filter-group-header .group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  background: var(--accent-muted);
+  color: var(--accent-primary);
+  margin-left: 4px;
+}
+.filter-group-header .group-arrow {
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+  color: var(--text-3);
+}
+.filter-group-header.expanded .group-arrow {
+  transform: rotate(180deg);
+}
+.filter-group-body {
+  display: none;
+  padding: var(--sp-1) 0 var(--sp-2);
+}
+.filter-group-body.expanded {
+  display: block;
+}
+.filter-group-body label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 3px 0;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  cursor: pointer;
+}
+.filter-group-body input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+.filter-group-body .filter-count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+/* --- Follow button (old: hover fills with accent) --- */
 .follow-btn {
   display: inline-flex;
   align-items: center;
@@ -729,13 +827,13 @@
   background: transparent;
   color: var(--text-1);
   cursor: pointer;
-  transition: var(--transition-fast);
+  transition: all 0.2s;
   white-space: nowrap;
 }
 .follow-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--accent-primary);
-  color: var(--accent-primary);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 .follow-btn:active {
   transform: scale(0.97);
@@ -750,7 +848,75 @@
   color: #fff;
 }
 
-/* Modal content */
+/* --- Card vote button (old: opacity 0.5 default, 1 on hover, voted accent-light) --- */
+.card-vote-btn {
+  font-size: 1.15rem;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+  cursor: pointer;
+  background: none;
+  border: none;
+  line-height: 1;
+  opacity: 0.5;
+}
+.card-vote-btn:hover {
+  opacity: 1;
+  transform: scale(1.3);
+}
+.card-vote-btn.voted {
+  opacity: 1;
+  font-weight: 600;
+  transform: scale(1.05);
+}
+.card-vote-btn.up.voted {
+  color: var(--accent-light);
+}
+.card-vote-btn.down.voted {
+  color: var(--danger);
+}
+.card-vote-btn.up {
+  color: var(--success);
+}
+.card-vote-btn.down {
+  color: var(--danger);
+}
+
+/* --- Card TLDR (old: accent-bg background) --- */
+.card-tldr {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.5;
+  background: var(--accent-bg);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- Paper card grid (old: minmax(380px, 1fr)) --- */
+#paper-container {
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+}
+
+/* --- Modal (old: align-items flex-start, padding 40px 20px, z-index 1000) --- */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 20px;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+}
+.modal.active {
+  display: flex;
+}
 .modal-content {
   background: var(--surface-1);
   border-radius: var(--radius-lg);
@@ -762,21 +928,8 @@
   position: relative;
   box-shadow: var(--shadow-lg);
 }
-.modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(4px);
-}
-.modal.active {
-  display: flex;
-}
 
-/* Close button */
+/* --- Close button --- */
 .close-btn {
   position: absolute;
   top: var(--sp-3);
@@ -800,7 +953,33 @@
   color: var(--text-0);
 }
 
-/* Profile form */
+/* --- Toast (old: bottom center, not top right) --- */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 300;
+  max-width: 360px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+.toast.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.toast--success { border-left: 3px solid var(--success); }
+.toast--error   { border-left: 3px solid var(--danger);  }
+.toast--info    { border-left: 3px solid var(--info);    }
+
+/* --- Profile form --- */
 .profile-form {
   display: flex;
   flex-direction: column;
@@ -836,7 +1015,7 @@
   border-color: var(--accent-primary);
 }
 
-/* Loading state */
+/* --- Loading state --- */
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -858,7 +1037,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* Page sections (graph, trend, idea) */
+/* --- Page sections (graph, trend, idea) --- */
 .page-section {
   display: none;
   padding: var(--sp-4);
@@ -895,7 +1074,7 @@
   color: var(--text-3);
 }
 
-/* Idea components */
+/* --- Idea components --- */
 .idea-textarea {
   width: 100%;
   min-height: 80px;
@@ -921,7 +1100,7 @@
   border: 1px solid var(--border);
 }
 
-/* Graph */
+/* --- Graph --- */
 .graph-svg {
   width: 100%;
   background: var(--surface-0);
