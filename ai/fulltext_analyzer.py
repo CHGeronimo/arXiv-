@@ -14,30 +14,30 @@ from .enhance import load_research_profile
 
 logger = logging.getLogger(__name__)
 
-_FULLTEXT_PROMPT = """You are a research paper analyst performing deep analysis of a paper's full text.
+_FULLTEXT_PROMPT = """你是一位专业的学术论文分析助手，正在对论文全文进行深度分析。请用中文回答。
 
-## Researcher Profile
-Direction: {research_direction}
-Keywords: {keywords}
+## 研究者画像
+研究方向: {research_direction}
+关键词: {keywords}
 
-## Paper Title
+## 论文标题
 {title}
 
-## Abstract
+## 摘要
 {abstract}
 
-## Full Text Sections
+## 正文章节
 {sections_text}
 
-Analyze this paper's full text in detail. Focus on:
-1. **Method Implementation**: How exactly does the method work? Architecture, algorithms, training procedure.
-2. **Experimental Design**: Datasets, baselines, metrics, ablation studies, evaluation protocol.
-3. **Key Results**: Specific quantitative results, comparisons with baselines, state-of-the-art achievements.
-4. **Limitations**: Stated or inferred limitations, assumptions, scalability issues, negative results.
-5. **Reproducibility**: Is code available? Are hyperparameters specified? Are datasets accessible?
-6. **Relevance to Profile**: Which techniques could transfer to the user's research? What gaps does this fill?
+请对这篇论文的全文进行深度分析，重点关注：
+1. **方法实现**: 方法的具体工作原理，包括架构设计、核心算法、训练流程、关键设计选择
+2. **实验设计**: 使用的数据集、基线方法、评价指标、消融实验、评估协议
+3. **关键结果**: 具体的定量结果、与基线的对比、是否达到 SOTA
+4. **局限性**: 论文声明或可推断的局限性、假设条件、可扩展性问题、负面结果
+5. **可复现性**: 代码是否开源、超参数是否详尽、数据集是否可获取
+6. **与研究方向的关系**: 哪些技术可以迁移到用户的研究中？填补了什么空白？
 
-Respond with valid JSON using these exact keys: "method_implementation", "experimental_design", "key_results_detail", "limitations", "reproducibility", "relevance_to_profile"."""
+请用中文输出，使用以下 JSON 键名: "method_implementation", "experimental_design", "key_results_detail", "limitations", "reproducibility", "relevance_to_profile"。"""
 
 _CHAIN = None
 
