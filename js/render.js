@@ -60,7 +60,6 @@ export function renderPapers() {
         const userRating = fb.rating || '';
         const userRel = fb.relevance || 0;
         const userNov = fb.novelty || 0;
-        const hasFeedback = userRating || userRel || userNov;
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
                 <div class="paper-header">
@@ -78,10 +77,10 @@ export function renderPapers() {
                         <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                     </div>
                 </div>
-                ${hasFeedback ? `<div class="card-feedback-detail" data-feedback-detail="${escAttr(paper.id)}">
+                <div class="card-feedback-detail" data-feedback-detail="${escAttr(paper.id)}">
                     <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
                     <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
-                </div>` : ''}
+                </div>
             </div>`;
     }).join('');
 

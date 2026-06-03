@@ -69,7 +69,9 @@ export function markRead(id) {
     if (!_readPapers.has(id)) {
         _readPapers.add(id);
         localStorage.setItem('readPapers', JSON.stringify([..._readPapers]));
+        return true;
     }
+    return false;
 }
 
 export function showToast(msg, duration = 2000) {
