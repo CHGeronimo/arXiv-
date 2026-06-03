@@ -1,0 +1,101 @@
+/* ============================================
+   tokens.css — Design System Variables
+   All theme-independent tokens + theme overrides
+   ============================================ */
+
+/* --- Shared tokens (all themes) --- */
+:root {
+  /* Spacing scale (4px base) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --sp-8: 48px;
+
+  /* Border radius */
+  --radius-sm: 4px;  --radius-md: 8px;
+  --radius-lg: 12px; --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.16);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.22);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+  --transition-spring: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Fonts */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Font sizes */
+  --text-xs: 0.7rem;   --text-sm: 0.8rem;   --text-base: 0.9rem;
+  --text-md: 1rem;     --text-lg: 1.15rem;   --text-xl: 1.35rem;
+  --text-2xl: 1.6rem;
+}
+
+/* --- Dark theme (default) --- */
+:root[data-theme="dark"],
+:root {
+  --surface-0: #0f1419;  --surface-1: #161b22;
+  --surface-2: #1c2333;  --surface-3: #222d3f;
+  --text-0: #ecf0f6;     --text-1: #c9d1d9;
+  --text-2: #8b949e;     --text-3: #6e7681;
+  --accent-primary: #818cf8; --accent-muted: rgba(129,140,248,0.12);
+  --accent-hover: #6366f1;
+  --success: #34d399; --warning: #fbbf24; --danger: #f87171; --info: #60a5fa;
+  --rec-must: #34d399; --rec-recommend: #60a5fa;
+  --rec-reference: #a78bfa; --rec-ignore: #6b7280;
+  --border: rgba(255,255,255,0.08); --border-hover: rgba(255,255,255,0.15);
+  --source-arxiv: #b5393e; --source-crossref: #2e8b57;
+  --source-dblp: #e8a317; --source-s2: #6b8dd6;
+}
+
+/* --- Light theme --- */
+:root[data-theme="light"] {
+  --surface-0: #f6f8fa;  --surface-1: #ffffff;
+  --surface-2: #f0f2f5;  --surface-3: #e8ecf0;
+  --text-0: #1f2937;     --text-1: #374151;
+  --text-2: #6b7280;     --text-3: #9ca3af;
+  --accent-primary: #4f46e5; --accent-muted: rgba(79,70,229,0.08);
+  --accent-hover: #4338ca;
+  --success: #059669; --warning: #d97706; --danger: #dc2626; --info: #2563eb;
+  --rec-must: #059669; --rec-recommend: #2563eb;
+  --rec-reference: #7c3aed; --rec-ignore: #9ca3af;
+  --border: rgba(0,0,0,0.08); --border-hover: rgba(0,0,0,0.15);
+  --source-arxiv: #b5393e; --source-crossref: #2e8b57;
+  --source-dblp: #e8a317; --source-s2: #6b8dd6;
+}
+
+/* --- Academic theme --- */
+:root[data-theme="academic"] {
+  --surface-0: #faf8f5;  --surface-1: #ffffff;
+  --surface-2: #f5f0eb;  --surface-3: #ece5dd;
+  --text-0: #2c2416;     --text-1: #4a3f2f;
+  --text-2: #7a6e5d;     --text-3: #a0947f;
+  --accent-primary: #8b5e3c; --accent-muted: rgba(139,94,60,0.1);
+  --accent-hover: #6d4a30;
+  --success: #2e7d32; --warning: #e65100; --danger: #c62828; --info: #1565c0;
+  --rec-must: #2e7d32; --rec-recommend: #1565c0;
+  --rec-reference: #6a1b9a; --rec-ignore: #9e9e9e;
+  --border: rgba(0,0,0,0.1); --border-hover: rgba(0,0,0,0.18);
+  --source-arxiv: #b5393e; --source-crossref: #2e8b57;
+  --source-dblp: #e8a317; --source-s2: #6b8dd6;
+}
+
+/* --- Warm theme --- */
+:root[data-theme="warm"] {
+  --surface-0: #1a1510;  --surface-1: #231e17;
+  --surface-2: #2d2620;  --surface-3: #3a322a;
+  --text-0: #f5e6d3;     --text-1: #d4c4a8;
+  --text-2: #a89880;     --text-3: #7a6e5d;
+  --accent-primary: #e8a849; --accent-muted: rgba(232,168,73,0.12);
+  --accent-hover: #d4952e;
+  --success: #81c784; --warning: #ffb74d; --danger: #e57373; --info: #64b5f6;
+  --rec-must: #81c784; --rec-recommend: #64b5f6;
+  --rec-reference: #ce93d8; --rec-ignore: #8d6e63;
+  --border: rgba(255,255,255,0.06); --border-hover: rgba(255,255,255,0.12);
+  --source-arxiv: #ef5350; --source-crossref: #66bb6a;
+  --source-dblp: #ffa726; --source-s2: #42a5f5;
+}
