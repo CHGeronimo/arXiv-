@@ -228,7 +228,7 @@ def save_feedback():
     if rating and rating not in ("like", "dislike"):
         return jsonify({"error": "invalid rating"}), 400
 
-    queue_write(
+    sync_write(
         "INSERT OR REPLACE INTO feedback (paper_id, rating, relevance, novelty, note, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
         (paper_id, rating or None, relevance, novelty, note or None),
     )

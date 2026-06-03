@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 relevance: current.relevance || null,
                 novelty: current.novelty || null,
             }),
-        }).then(r => r.ok ? fetchFeedback() : null).then(() => renderPapers());
+        }).then(r => r.ok ? fetchFeedback() : Promise.resolve()).then(() => renderPapers());
     });
 
     // Feedback: sliders (delegation from card and modal)
