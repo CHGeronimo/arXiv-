@@ -305,7 +305,7 @@ function renderCCFJournals() {
             const tierCls = j.tier ? ` ${ccfTierClass(j.tier)}` : '';
             const tierTag = `<span class="ccf-badge ${ccfTierClass(j.tier)}">${j.tier}</span>`;
             html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" title="${j.name} (${j.publisher})" style="display:inline-flex;align-items:center;gap:3px">
-                <input type="checkbox" ${sel ? 'checked' : ''} data-ccf-jissn="${j.issn}" data-ccf-jname="${j.name}" style="display:none">
+                <input type="checkbox" ${sel ? 'checked' : ''} data-ccf-jissn="${j.issn}" data-ccf-jname="${j.name}">
                 ${tierTag}<span style="font-size:0.8rem">${j.abbr}</span>
             </label>`;
         }
@@ -330,11 +330,10 @@ function renderCCFJournals() {
     container.addEventListener('click', (e) => {
         const label = e.target.closest('label[data-ccf-jissn]');
         if (!label) return;
-        const cb = label.querySelector('input[type="checkbox"]');
-        if (!cb) return;
-        cb.checked = !cb.checked;
-        label.classList.toggle('selected', cb.checked);
-        toggleCCFJournal(cb.dataset.ccfJissn, cb.dataset.ccfJname, cb.checked);
+        const issn = label.dataset.ccfJissn;
+        const name = label.dataset.ccfJname;
+        const isSubscribed = subscriptions.crossref?.journals?.some(j => j.issn === issn);
+        toggleCCFJournal(issn, name, !isSubscribed);
     });
 }
 
@@ -349,6 +348,7 @@ function toggleCCFJournal(issn, name, checked) {
         subscriptions.crossref.journals = subscriptions.crossref.journals.filter(j => j.issn !== issn);
     }
     saveSubscriptions(subscriptions, 'crossref');
+    renderCCFJournals();
 }
 
 function renderQuickJournals() {
