@@ -1,0 +1,53 @@
+/* ============================================
+   utilities.css — Helper Classes
+   ============================================ */
+
+/* --- Spacing --- */
+.mt-1 { margin-top: var(--sp-1); }  .mt-2 { margin-top: var(--sp-2); }
+.mt-3 { margin-top: var(--sp-3); }  .mt-4 { margin-top: var(--sp-4); }
+.mt-5 { margin-top: var(--sp-5); }
+.mb-1 { margin-bottom: var(--sp-1); } .mb-2 { margin-bottom: var(--sp-2); }
+.mb-3 { margin-bottom: var(--sp-3); } .mb-4 { margin-bottom: var(--sp-4); }
+.p-2  { padding: var(--sp-2); }  .p-3 { padding: var(--sp-3); }
+.p-4  { padding: var(--sp-4); }  .p-5 { padding: var(--sp-5); }
+
+/* --- Flex --- */
+.flex      { display: flex; }
+.flex-col  { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center   { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-1 { gap: var(--sp-1); } .gap-2 { gap: var(--sp-2); }
+.gap-3 { gap: var(--sp-3); } .gap-4 { gap: var(--sp-4); }
+
+/* --- Text --- */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.text-center { text-align: center; }
+.text-sm     { font-size: var(--text-sm); }
+.text-xs     { font-size: var(--text-xs); }
+.text-muted  { color: var(--text-2); }
+
+/* --- Visibility --- */
+.hidden { display: none; }
+.visible { visibility: visible; }
+.invisible { visibility: hidden; }
+
+/* --- Width --- */
+.w-full { width: 100%; }
+.max-w-prose { max-width: 65ch; }
