@@ -72,7 +72,7 @@
         </div>
     </aside>
 
-    <main id="paper-container">
+    <main id="paper-container" class="papers-container">
         <div id="loading" class="loading-state">
             <div class="spinner"></div>
             <span>正在加载论文...</span>
@@ -82,8 +82,8 @@
     <div id="graph-page" class="page-section">
         <h2 class="page-header">知识图谱</h2>
         <div class="page-toolbar page-toolbar--top">
-            <button id="btn-refresh-graph" class="follow-btn">刷新图谱</button>
-            <button class="follow-btn" onclick="document.getElementById('graph-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button id="btn-refresh-graph" class="btn btn--secondary">刷新图谱</button>
+            <button class="btn btn--secondary" onclick="document.getElementById('graph-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
         </div>
         <div id="graph-empty" class="page-empty-state">
             <p>暂无知识图谱数据</p>
@@ -95,8 +95,8 @@
     <div id="trend-page" class="page-section">
         <h2 class="page-header">趋势雷达</h2>
         <div class="page-toolbar page-toolbar--top">
-            <button id="btn-generate-trend" class="follow-btn">生成报告</button>
-            <button class="follow-btn" onclick="document.getElementById('trend-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button id="btn-generate-trend" class="btn btn--secondary">生成报告</button>
+            <button class="btn btn--secondary" onclick="document.getElementById('trend-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
         </div>
         <div id="trend-empty" class="page-empty-state">
             <p>暂无趋势报告</p>
@@ -107,10 +107,10 @@
 
     <div id="idea-page" class="page-section">
         <h2 class="page-header">点子可行性检查</h2>
-        <textarea id="idea-input" rows="3" placeholder="输入你的研究想法..." class="idea-textarea"></textarea>
+        <textarea id="idea-input" rows="3" placeholder="输入你的研究想法..." class="form-textarea idea-textarea"></textarea>
         <div class="page-toolbar page-toolbar--bottom">
-            <button id="btn-check-idea" class="follow-btn">分析</button>
-            <button class="follow-btn" onclick="document.getElementById('idea-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button id="btn-check-idea" class="btn btn--secondary">分析</button>
+            <button class="btn btn--secondary" onclick="document.getElementById('idea-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
         </div>
         <div id="idea-empty" class="page-empty-state">
             <p>输入研究想法，AI 将分析其可行性和差异化</p>
