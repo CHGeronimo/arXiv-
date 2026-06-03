@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Generator, List, Set
 
@@ -76,9 +77,12 @@ class DblpCrawler:
                 hits = data.get("result", {}).get("hits", {}).get("hit", [])
                 return hits if isinstance(hits, list) else [hits]
             except Exception as e:
-                logger.warning(f"DBLP 获取第 {attempt+1}/3 次尝试失败: {e}")
+                wait = (attempt + 1) * 3
+                logger.warning(f"DBLP 获取第 {attempt+1}/3 次尝试失败: {e}，{wait}s 后重试")
                 if attempt == 2:
                     logger.error(f"DBLP 获取 {venue} {year} 在 3 次重试后失败")
+                else:
+                    time.sleep(wait)
         return []
 
     def _parse_hit(self, hit: dict, venue: str) -> Paper | None:
@@ -170,6 +174,9 @@ class DblpCrawler:
                 for paper in batch:
                     yield paper
                 logger.info(f"从 {conf.venue} {year} 获取到 {len(batch)} 篇新论文")
+
+            # 会议间间隔 2s，避免 DBLP 限流
+            time.sleep(2)
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())
