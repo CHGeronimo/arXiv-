@@ -310,11 +310,11 @@ function renderCCFJournals() {
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
         for (const j of journals) {
             const sel = subscribedIssns.has(j.issn);
-            const tierCls = j.tier ? ` ${ccfTierClass(j.tier)}` : '';
-            const tierTag = `<span class="ccf-badge ${ccfTierClass(j.tier)}">${j.tier}</span>`;
+            const tierCls = j.tier ? ` badge--ccf` : '';
+            const tierTag = `<span class="badge badge--ccf">${j.tier}</span>`;
             const hasIssn = j.issn && j.issn !== 'undefined';
             const noIssnStyle = hasIssn ? '' : 'opacity:0.45;cursor:not-allowed';
-            html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" data-ccf-jissn="${j.issn || ''}" data-ccf-jname="${j.name}" title="${j.name} (${j.publisher})${hasIssn ? '' : ' — 缺少ISSN'}" style="display:inline-flex;align-items:center;gap:3px;cursor:${hasIssn ? 'pointer' : 'not-allowed'};${noIssnStyle}">
+            html += `<label class="badge badge--secondary${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" data-ccf-jissn="${j.issn || ''}" data-ccf-jname="${j.name}" title="${j.name} (${j.publisher})${hasIssn ? '' : ' — 缺少ISSN'}" style="display:inline-flex;align-items:center;gap:3px;cursor:${hasIssn ? 'pointer' : 'not-allowed'};${noIssnStyle}">
                 <input type="checkbox" ${sel ? 'checked' : ''} ${hasIssn ? '' : 'disabled'} data-ccf-jissn="${j.issn || ''}" data-ccf-jname="${j.name}" style="display:none">
                 ${tierTag}<span style="font-size:0.8rem">${j.abbr}</span>
             </label>`;
@@ -374,7 +374,7 @@ function renderQuickJournals() {
     const subscribed = new Set((subscriptions.crossref?.journals || []).map(j => j.issn));
     container.innerHTML = QUICK_JOURNALS.map(j => {
         const sub = subscribed.has(j.issn);
-        return `<button class="sub-chip ${sub ? 'selected' : ''}" data-quick-issn="${j.issn}" data-quick-name="${j.name}" style="cursor:pointer">${sub ? '✓ ' : ''}${j.name}</button>`;
+        return `<button class="badge badge--secondary ${sub ? 'selected' : ''}" data-quick-issn="${j.issn}" data-quick-name="${j.name}" style="cursor:pointer">${sub ? '✓ ' : ''}${j.name}</button>`;
     }).join('');
 
     if (!container._quickJournalBound) {
@@ -423,7 +423,7 @@ function renderArxivCategories(filter = '') {
             currentGroup = item.group;
         }
         const sel = selected.has(item.cat);
-        html += `<label class="sub-chip ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px" title="${item.cat}">
+        html += `<label class="badge badge--secondary ${sel ? 'selected' : ''}" style="display:inline-block;margin:2px 4px" title="${item.cat}">
             <input type="checkbox" ${sel ? 'checked' : ''} data-arxiv-cat="${item.cat}">
             ${item.label}
         </label>`;
@@ -507,9 +507,9 @@ function renderConferenceChips() {
             currentGroup = conf.group;
         }
         const sel = selected.has(conf.venue);
-        const tierCls = conf.tier ? ` ${ccfTierClass(conf.tier)}` : '';
-        const tierTag = conf.tier ? `<span class="ccf-badge ${ccfTierClass(conf.tier)}">${conf.tier}</span>` : '';
-        html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 4px" data-ccf-tier="${conf.tier || ''}">
+        const tierCls = conf.tier ? ` badge--ccf` : '';
+        const tierTag = conf.tier ? `<span class="badge badge--ccf">${conf.tier}</span>` : '';
+        html += `<label class="badge badge--secondary${tierCls}${sel ? ' selected' : ''}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 4px" data-ccf-tier="${conf.tier || ''}">
             <input type="checkbox" ${sel ? 'checked' : ''} data-conf-venue="${conf.venue}">
             ${tierTag}${conf.label}
         </label>`;
@@ -522,7 +522,7 @@ function renderConferenceChips() {
             container.querySelectorAll('.ccf-tier-filter').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             const tier = btn.dataset.ccfFilter;
-            container.querySelectorAll('.sub-chip[data-ccf-tier]').forEach(chip => {
+            container.querySelectorAll('.badge.badge--secondary[data-ccf-tier]').forEach(chip => {
                 chip.style.display = (tier === 'all' || chip.dataset.ccfTier === tier) ? '' : 'none';
             });
         });
@@ -676,7 +676,7 @@ async function searchAuthors(query) {
                     <div style="font-size:0.88rem;font-weight:500">${a.name}${orcidTag}</div>
                     <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文${orcid ? ' · ' + orcid : ''}</div>
                 </div>
-                <button class="follow-btn ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px;flex-shrink:0">${subbed ? '✓ 已关注' : '+ 关注'}</button>
+                <button class="btn btn--secondary ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px;flex-shrink:0">${subbed ? '✓ 已关注' : '+ 关注'}</button>
             </div>`;
         }).join('');
     } catch (e) {

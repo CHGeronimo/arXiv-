@@ -28,14 +28,14 @@ export function renderPapers() {
         const ai = paper.AI || {};
         const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
-            ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
+            ? `<span class="badge badge--source-crossref">${paper.journal_title || 'Journal'}</span>`
             : paper.source === 'dblp'
-            ? `<span class="source-badge dblp">DBLP</span>`
+            ? `<span class="badge badge--source-dblp">DBLP</span>`
             : paper.source === 'semantic_scholar'
-            ? `<span class="source-badge s2">S2</span>`
-            : `<span class="source-badge arxiv">arXiv</span>`;
-        const venueBadge = paper.venue ? `<span class="venue-badge">${paper.venue}</span>` : '';
-        const accBadge = paper.acceptance ? `<span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
+            ? `<span class="badge badge--source-s2">S2</span>`
+            : `<span class="badge badge--source-arxiv">arXiv</span>`;
+        const venueBadge = paper.venue ? `<span class="badge badge--venue">${paper.venue}</span>` : '';
+        const accBadge = paper.acceptance ? `<span class="badge badge--acc">${paper.acceptance}</span>` : '';
         const citeBadge = paper.citation_count ? `<span class="cite-badge">&#9733; ${paper.citation_count}</span>` : '';
         const articleType = paper.article_type || inferType(paper);
         const typeTag = articleType === 'news' ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>' : '';
@@ -47,14 +47,14 @@ export function renderPapers() {
         let recBadge = '';
         if (rec === 'reference') {
             if (relScore >= 7) {
-                recBadge = `<span class="rec-badge reference">Reference</span>`;
+                recBadge = `<span class="badge badge--reference">Reference</span>`;
             } else {
-                recBadge = `<span class="rec-badge ref-low">浅参考</span>`;
+                recBadge = `<span class="badge badge--ref-low">浅参考</span>`;
             }
         } else if (rec && recLabels[rec]) {
-            recBadge = `<span class="rec-badge ${rec}">${recLabels[rec]}</span>`;
+            recBadge = `<span class="badge badge--${rec === 'must-read' ? 'must' : 'recommend'}">${recLabels[rec]}</span>`;
         }
-        const ccfBadge = paper.ccf_tier ? `<span class="ccf-badge ${window.ccfTierClass?.(paper.ccf_tier) || 'ccf-' + paper.ccf_tier}">${paper.ccf_tier}</span>` : '';
+        const ccfBadge = paper.ccf_tier ? `<span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
         const tldr = ai.tldr || paper.tldr || '';
         const cardTldr = tldr ? `<div class="card-tldr">${tldr}</div>` : '';
         const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');
@@ -72,7 +72,7 @@ export function renderPapers() {
         const userRel = fb.relevance || 0;
         const userNov = fb.novelty || 0;
         return `
-            <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec}">
+            <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec === 'reference' && relScore < 7 ? 'ref-low' : rec}">
                 <div class="paper-header">
                     ${sourceBadge}${venueBadge}${ccfBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
@@ -83,8 +83,8 @@ export function renderPapers() {
                 <div class="paper-footer">
                     <span class="paper-authors">${authors}</span>
                     <div class="card-actions">
-                        <button class="card-vote-btn ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" title="有用">&#9757;</button>
-                        <button class="card-vote-btn ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" title="没用">&#9759;</button>
+                        <button class="card-vote-btn up ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" title="有用">&#9757;</button>
+                        <button class="card-vote-btn down ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" title="没用">&#9759;</button>
                         <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                     </div>
                 </div>
@@ -98,9 +98,9 @@ export function renderPapers() {
     if (totalPages > 1) {
         container.innerHTML += `
             <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:16px">
-                <button class="follow-btn" onclick="window._changePage(-1)" ${page <= 1 ? 'disabled style="opacity:0.5"' : ''}>上一页</button>
+                <button class="btn btn--secondary" onclick="window._changePage(-1)" ${page <= 1 ? 'disabled style="opacity:0.5"' : ''}>上一页</button>
                 <span style="padding:6px 12px;color:var(--text-secondary)">${page}/${totalPages}</span>
-                <button class="follow-btn" onclick="window._changePage(1)" ${page >= totalPages ? 'disabled style="opacity:0.5"' : ''}>下一页</button>
+                <button class="btn btn--secondary" onclick="window._changePage(1)" ${page >= totalPages ? 'disabled style="opacity:0.5"' : ''}>下一页</button>
             </div>`;
     }
 }

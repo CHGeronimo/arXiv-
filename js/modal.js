@@ -16,15 +16,15 @@ export function openPaperDetail(paper) {
     const title = titleZh || titleEn;
     const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
     const sourceBadge = paper.source === 'crossref'
-        ? `<span class="source-badge crossref">${paper.journal_title || 'Journal'}</span>`
+        ? `<span class="badge badge--source-crossref">${paper.journal_title || 'Journal'}</span>`
         : paper.source === 'dblp'
-        ? `<span class="source-badge dblp">DBLP</span>`
+        ? `<span class="badge badge--source-dblp">DBLP</span>`
         : paper.source === 'semantic_scholar'
-        ? `<span class="source-badge s2">S2</span>`
-        : `<span class="source-badge arxiv">arXiv</span>`;
-    const venueInfo = paper.venue ? ` <span class="venue-badge">${paper.venue}</span>` : '';
-    const ccfInfo = paper.ccf_tier ? ` <span class="ccf-badge ${window.ccfTierClass?.(paper.ccf_tier) || 'ccf-' + paper.ccf_tier}">${paper.ccf_tier}</span>` : '';
-    const accInfo = paper.acceptance ? ` <span class="acc-badge ${paper.acceptance}">${paper.acceptance}</span>` : '';
+        ? `<span class="badge badge--source-s2">S2</span>`
+        : `<span class="badge badge--source-arxiv">arXiv</span>`;
+    const venueInfo = paper.venue ? ` <span class="badge badge--venue">${paper.venue}</span>` : '';
+    const ccfInfo = paper.ccf_tier ? ` <span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
+    const accInfo = paper.acceptance ? ` <span class="badge badge--acc">${paper.acceptance}</span>` : '';
     const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary)">&#9733; ${paper.citation_count} citations</div>` : '';
 
     const aiFields = paper.AI || {};
@@ -74,18 +74,18 @@ export function openPaperDetail(paper) {
         ${citeInfo}
         ${sections.join('')}
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-            ${paper.url ? `<a href="${paper.url}" target="_blank" class="follow-btn">论文链接</a>` : ''}
-            ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="follow-btn">PDF</a>` : ''}
-            ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="follow-btn">DOI</a>` : ''}
-            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="follow-btn" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
-            <button class="follow-btn" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
-            <button class="follow-btn ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" style="border-color:#22c55e;color:#22c55e;font-size:0.95rem;padding:8px 18px">&#9757; 有用</button>
-            <button class="follow-btn ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" style="border-color:#ef4444;color:#ef4444;font-size:0.95rem;padding:8px 18px">&#9759; 没用</button>
+            ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn--secondary">论文链接</a>` : ''}
+            ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="btn btn--secondary">PDF</a>` : ''}
+            ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="btn btn--secondary">DOI</a>` : ''}
+            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="btn btn--secondary" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
+            <button class="btn btn--secondary" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
+            <button class="btn btn--secondary ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" style="border-color:#22c55e;color:#22c55e;font-size:0.95rem;padding:8px 18px">&#9757; 有用</button>
+            <button class="btn btn--secondary ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" style="border-color:#ef4444;color:#ef4444;font-size:0.95rem;padding:8px 18px">&#9759; 没用</button>
             <div class="modal-feedback-sliders" style="margin-top:12px">
                 <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
                 <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
             </div>
-            <button class="follow-btn" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
+            <button class="btn btn--secondary" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
         </div>
             <div id="knowledge-card-section"></div>
             <div id="fulltext-analysis-section"></div>`;
