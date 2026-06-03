@@ -23,24 +23,24 @@
             <h1>arxivSCI-daily</h1>
         </div>
         <div class="header-right">
-            <span id="paper-count" class="paper-count"></span>
-            <div class="filter-dropdown" id="dd-crawl">
-                <button class="gear-btn" data-dropdown="crawl" title="手动爬取">🔄</button>
-                <div class="filter-dropdown-panel" id="panel-crawl" style="min-width:160px;right:0;left:auto">
-                    <div class="filter-option" data-crawl="arxiv"><span>arXiv</span><span class="count" id="crawl-arxiv">—</span></div>
-                    <div class="filter-option" data-crawl="crossref"><span>期刊</span><span class="count" id="crawl-crossref">—</span></div>
-                    <div class="filter-option" data-crawl="dblp"><span>DBLP</span><span class="count" id="crawl-dblp">—</span></div>
-                    <div class="filter-option" data-crawl="s2"><span>S2 搜索</span><span class="count" id="crawl-s2">—</span></div>
-                    <hr style="border-color:var(--border-color);margin:4px 0">
-                    <div class="filter-option" data-crawl="all"><span>全部爬取</span></div>
-                    <div class="filter-option" data-crawl="enhance"><span>补 AI 增强</span></div>
-                    <div class="filter-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
+            <span id="paper-count" class="badge badge--secondary"></span>
+            <div class="dropdown" id="dd-crawl">
+                <button class="btn btn--icon" data-dropdown="crawl" title="手动爬取">🔄</button>
+                <div class="dropdown-panel" id="panel-crawl" style="min-width:160px;right:0;left:auto">
+                    <div class="dropdown-option" data-crawl="arxiv"><span>arXiv</span><span class="count" id="crawl-arxiv">—</span></div>
+                    <div class="dropdown-option" data-crawl="crossref"><span>期刊</span><span class="count" id="crawl-crossref">—</span></div>
+                    <div class="dropdown-option" data-crawl="dblp"><span>DBLP</span><span class="count" id="crawl-dblp">—</span></div>
+                    <div class="dropdown-option" data-crawl="s2"><span>S2 搜索</span><span class="count" id="crawl-s2">—</span></div>
+                    <hr style="border-color:var(--border);margin:4px 0">
+                    <div class="dropdown-option" data-crawl="all"><span>全部爬取</span></div>
+                    <div class="dropdown-option" data-crawl="enhance"><span>补 AI 增强</span></div>
+                    <div class="dropdown-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
                 </div>
             </div>
-            <button id="btn-profile" class="gear-btn" title="研究方向">🎯</button>
-            <button id="btn-theme" class="gear-btn" title="切换主题（深色/浅色/学术/暖色）">🌙</button>
-            <button id="btn-subs" class="gear-btn" title="订阅管理">⚙️</button>
-            <button id="sidebar-toggle" class="gear-btn" title="筛选面板">☰</button>
+            <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
+            <button id="btn-theme" class="btn btn--icon" title="切换主题（深色/浅色/学术/暖色）">🌙</button>
+            <button id="btn-subs" class="btn btn--icon" title="订阅管理">⚙️</button>
+            <button id="sidebar-toggle" class="btn btn--icon" title="筛选面板">☰</button>
         </div>
     </header>
 
