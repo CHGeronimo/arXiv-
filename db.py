@@ -199,7 +199,7 @@ def _start_writer() -> None:
     global _writer_thread
 
     if _writer_thread is not None and _writer_thread.is_alive():
-        logger.warning("Writer thread already running")
+        logger.warning("写入线程已在运行")
         return
 
     _shutdown_event.clear()
@@ -279,7 +279,7 @@ def _flush(conn: sqlite3.Connection, batch: list[tuple[str, tuple[Any, ...]]]) -
         logger.debug(f"Flushed {len(batch)} writes")
     except Exception as e:
         conn.rollback()
-        logger.error(f"Batch write failed, rolled back {len(batch)} items: {e}")
+        logger.error(f"批量写入失败，已回滚 {len(batch)} 项: {e}")
 
 
 def queue_write(sql: str, params: tuple[Any, ...] = ()) -> None:
@@ -293,7 +293,7 @@ def queue_write(sql: str, params: tuple[Any, ...] = ()) -> None:
     in the next batch.
     """
     if _shutdown_event.is_set():
-        logger.warning("Write queue is shutting down, write rejected")
+        logger.warning("写入队列正在关闭，写入被拒绝")
         return
     _write_queue.put((sql, params))
 
@@ -315,7 +315,7 @@ def sync_write(sql: str, params: tuple[Any, ...] = ()) -> None:
         conn.commit()
     except Exception as e:
         conn.rollback()
-        logger.error(f"Sync write failed: {e}")
+        logger.error(f"同步写入失败: {e}")
         raise
 
 
@@ -354,7 +354,7 @@ def stop_writer() -> None:
     _writer_thread.join(timeout=5.0)
 
     if _writer_thread.is_alive():
-        logger.warning("Writer thread did not stop gracefully")
+        logger.warning("写入线程未能优雅停止")
     else:
         logger.info("写入线程已停止")
 
