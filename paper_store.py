@@ -143,6 +143,11 @@ def _insert_ai_row(paper_id: str, ai: dict) -> None:
     for col in AI_COLS[1:]:  # skip paper_id, already set
         row[col] = ai.get(col)
 
+    # Auto-downgrade low-relevance reference to ignore
+    if row.get("recommendation") == "reference" and (row.get("relevance_score") or 0) <= 5:
+        row["recommendation"] = "ignore"
+        row["skip_reason"] = "low_relevance"
+
     placeholders = ", ".join(f":{c}" for c in AI_COLS)
     cols = ", ".join(AI_COLS)
     sql = f"INSERT OR REPLACE INTO ai_results ({cols}) VALUES ({placeholders})"

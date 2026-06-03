@@ -108,6 +108,15 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
     if rec not in ("must-read", "recommended", "reference", "ignore"):
         logger.warning(f"非标准推荐 '{rec}' 论文 {paper.get('id', '?')}，映射为 'reference'")
         paper["AI"]["recommendation"] = "reference"
+        rec = "reference"
+
+    # Auto-downgrade low-relevance reference to ignore
+    if rec == "reference":
+        rel = paper["AI"].get("relevance_score", 0) or 0
+        if rel <= 5:
+            logger.info(f"低相关性 reference 降级 (rel={rel}) 论文 {paper.get('id', '?')}")
+            paper["AI"]["recommendation"] = "ignore"
+            paper["AI"]["skip_reason"] = "low_relevance"
 
     # Ensure every key from DEFAULT_AI exists
     for k, v in DEFAULT_AI.items():
