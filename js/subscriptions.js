@@ -306,7 +306,7 @@ function renderCCFJournals() {
     html += '</div>';
 
     for (const [domain, journals] of Object.entries(byDomain)) {
-        html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin:8px 0 4px;font-weight:500">${domain}</div>`;
+        html += `<div style="font-size:0.75rem;color:var(--text-2);margin:8px 0 4px;font-weight:500">${domain}</div>`;
         html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
         for (const j of journals) {
             const sel = subscribedIssns.has(j.issn);
@@ -401,7 +401,7 @@ function renderArxivCategories(filter = '') {
     const filterLower = filter.toLowerCase();
 
     // Search bar
-    let html = '<div style="margin-bottom:8px"><input type="text" id="arxiv-cat-search" placeholder="搜索分类..." value="' + filter.replace(/"/g, '&quot;') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);font-size:0.85rem;outline:none"></div>';
+    let html = '<div style="margin-bottom:8px"><input type="text" id="arxiv-cat-search" placeholder="搜索分类..." value="' + filter.replace(/"/g, '&quot;') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.85rem;outline:none"></div>';
 
     // Group filter buttons
     const groups = [...new Set(ARXIV_CATEGORIES.map(c => c.group))];
@@ -419,7 +419,7 @@ function renderArxivCategories(filter = '') {
         if (filterLower && !item.cat.toLowerCase().includes(filterLower) && !item.label.toLowerCase().includes(filterLower) && !item.group.toLowerCase().includes(filterLower)) continue;
         if (item.group !== currentGroup) {
             if (currentGroup) html += '<div style="height:8px"></div>';
-            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;font-weight:500">${item.group}</div>`;
+            html += `<div style="font-size:0.75rem;color:var(--text-2);margin-bottom:4px;font-weight:500">${item.group}</div>`;
             currentGroup = item.group;
         }
         const sel = selected.has(item.cat);
@@ -429,7 +429,7 @@ function renderArxivCategories(filter = '') {
         </label>`;
         shown++;
     }
-    if (!shown) html += '<div style="color:var(--text-secondary);font-size:0.85rem">无匹配分类</div>';
+    if (!shown) html += '<div style="color:var(--text-2);font-size:0.85rem">无匹配分类</div>';
     container.innerHTML = html;
 
     // Search handler
@@ -503,7 +503,7 @@ function renderConferenceChips() {
     for (const conf of sorted) {
         if (conf.group !== currentGroup) {
             if (currentGroup) html += '<div style="height:8px"></div>';
-            html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin:6px 0 4px;font-weight:500">${conf.group}</div>`;
+            html += `<div style="font-size:0.75rem;color:var(--text-2);margin:6px 0 4px;font-weight:500">${conf.group}</div>`;
             currentGroup = conf.group;
         }
         const sel = selected.has(conf.venue);
@@ -655,14 +655,14 @@ async function searchAuthors(query) {
         if (resultsEl) resultsEl.innerHTML = '';
         return;
     }
-    resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">搜索中...</div>';
+    resultsEl.innerHTML = '<div style="color:var(--text-2);font-size:0.85rem">搜索中...</div>';
     try {
         const resp = await fetch(`/api/author/search?query=${encodeURIComponent(query)}`);
         if (!resp.ok) throw new Error('search failed');
         const data = await resp.json();
         const authors = data.authors || [];
         if (!authors.length) {
-            resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">未找到匹配作者</div>';
+            resultsEl.innerHTML = '<div style="color:var(--text-2);font-size:0.85rem">未找到匹配作者</div>';
             return;
         }
         const subscribedIds = new Set((subscriptions.authors || []).map(a => a.authorId));
@@ -671,16 +671,16 @@ async function searchAuthors(query) {
             const aff = a.affiliations?.[0] || '';
             const orcid = a.externalIds?.ORCID || a._orcid || '';
             const orcidTag = orcid ? `<span style="font-size:0.7rem;background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 5px;border-radius:3px;margin-left:4px">ORCID</span>` : '';
-            return `<div class="author-search-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border-color)">
+            return `<div class="author-search-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border)">
                 <div style="min-width:0;flex:1">
                     <div style="font-size:0.88rem;font-weight:500">${a.name}${orcidTag}</div>
-                    <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文${orcid ? ' · ' + orcid : ''}</div>
+                    <div style="font-size:0.75rem;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${aff}${aff ? ' · ' : ''}${a.paperCount || 0} 篇论文${orcid ? ' · ' + orcid : ''}</div>
                 </div>
                 <button class="btn btn--secondary ${subbed ? 'followed' : ''}" data-author-id="${a.authorId}" data-author-name="${a.name}" data-author-aff="${aff}" data-author-papers="${a.paperCount || 0}" style="font-size:0.78rem;padding:4px 10px;flex-shrink:0">${subbed ? '✓ 已关注' : '+ 关注'}</button>
             </div>`;
         }).join('');
     } catch (e) {
-        resultsEl.innerHTML = '<div style="color:var(--text-secondary);font-size:0.85rem">搜索失败，请重试</div>';
+        resultsEl.innerHTML = '<div style="color:var(--text-2);font-size:0.85rem">搜索失败，请重试</div>';
     }
 }
 
@@ -713,10 +713,10 @@ function renderSubscribedAuthors() {
         return;
     }
     container.innerHTML = authors.map(a => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
             <div>
                 <div style="font-size:0.88rem;font-weight:500">${a.name}</div>
-                <div style="font-size:0.75rem;color:var(--text-secondary)">${a.affiliation || ''}${a.affiliation ? ' · ' : ''}${a.paperCount || 0} 篇</div>
+                <div style="font-size:0.75rem;color:var(--text-2)">${a.affiliation || ''}${a.affiliation ? ' · ' : ''}${a.paperCount || 0} 篇</div>
             </div>
             <button class="unfollow-btn" data-unfollow-author="${a.authorId}">取消关注</button>
         </div>

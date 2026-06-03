@@ -35,7 +35,7 @@ function handleJournalSearch() {
         const query = input.value.trim();
         if (!query) { results.innerHTML = ''; return; }
 
-        results.innerHTML = '<p style="color:var(--text-secondary)">Searching...</p>';
+        results.innerHTML = '<p style="color:var(--text-2)">Searching...</p>';
         const journals = await searchJournals(query);
 
         if (!journals.length) {
@@ -50,7 +50,7 @@ function handleJournalSearch() {
                     <div>
                         <span class="journal-name">${j.title}</span>
                         <span class="journal-issn">${j.all_issn || j.issn}</span>
-                        <div style="font-size:0.75rem;color:var(--text-secondary)">${j.publisher}${j.subjects ? ' · ' + j.subjects : ''}</div>
+                        <div style="font-size:0.75rem;color:var(--text-2)">${j.publisher}${j.subjects ? ' · ' + j.subjects : ''}</div>
                     </div>
                     <button class="${followed ? 'unfollow-btn' : 'follow-btn'}"
                             data-action="${followed ? 'unfollow' : 'follow'}"

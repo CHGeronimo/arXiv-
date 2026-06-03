@@ -38,6 +38,6 @@ export async function loadTrendRadar() {
         { title: '争议点', content: report.controversies, color: '#eab308' },
         { title: '机会点', content: report.opportunities, color: '#a855f7' },
     ];
-    contentEl.innerHTML = `<p style="color:var(--text-muted);margin-bottom:12px">周报: ${report.week_start} | ${report.paper_count} 篇论文</p>`
+    contentEl.innerHTML = `<p style="color:var(--text-3);margin-bottom:12px">周报: ${report.week_start} | ${report.paper_count} 篇论文</p>`
         + sections.map(s => `<div style="margin-bottom:12px"><h3 style="color:${s.color}">${s.title}</h3><p style="font-size:0.88rem;white-space:pre-wrap">${s.content}</p></div>`).join('');
 }

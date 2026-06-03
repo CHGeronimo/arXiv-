@@ -54,7 +54,7 @@ function renderGraph(nodes, edges) {
         .force('center', d3.forceCenter(w / 2, h / 2));
 
     const link = svg.append('g').selectAll('line').data(edges).join('line')
-        .attr('stroke', 'var(--border-color)').attr('stroke-width', d => Math.min(d.weight, 5));
+        .attr('stroke', 'var(--border)').attr('stroke-width', d => Math.min(d.weight, 5));
 
     const node = svg.append('g').selectAll('g').data(nodes).join('g').call(d3.drag()
         .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
@@ -62,9 +62,9 @@ function renderGraph(nodes, edges) {
         .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
 
     node.append('circle').attr('r', d => Math.max(8, d.size * 2))
-        .attr('fill', 'var(--accent)').attr('opacity', 0.8);
+        .attr('fill', 'var(--accent-primary)').attr('opacity', 0.8);
     node.append('text').text(d => d.name.slice(0, 20)).attr('dy', -12)
-        .attr('text-anchor', 'middle').attr('fill', 'var(--text-primary)').attr('font-size', '0.7rem');
+        .attr('text-anchor', 'middle').attr('fill', 'var(--text-0)').attr('font-size', '0.7rem');
 
     sim.on('tick', () => {
         link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)

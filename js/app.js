@@ -336,12 +336,12 @@ document.addEventListener('DOMContentLoaded', () => {
         statsEl.innerHTML = data.stats.map(s => `${s.reason}: ${s.count}`).join(' &nbsp;|&nbsp; ');
         const listEl = document.getElementById('ignored-list');
         listEl.innerHTML = data.ignored.map(p =>
-            `<div style="padding:4px 0;border-bottom:1px solid var(--border-color);font-size:0.82rem">
-                <span style="color:var(--text-muted)">${p.paper_id}</span>
-                <span style="float:right;color:var(--accent-light);font-size:0.75rem">${p.reason}</span>
-                <span style="display:block;color:var(--text-muted);font-size:0.72rem">${p.ignored_at || ''}</span>
+            `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:0.82rem">
+                <span style="color:var(--text-3)">${p.paper_id}</span>
+                <span style="float:right;color:var(--accent-primary);font-size:0.75rem">${p.reason}</span>
+                <span style="display:block;color:var(--text-3);font-size:0.72rem">${p.ignored_at || ''}</span>
             </div>`
-        ).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px">无被过滤论文</p>';
+        ).join('') || '<p style="color:var(--text-3);text-align:center;padding:20px">无被过滤论文</p>';
         const pagEl = document.getElementById('ignored-pagination');
         const pages = Math.ceil(data.total / data.per_page);
         pagEl.textContent = pages > 1 ? `第 ${page}/${pages} 页 (共 ${data.total} 篇)` : `共 ${data.total} 篇`;

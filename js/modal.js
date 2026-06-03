@@ -14,7 +14,7 @@ export function openPaperDetail(paper) {
     const titleZh = aiTitle || paper.title_zh || '';
     const titleEn = paper.title || '';
     const title = titleZh || titleEn;
-    const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-secondary);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
+    const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-2);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
     const sourceBadge = paper.source === 'crossref'
         ? `<span class="badge badge--source-crossref">${paper.journal_title || 'Journal'}</span>`
         : paper.source === 'dblp'
@@ -25,7 +25,7 @@ export function openPaperDetail(paper) {
     const venueInfo = paper.venue ? ` <span class="badge badge--venue">${paper.venue}</span>` : '';
     const ccfInfo = paper.ccf_tier ? ` <span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
     const accInfo = paper.acceptance ? ` <span class="badge badge--acc">${paper.acceptance}</span>` : '';
-    const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-secondary)">&#9733; ${paper.citation_count} citations</div>` : '';
+    const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-2)">&#9733; ${paper.citation_count} citations</div>` : '';
 
     const aiFields = paper.AI || {};
     const sections = [];
@@ -51,7 +51,7 @@ export function openPaperDetail(paper) {
     if (summaryZh) sections.push(`<h3>中文摘要</h3><p>${summaryZh}</p>`);
     const abstractEn = paper.summary || '';
     if (abstractEn) sections.push(`<h3>Abstract</h3><p>${abstractEn}</p>`);
-    if (!sections.length) sections.push(`<p style="color:var(--text-secondary)">暂无摘要</p>`);
+    if (!sections.length) sections.push(`<p style="color:var(--text-2)">暂无摘要</p>`);
 
     const codeUrl = paper.code_url || '';
     const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
@@ -68,7 +68,7 @@ export function openPaperDetail(paper) {
         </div>
         <h2 style="margin:12px 0">${title}</h2>
         ${origTitle}
-        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:12px">
+        <p style="color:var(--text-2);font-size:0.85rem;margin-bottom:12px">
             ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`).join(', ')}
         </p>
         ${citeInfo}
@@ -97,14 +97,14 @@ export function openPaperDetail(paper) {
         if (!el) return;
         el.innerHTML = `
             <h3 style="margin-top:16px">知识卡片</h3>
-            <div style="margin:8px 0;padding:12px;background:var(--accent-bg);border-radius:8px">
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Problem</span><p style="margin:4px 0;font-size:0.88rem">${card.problem || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Method</span><p style="margin:4px 0;font-size:0.88rem">${card.method_extracted || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Result</span><p style="margin:4px 0;font-size:0.88rem">${card.result_extracted || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">Keywords</span>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${(card.keywords || []).map(k => `<span style="padding:2px 8px;border-radius:3px;font-size:0.75rem;background:var(--badge-bg);color:var(--accent-light)">${k}</span>`).join('')}</div>
+            <div style="margin:8px 0;padding:12px;background:var(--accent-muted);border-radius:8px">
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Problem</span><p style="margin:4px 0;font-size:0.88rem">${card.problem || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Method</span><p style="margin:4px 0;font-size:0.88rem">${card.method_extracted || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Result</span><p style="margin:4px 0;font-size:0.88rem">${card.result_extracted || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Keywords</span>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${(card.keywords || []).map(k => `<span style="padding:2px 8px;border-radius:3px;font-size:0.75rem;background:var(--surface-2);color:var(--accent-primary)">${k}</span>`).join('')}</div>
                 </div>
-                ${card.relation_to_profile ? `<div><span style="color:var(--accent-light);font-weight:600">Profile Relation</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-secondary)">${card.relation_to_profile}</p></div>` : ''}
+                ${card.relation_to_profile ? `<div><span style="color:var(--accent-primary);font-weight:600">Profile Relation</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-2)">${card.relation_to_profile}</p></div>` : ''}
             </div>`;
     });
     fetchFulltextAnalysis(paper.id).then(analysis => {
@@ -113,13 +113,13 @@ export function openPaperDetail(paper) {
         if (!el) return;
         el.innerHTML = `
             <h3 style="margin-top:16px">正文深度分析</h3>
-            <div style="margin:8px 0;padding:12px;background:var(--accent-bg);border-radius:8px">
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">方法实现</span><p style="margin:4px 0;font-size:0.88rem">${analysis.method_implementation || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">实验设计</span><p style="margin:4px 0;font-size:0.88rem">${analysis.experimental_design || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">关键结果</span><p style="margin:4px 0;font-size:0.88rem">${analysis.key_results_detail || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">局限性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.limitations || 'N/A'}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-light);font-weight:600">可复现性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.reproducibility || 'N/A'}</p></div>
-                ${analysis.relevance_to_profile ? `<div><span style="color:var(--accent-light);font-weight:600">与研究方向的关系</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-secondary)">${analysis.relevance_to_profile}</p></div>` : ''}
+            <div style="margin:8px 0;padding:12px;background:var(--accent-muted);border-radius:8px">
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">方法实现</span><p style="margin:4px 0;font-size:0.88rem">${analysis.method_implementation || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">实验设计</span><p style="margin:4px 0;font-size:0.88rem">${analysis.experimental_design || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">关键结果</span><p style="margin:4px 0;font-size:0.88rem">${analysis.key_results_detail || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">局限性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.limitations || 'N/A'}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">可复现性</span><p style="margin:4px 0;font-size:0.88rem">${analysis.reproducibility || 'N/A'}</p></div>
+                ${analysis.relevance_to_profile ? `<div><span style="color:var(--accent-primary);font-weight:600">与研究方向的关系</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-2)">${analysis.relevance_to_profile}</p></div>` : ''}
             </div>`;
     });
 

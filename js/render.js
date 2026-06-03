@@ -99,7 +99,7 @@ export function renderPapers() {
         container.innerHTML += `
             <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:16px">
                 <button class="btn btn--secondary" onclick="window._changePage(-1)" ${page <= 1 ? 'disabled style="opacity:0.5"' : ''}>上一页</button>
-                <span style="padding:6px 12px;color:var(--text-secondary)">${page}/${totalPages}</span>
+                <span style="padding:6px 12px;color:var(--text-2)">${page}/${totalPages}</span>
                 <button class="btn btn--secondary" onclick="window._changePage(1)" ${page >= totalPages ? 'disabled style="opacity:0.5"' : ''}>下一页</button>
             </div>`;
     }
