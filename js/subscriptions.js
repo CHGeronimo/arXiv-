@@ -220,6 +220,8 @@ async function loadSubscriptions() {
     return subscriptions;
 }
 
+let _triggerTimers = {};
+
 async function saveSubscriptions(newSubs, changedSource) {
     subscriptions = newSubs;
     localStorage.setItem('subscriptions', JSON.stringify(newSubs));
@@ -230,8 +232,14 @@ async function saveSubscriptions(newSubs, changedSource) {
             body: JSON.stringify(newSubs),
         });
         if (resp.ok && changedSource) {
-            if (typeof showToast === 'function') showToast('订阅已保存，正在爬取...');
-            fetch(`/api/trigger/${changedSource}`, { method: 'POST' }).catch(() => {});
+            if (typeof showToast === 'function') showToast('订阅已保存');
+            // Debounce: 3s window for same source, only trigger crawl once
+            if (_triggerTimers[changedSource]) clearTimeout(_triggerTimers[changedSource]);
+            _triggerTimers[changedSource] = setTimeout(() => {
+                delete _triggerTimers[changedSource];
+                fetch(`/api/trigger/${changedSource}`, { method: 'POST' }).catch(() => {});
+                if (typeof showToast === 'function') showToast('正在爬取...');
+            }, 3000);
         } else if (resp.ok) {
             if (typeof showToast === 'function') showToast('订阅已保存');
         }
@@ -304,8 +312,10 @@ function renderCCFJournals() {
             const sel = subscribedIssns.has(j.issn);
             const tierCls = j.tier ? ` ${ccfTierClass(j.tier)}` : '';
             const tierTag = `<span class="ccf-badge ${ccfTierClass(j.tier)}">${j.tier}</span>`;
-            html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" title="${j.name} (${j.publisher})" style="display:inline-flex;align-items:center;gap:3px">
-                <input type="checkbox" ${sel ? 'checked' : ''} data-ccf-jissn="${j.issn}" data-ccf-jname="${j.name}">
+            const hasIssn = j.issn && j.issn !== 'undefined';
+            const noIssnStyle = hasIssn ? '' : 'opacity:0.45;cursor:not-allowed';
+            html += `<label class="sub-chip${tierCls}${sel ? ' selected' : ''}" data-ccf-jtier="${j.tier}" data-ccf-jissn="${j.issn || ''}" data-ccf-jname="${j.name}" title="${j.name} (${j.publisher})${hasIssn ? '' : ' — 缺少ISSN'}" style="display:inline-flex;align-items:center;gap:3px;cursor:${hasIssn ? 'pointer' : 'not-allowed'};${noIssnStyle}">
+                <input type="checkbox" ${sel ? 'checked' : ''} ${hasIssn ? '' : 'disabled'} data-ccf-jissn="${j.issn || ''}" data-ccf-jname="${j.name}" style="display:none">
                 ${tierTag}<span style="font-size:0.8rem">${j.abbr}</span>
             </label>`;
         }
@@ -314,7 +324,7 @@ function renderCCFJournals() {
 
     container.innerHTML = html;
 
-    // Tier filter
+    // Tier filter (rebind each render is fine — buttons are recreated)
     container.querySelectorAll('.ccf-tier-filter').forEach(btn => {
         btn.addEventListener('click', () => {
             container.querySelectorAll('.ccf-tier-filter').forEach(b => b.classList.remove('active'));
@@ -326,15 +336,22 @@ function renderCCFJournals() {
         });
     });
 
-    // Click to toggle subscription
-    container.addEventListener('click', (e) => {
-        const label = e.target.closest('label[data-ccf-jissn]');
-        if (!label) return;
-        const issn = label.dataset.ccfJissn;
-        const name = label.dataset.ccfJname;
-        const isSubscribed = subscriptions.crossref?.journals?.some(j => j.issn === issn);
-        toggleCCFJournal(issn, name, !isSubscribed);
-    });
+    // Bind change handler once via flag on container
+    if (!container._ccfJournalBound) {
+        container._ccfJournalBound = true;
+        container.addEventListener('change', (e) => {
+            const cb = e.target.closest('input[data-ccf-jissn]');
+            if (!cb) return;
+            const issn = cb.dataset.ccfJissn;
+            const name = cb.dataset.ccfJname;
+            if (!issn || issn === 'undefined') {
+                cb.checked = false;
+                if (typeof showToast === 'function') showToast(`"${name}" 缺少 ISSN，暂无法订阅`);
+                return;
+            }
+            toggleCCFJournal(issn, name, cb.checked);
+        });
+    }
 }
 
 function toggleCCFJournal(issn, name, checked) {
@@ -360,18 +377,21 @@ function renderQuickJournals() {
         return `<button class="sub-chip ${sub ? 'selected' : ''}" data-quick-issn="${j.issn}" data-quick-name="${j.name}" style="cursor:pointer">${sub ? '✓ ' : ''}${j.name}</button>`;
     }).join('');
 
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-quick-issn]');
-        if (!btn) return;
-        const issn = btn.dataset.quickIssn;
-        const name = btn.dataset.quickName;
-        if (isJournalFollowed(issn)) {
-            unfollowJournal(issn);
-        } else {
-            followJournal(issn, name);
-        }
-        renderQuickJournals();
-    }, { once: true });
+    if (!container._quickJournalBound) {
+        container._quickJournalBound = true;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-quick-issn]');
+            if (!btn) return;
+            const issn = btn.dataset.quickIssn;
+            const name = btn.dataset.quickName;
+            if (isJournalFollowed(issn)) {
+                unfollowJournal(issn);
+            } else {
+                followJournal(issn, name);
+            }
+            renderQuickJournals();
+        });
+    }
 }
 
 function renderArxivCategories(filter = '') {
@@ -438,21 +458,25 @@ function renderArxivCategories(filter = '') {
     });
 
     // Checkbox handler
-    container.addEventListener('change', (e) => {
-        const cb = e.target.closest('[data-arxiv-cat]');
-        if (!cb) return;
-        if (!subscriptions.arxiv) subscriptions.arxiv = { categories: [] };
-        const cats = subscriptions.arxiv.categories || [];
-        if (cb.checked) {
-            if (!cats.includes(cb.dataset.arxivCat)) cats.push(cb.dataset.arxivCat);
-        } else {
-            const idx = cats.indexOf(cb.dataset.arxivCat);
-            if (idx >= 0) cats.splice(idx, 1);
-        }
-        subscriptions.arxiv.categories = cats;
-        saveSubscriptions(subscriptions, 'arxiv');
-        renderArxivCategories(filter);
-    }, { once: true });
+    if (!container._arxivCatBound) {
+        container._arxivCatBound = true;
+        container.addEventListener('change', (e) => {
+            const cb = e.target.closest('[data-arxiv-cat]');
+            if (!cb) return;
+            if (!subscriptions.arxiv) subscriptions.arxiv = { categories: [] };
+            const cats = subscriptions.arxiv.categories || [];
+            if (cb.checked) {
+                if (!cats.includes(cb.dataset.arxivCat)) cats.push(cb.dataset.arxivCat);
+            } else {
+                const idx = cats.indexOf(cb.dataset.arxivCat);
+                if (idx >= 0) cats.splice(idx, 1);
+            }
+            subscriptions.arxiv.categories = cats;
+            const currentFilter = document.getElementById('arxiv-cat-search')?.value || '';
+            saveSubscriptions(subscriptions, 'arxiv');
+            renderArxivCategories(currentFilter);
+        });
+    }
 }
 
 function renderConferenceChips() {
@@ -504,11 +528,14 @@ function renderConferenceChips() {
         });
     });
 
-    container.addEventListener('change', (e) => {
-        const cb = e.target.closest('[data-conf-venue]');
-        if (!cb) return;
-        toggleConference(cb.dataset.confVenue, cb.checked);
-    }, { once: true });
+    if (!container._confBound) {
+        container._confBound = true;
+        container.addEventListener('change', (e) => {
+            const cb = e.target.closest('[data-conf-venue]');
+            if (!cb) return;
+            toggleConference(cb.dataset.confVenue, cb.checked);
+        });
+    }
 }
 
 function toggleConference(venue, checked) {
