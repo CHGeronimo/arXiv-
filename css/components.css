@@ -305,19 +305,32 @@
 }
 
 .modal {
-  background: var(--surface-3);
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
+}
+.modal.active {
+  display: flex;
+}
+.modal-content {
+  background: var(--surface-1);
   border-radius: var(--radius-lg);
+  padding: var(--sp-5);
   max-width: 720px;
-  width: 90vw;
+  width: 90%;
   max-height: 85vh;
   overflow-y: auto;
-  padding: var(--sp-5);
-  box-shadow: var(--shadow-lg);
-  animation: slideUp var(--transition-spring);
   position: relative;
+  box-shadow: var(--shadow-lg);
 }
-
-.modal.modal--sm { max-width: 560px; }
+.modal.modal--sm .modal-content { max-width: 560px; }
 
 .modal-close {
   position: absolute;
@@ -1125,33 +1138,6 @@ header h1 {
   overflow: hidden;
 }
 
-/* --- Modal (old: align-items flex-start, padding 40px 20px, z-index 1000) --- */
-.modal {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(4px);
-  overflow-y: auto;
-}
-.modal.active {
-  display: flex;
-}
-.modal-content {
-  background: var(--surface-1);
-  border-radius: var(--radius-lg);
-  padding: var(--sp-5);
-  max-width: 720px;
-  width: 90%;
-  max-height: 85vh;
-  overflow-y: auto;
-  position: relative;
-  box-shadow: var(--shadow-lg);
-}
 
 /* --- Close button --- */
 .close-btn {

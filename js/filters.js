@@ -145,8 +145,11 @@ export function handleSearch() {
 
 export function applyFiltersAndSort() {
     const showIgnored = activeFilters.type.has('ignore');
+    const showRefLow = activeFilters.type.has('ref-low');
     let result = [...allPapers].filter(p => {
-        if ((p.AI || {}).recommendation === 'ignore') return showIgnored;
+        const ai = p.AI || {};
+        if (ai.recommendation === 'ignore') return showIgnored;
+        if (ai.recommendation === 'reference' && (ai.relevance_score || 0) < 7) return showRefLow;
         return true;
     });
 

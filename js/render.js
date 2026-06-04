@@ -116,7 +116,12 @@ export function updatePaperCount() {
     if (!el) return;
     const sq = document.getElementById('sidebar-search-input')?.value?.trim() || '';
     const df = document.getElementById('sidebar-date-filter')?.value || '';
-    const active = allPapers.filter(p => (p.AI || {}).recommendation !== 'ignore').length;
+    const active = allPapers.filter(p => {
+        const ai = p.AI || {};
+        if (ai.recommendation === 'ignore') return false;
+        if (ai.recommendation === 'reference' && (ai.relevance_score || 0) < 7) return false;
+        return true;
+    }).length;
     const shown = filteredPapers.length;
     const hasFilter = sq || df || Object.values(activeFilters).some(s => s.size > 0);
     el.textContent = hasFilter ? `${shown}/${active} 篇` : `${active} 篇`;
