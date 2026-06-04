@@ -24,7 +24,7 @@ class ArxivCrawler:
         self,
         categories: List[str],
         existing_ids: Set[str] | None = None,
-        delay_seconds: float = 5.0,
+        delay_seconds: float = 1.0,
         num_retries: int = 5,
     ):
         self.categories = categories
@@ -103,28 +103,45 @@ class ArxivCrawler:
         return all_ids
 
     def fetch_metadata_iter(self, paper_ids: List[str]) -> Generator[Paper, None, None]:
-        for pid in paper_ids:
-            if pid in self.existing_ids:
-                continue
+        """Fetch metadata in batches of up to 100 IDs per API call.
+
+        Much faster than per-paper queries — arXiv API supports batch id_list.
+        """
+        batch_size = 100
+        for i in range(0, len(paper_ids), batch_size):
+            batch = paper_ids[i:i + batch_size]
             try:
-                search = arxiv.Search(id_list=[pid])
-                result = next(self.client.results(search))
-                yield Paper(
-                    id=pid,
-                    source="arxiv",
-                    title=result.title,
-                    summary=result.summary,
-                    authors=[a.name for a in result.authors],
-                    categories=result.categories,
-                    doi=result.doi or "",
-                    published_date=result.published.isoformat()[:10],
-                    url=f"https://arxiv.org/abs/{pid}",
-                    pdf=f"https://arxiv.org/pdf/{pid}",
-                    publisher="arXiv",
-                    comment=result.comment,
-                )
+                search = arxiv.Search(id_list=batch)
+                fetched_in_batch = {}
+                for result in self.client.results(search):
+                    # arxiv.Client may return IDs with version suffix (e.g. 2606.04493v1)
+                    # Normalize to base ID for matching
+                    raw_id = result.entry_id.split("/")[-1]
+                    base_id = re.sub(r"v\d+$", "", raw_id)
+                    fetched_in_batch[base_id] = result
+
+                for pid in batch:
+                    result = fetched_in_batch.get(pid)
+                    if result is None:
+                        logger.warning(f"元数据缺失 {pid}")
+                        continue
+                    yield Paper(
+                        id=pid,
+                        source="arxiv",
+                        title=result.title,
+                        summary=result.summary,
+                        authors=[a.name for a in result.authors],
+                        categories=result.categories,
+                        doi=result.doi or "",
+                        published_date=result.published.isoformat()[:10],
+                        url=f"https://arxiv.org/abs/{pid}",
+                        pdf=f"https://arxiv.org/pdf/{pid}",
+                        publisher="arXiv",
+                        comment=result.comment,
+                    )
+                logger.debug(f"元数据批次 {i//batch_size + 1}: {len(fetched_in_batch)}/{len(batch)} 篇")
             except Exception as e:
-                logger.error(f"获取元数据失败 {pid}: {e}")
+                logger.error(f"元数据批次失败 ({i//batch_size + 1}): {e}")
 
     def crawl_iter(self) -> Generator[Paper, None, None]:
         ids = self.fetch_new_ids()

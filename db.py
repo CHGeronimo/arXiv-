@@ -320,13 +320,15 @@ def sync_write(sql: str, params: tuple[Any, ...] = ()) -> None:
 
 
 def ignore_paper(paper_id: str, reason: str = "") -> None:
-    """Record a paper as ignored so it won't be re-fetched."""
-    conn = get_conn()
-    conn.execute(
-        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+    """Record a paper as ignored so it won't be re-fetched.
+
+    Uses the async write queue. Safe for concurrent use — each paper
+    is only processed by one thread so no cross-thread visibility needed.
+    """
+    queue_write(
+        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason, ignored_at) VALUES (?, ?, datetime('now'))",
         (paper_id, reason),
     )
-    conn.commit()
 
 
 def is_ignored(paper_id: str) -> bool:

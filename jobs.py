@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import threading
+import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -39,7 +40,7 @@ from paper_store import (
 logger = logging.getLogger("jobs")
 
 _job_status: dict[str, dict] = {}
-_ai_max_workers = int(os.environ.get("AI_MAX_WORKERS", "3"))
+_ai_max_workers = int(os.environ.get("AI_MAX_WORKERS", "10"))
 _shutdown = False
 
 SUBS_PATH = "subscriptions.json"
@@ -81,8 +82,9 @@ class BaseCrawlerJob(ABC):
     def run(self) -> None:
         """Execute the crawl job: fetch papers, filter via AI, store results.
 
-        Tracks detailed rejection reasons (filter_reject, ai_reject, exists, ignored)
-        and reports structured progress every 20 papers.
+        Two-phase design:
+        1. Collect all papers from crawler (sequential — arXiv API rate-limited)
+        2. Process with AI in parallel using ThreadPoolExecutor
         """
         logger.info(f"[{self.name}] ▶ 开始")
         try:
@@ -94,27 +96,60 @@ class BaseCrawlerJob(ABC):
                 _set_job_status(self.name, "skipped", reason)
                 return
 
-            fetched, written = 0, 0
+            # Phase 1: Collect all papers (sequential — crawler is rate-limited)
+            all_papers = list(crawler.crawl_iter())
+            fetched = len(all_papers)
+            logger.info(f"[{self.name}] 爬取完成, {fetched} 篇待处理, 并行处理 (workers={_ai_max_workers})")
+
+            # Phase 2: Parallel AI processing
+            written = 0
             skipped = {"exists": 0, "ignored": 0, "filter_reject": 0, "ai_reject": 0, "error": 0}
             fetched_info = self._init_fetched_info()
-            for paper in crawler.crawl_iter():
-                fetched += 1
+            lock = threading.Lock()
+            done_count = [0]
+            start_time = time.monotonic()
+
+            def _process_one(paper):
+                nonlocal written
                 self._track_fetched(fetched_info, paper)
                 result = append_paper(paper, enhance=True)
-                if result == "written":
-                    written += 1
-                else:
-                    skipped[result] = skipped.get(result, 0) + 1
-                if fetched % 20 == 0:
-                    parts = [f"{written} 接受"]
-                    if skipped.get("filter_reject"):
-                        parts.append(f"{skipped['filter_reject']} 过滤")
-                    if skipped.get("exists"):
-                        parts.append(f"{skipped['exists']} 重复")
-                    ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
-                    if ignored_total:
-                        parts.append(f"{ignored_total} 拒绝")
-                    logger.info(f"[{self.name}] {fetched}/{written} │ {' │ '.join(parts)}")
+                with lock:
+                    done_count[0] += 1
+                    if result == "written":
+                        written += 1
+                    else:
+                        skipped[result] = skipped.get(result, 0) + 1
+                    n = done_count[0]
+                    if n % 20 == 0 or n == fetched:
+                        elapsed = time.monotonic() - start_time
+                        speed = n / elapsed if elapsed > 0 else 0
+                        eta = (fetched - n) / speed if speed > 0 else 0
+                        parts = [f"{written} 接受"]
+                        if skipped.get("filter_reject"):
+                            parts.append(f"{skipped['filter_reject']} 过滤")
+                        if skipped.get("exists"):
+                            parts.append(f"{skipped['exists']} 重复")
+                        ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
+                        if ignored_total:
+                            parts.append(f"{ignored_total} 拒绝")
+                        logger.info(
+                            f"[{self.name}] {n}/{fetched} ({speed:.1f}/s, ETA {eta:.0f}s) │ {' │ '.join(parts)}"
+                        )
+                return result
+
+            with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
+                futures = {executor.submit(_process_one, p): p for p in all_papers}
+                for future in as_completed(futures):
+                    if _shutdown:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+                    try:
+                        future.result()
+                    except Exception as e:
+                        p = futures[future]
+                        with lock:
+                            skipped["error"] = skipped.get("error", 0) + 1
+                        logger.warning(f"[{self.name}] 处理异常 {getattr(p, 'id', '?')}: {e}")
 
             self._post_run(subs, fetched_info)
             total_rejected = fetched - written
