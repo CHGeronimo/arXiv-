@@ -116,8 +116,8 @@ export function updatePaperCount() {
     if (!el) return;
     const sq = document.getElementById('sidebar-search-input')?.value?.trim() || '';
     const df = document.getElementById('sidebar-date-filter')?.value || '';
-    const total = allPapers.length;
+    const active = allPapers.filter(p => (p.AI || {}).recommendation !== 'ignore').length;
     const shown = filteredPapers.length;
     const hasFilter = sq || df || Object.values(activeFilters).some(s => s.size > 0);
-    el.textContent = hasFilter ? `${shown}/${total} 篇` : `${total} 篇`;
+    el.textContent = hasFilter ? `${shown}/${active} 篇` : `${active} 篇`;
 }

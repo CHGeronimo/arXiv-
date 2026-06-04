@@ -44,6 +44,7 @@ export function buildFilterOptions() {
             { value: 'recommended', label: 'Recommended' },
             { value: 'reference', label: 'Reference' },
             { value: 'ref-low', label: '浅参考' },
+            { value: 'ignore', label: '已过滤' },
             { value: 'unread', label: '未读' },
         ]},
         { key: 'bookmarked', label: '收藏', options: [
@@ -143,7 +144,11 @@ export function handleSearch() {
 }
 
 export function applyFiltersAndSort() {
-    let result = [...allPapers];
+    const showIgnored = activeFilters.type.has('ignore');
+    let result = [...allPapers].filter(p => {
+        if ((p.AI || {}).recommendation === 'ignore') return showIgnored;
+        return true;
+    });
 
     if (activeFilters.source.size > 0)
         result = result.filter(p => activeFilters.source.has(p.source));

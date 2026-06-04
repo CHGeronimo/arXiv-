@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
-from db import get_conn, queue_write
+from db import get_conn
 from .structure import TrendReport
 
 logger = logging.getLogger(__name__)
@@ -29,15 +29,16 @@ Identify:
 Respond with valid JSON matching the TrendReport schema."""
 
 _CHAIN = None
+_RAW_CHAIN = None
 
 
-def _get_chain():
-    global _CHAIN
-    if _CHAIN is None:
+def _get_raw_chain():
+    global _RAW_CHAIN
+    if _RAW_CHAIN is None:
         model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
-        llm = ChatOpenAI(model=model_name).with_structured_output(TrendReport, method="json_mode")
-        _CHAIN = ChatPromptTemplate.from_template(_TREND_PROMPT) | llm
-    return _CHAIN
+        llm = ChatOpenAI(model=model_name, model_kwargs={"response_format": {"type": "json_object"}})
+        _RAW_CHAIN = ChatPromptTemplate.from_template(_TREND_PROMPT) | llm
+    return _RAW_CHAIN
 
 
 def generate_trend_report(week_start: str | None = None) -> dict | None:
@@ -46,14 +47,16 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
 
     conn = get_conn()
-    week_ago = (datetime.strptime(week_start, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+    # Cover from week_start to today (not just the previous week)
+    today_str = datetime.now().strftime("%Y-%m-%d")
 
     rows = conn.execute("""
         SELECT p.title, a.tldr, a.method, a.result
         FROM papers p JOIN ai_results a ON p.id = a.paper_id
-        WHERE p.published_date >= ? AND p.published_date < ?
+        WHERE p.published_date >= ? AND p.published_date <= ?
+        AND a.recommendation != 'ignore'
         ORDER BY a.relevance_score DESC LIMIT 50
-    """, (week_ago, week_start)).fetchall()
+    """, (week_start, today_str)).fetchall()
 
     if not rows:
         logger.info(f"趋势报告周 {week_start} 无论文")
@@ -65,13 +68,27 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
     profile = load_research_profile()
 
     try:
-        report: TrendReport = _get_chain().invoke({
+        raw_resp = _get_raw_chain().invoke({
             "count": len(rows), "paper_summaries": summaries,
             "research_direction": profile.get("direction", ""),
         })
+        raw_text = raw_resp.content if hasattr(raw_resp, 'content') else str(raw_resp)
+        data = json.loads(raw_text)
     except Exception as e:
-        logger.error(f"趋势报告生成失败: {e}")
+        logger.error(f"趋势报告 LLM 调用失败: {e}")
         return None
+
+    # Normalize LLM field name variations
+    if "research_opportunities" in data and "opportunities" not in data:
+        data["opportunities"] = data.pop("research_opportunities")
+    if "advanced_problems" in data and "solved_problems" not in data:
+        data["solved_problems"] = data.pop("advanced_problems")
+    if "problems_advanced" in data and "solved_problems" not in data:
+        data["solved_problems"] = data.pop("problems_advanced")
+    if "controversies_or_conflicts" in data and "controversies" not in data:
+        data["controversies"] = data.pop("controversies_or_conflicts")
+
+    report = TrendReport.from_lists(data)
 
     result = {
         "week_start": week_start,
@@ -81,8 +98,10 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         "opportunities": report.opportunities,
         "paper_count": len(rows),
     }
-    queue_write(
+    conn = get_conn()
+    conn.execute(
         "INSERT OR REPLACE INTO trend_reports (week_start, new_methods, solved_problems, controversies, opportunities, paper_count) VALUES (?,?,?,?,?,?)",
         tuple(result.values()),
     )
+    conn.commit()
     return result

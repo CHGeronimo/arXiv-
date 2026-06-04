@@ -54,6 +54,13 @@ export async function triggerCrawl(job, { loadPapers }) {
         setTimeout(loadPapers, 30000);
         return;
     }
+    if (job === 'knowledge-extract') {
+        try {
+            const resp = await fetch('/api/trigger/knowledge-extract', { method: 'POST' });
+            showToast(resp.ok ? '知识卡片提取已启动，完成后自动聚类' : '启动失败');
+        } catch { showToast('启动失败'); }
+        return;
+    }
     const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2'] : [job];
     for (const j of jobs) {
         const el = document.getElementById(`crawl-${j}`);

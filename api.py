@@ -357,6 +357,11 @@ def _retro_knowledge_extract():
             logger.info(f"知识卡片进度: {i + 1}/{len(rows)}")
     logger.info(f"知识卡片抽取完成: {len(rows)} 篇已处理")
 
+    if len(rows) > 0:
+        from ai.knowledge_clustering import run_clustering
+        n = run_clustering()
+        logger.info(f"自动触发聚类完成: {n} 个聚类")
+
 
 # ── Fulltext Analysis ─────────────────────────────────────────────
 
@@ -420,8 +425,13 @@ def get_paper_fulltext(paper_id: str):
 
 @app.route("/api/knowledge-graph", methods=["GET"])
 def get_knowledge_graph():
-    from ai.knowledge_clustering import compute_clusters
-    clusters = compute_clusters()
+    conn = get_conn()
+    saved = conn.execute("SELECT * FROM knowledge_clusters").fetchall()
+    if saved:
+        clusters = [dict(r) for r in saved]
+    else:
+        from ai.knowledge_clustering import compute_clusters
+        clusters = compute_clusters()
     nodes, edges = [], []
     for i, c in enumerate(clusters):
         pids = json.loads(c["paper_ids"]) if isinstance(c["paper_ids"], str) else c["paper_ids"]

@@ -33,10 +33,22 @@ class KnowledgeCard(BaseModel):
 
 
 class TrendReport(BaseModel):
-    new_methods: str = Field(description="new methods or techniques that emerged this week, 2-4 items as bullet points")
-    solved_problems: str = Field(description="problems that appear to have been addressed, 1-3 items")
-    controversies: str = Field(description="debates or conflicting findings, if any")
-    opportunities: str = Field(description="research opportunities or gaps visible from this week's papers")
+    new_methods: str = Field(description="new methods or techniques that emerged this week, as a multi-line string with one method per line")
+    solved_problems: str = Field(description="problems that appear to have been addressed, as a multi-line string")
+    controversies: str = Field(description="debates or conflicting findings, as a multi-line string")
+    opportunities: str = Field(description="research opportunities or gaps visible from this week's papers, as a multi-line string")
+
+    @classmethod
+    def from_lists(cls, data: dict) -> "TrendReport":
+        """Handle LLM returning list fields by joining them into strings."""
+        fields = {}
+        for field_name in ("new_methods", "solved_problems", "controversies", "opportunities"):
+            val = data.get(field_name, "")
+            if isinstance(val, list):
+                fields[field_name] = "\n".join(f"- {item}" for item in val)
+            else:
+                fields[field_name] = str(val) if val else ""
+        return cls(**fields)
 
 
 class FulltextAnalysis(BaseModel):

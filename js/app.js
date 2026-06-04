@@ -235,8 +235,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trend radar
     document.getElementById('btn-generate-trend')?.addEventListener('click', async () => {
         await fetch('/api/trigger/trend', { method: 'POST' });
-        showToast('趋势报告生成中...');
-        setTimeout(loadTrendRadar, 30000);
+        showToast('趋势报告生成中，完成后自动刷新...');
+        let retries = 0;
+        const pollTrend = setInterval(async () => {
+            retries++;
+            try {
+                const resp = await fetch('/api/trend-radar');
+                if (!resp.ok) return;
+                const { report } = await resp.json();
+                if (report || retries > 12) {
+                    clearInterval(pollTrend);
+                    loadTrendRadar();
+                }
+            } catch { clearInterval(pollTrend); }
+        }, 10000);
     });
 
     // Idea check
