@@ -18,6 +18,8 @@ Respond with valid JSON: {{"is_relevant": bool, "relevance_reason": "one sentenc
 
 QUICK_TEMPLATE = """Research Direction: {research_direction}
 Keywords: {keywords}
+Preferred Topics: {liked_topics}
+Disliked Topics: {disliked_topics}
 
 Paper Title: {title}
 
@@ -46,6 +48,8 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
         result: QuickFilter = chain.invoke({
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
+            "liked_topics": ", ".join(profile.get("liked_topics", [])[-5:]),
+            "disliked_topics": ", ".join(profile.get("disliked_topics", [])[-5:]),
             "title": paper.get("title", ""),
             "content": paper.get("summary", "")[:1000],
         })

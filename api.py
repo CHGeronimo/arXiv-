@@ -267,6 +267,7 @@ def save_feedback():
         "INSERT OR REPLACE INTO feedback (paper_id, rating, relevance, novelty, note, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
         (paper_id, rating or None, relevance, novelty, note or None),
     )
+    _update_profile_from_feedback(paper_id, rating)
     return jsonify({"status": "saved"})
 
 
@@ -694,7 +695,68 @@ Select categories that would contain papers relevant to this researcher."""
 
 
 def _update_profile_from_feedback(paper_id: str, rating: str):
-    pass
+    """Extract topics from a liked/disliked paper and update research_profile.json.
+
+    Uses LLM to extract 2-3 topic phrases from the paper's AI analysis,
+    then appends them to liked_topics or disliked_topics in the profile.
+    Keeps the most recent 20 entries per list, deduplicated.
+    """
+    if rating not in ("like", "dislike"):
+        return
+
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT method, motivation FROM ai_results WHERE paper_id = ?", (paper_id,)
+    ).fetchone()
+    if not row or (not row["method"] and not row["motivation"]):
+        return
+
+    method = row["method"] or ""
+    motivation = row["motivation"] or ""
+    if not method.strip() and not motivation.strip():
+        return
+
+    # Extract topics via LLM
+    try:
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(model=os.environ.get("QUICK_FILTER_MODEL", "deepseek-chat"), temperature=0.2)
+        resp = llm.invoke(
+            f"Extract 2-3 short topic phrases (2-5 words each) from this paper's method and motivation. "
+            f"Return ONLY a JSON array of strings, no explanation.\n\n"
+            f"Method: {method[:500]}\nMotivation: {motivation[:300]}"
+        )
+        topics = json.loads(resp.content)
+        if not isinstance(topics, list):
+            return
+        topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()][:3]
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"主题提取失败 {paper_id}: {e}")
+        return
+
+    if not topics:
+        return
+
+    # Update research_profile.json
+    profile_path = Path("research_profile.json")
+    try:
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+
+    key = "liked_topics" if rating == "like" else "disliked_topics"
+    current = profile.get(key, [])
+
+    # Append new topics, deduplicate (case-insensitive)
+    existing_lower = {t.lower() for t in current}
+    for t in topics:
+        if t.lower() not in existing_lower:
+            current.append(t)
+            existing_lower.add(t.lower())
+
+    # Keep last 20
+    profile[key] = current[-20:]
+    profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+    logging.getLogger(__name__).info(f"Profile updated: {key} += {topics}")
 
 
 # ── Author Search ─────────────────────────────────────────────────

@@ -283,7 +283,7 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"关键词扩展失败，使用原始关键词: {e}")
             keywords = seed_keywords
-        return OpenAlexCrawler(keywords=keywords, max_per_keyword=10)
+        return OpenAlexCrawler(keywords=keywords, max_per_keyword=20)
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no keywords"

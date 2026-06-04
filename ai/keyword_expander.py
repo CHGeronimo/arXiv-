@@ -48,7 +48,7 @@ def expand_keywords(
     force: bool = False,
 ) -> list[str]:
     """Expand seed keywords using LLM. Results are cached until seed keywords change."""
-    cache_key = _cache_key(direction, seed_keywords)
+    cache_key = _cache_key(direction, seed_keywords, liked, disliked)
 
     if not force:
         cached = _load_cache()
@@ -98,10 +98,12 @@ def expand_keywords(
     return unique
 
 
-def _cache_key(direction: str, keywords: list[str]) -> str:
+def _cache_key(direction: str, keywords: list[str], liked: list[str] | None = None, disliked: list[str] | None = None) -> str:
     """Simple hash of inputs to detect when cache is stale."""
     import hashlib
-    blob = f"{direction}|{'|'.join(sorted(keywords))}"
+    liked_str = "|".join(sorted(liked or []))
+    disliked_str = "|".join(sorted(disliked or []))
+    blob = f"{direction}|{'|'.join(sorted(keywords))}|{liked_str}|{disliked_str}"
     return hashlib.md5(blob.encode()).hexdigest()[:12]
 
 
