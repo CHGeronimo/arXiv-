@@ -697,9 +697,9 @@ Select categories that would contain papers relevant to this researcher."""
 def _update_profile_from_feedback(paper_id: str, rating: str):
     """Extract topics from a liked/disliked paper and update research_profile.json.
 
-    Uses LLM to extract 2-3 topic phrases from the paper's AI analysis,
+    Uses LLM to extract 5-7 topic phrases from the paper's AI analysis,
     then appends them to liked_topics or disliked_topics in the profile.
-    Keeps the most recent 20 entries per list, deduplicated.
+    Keeps the most recent 50 entries per list, deduplicated.
     """
     if rating not in ("like", "dislike"):
         return
@@ -716,19 +716,18 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
     if not method.strip() and not motivation.strip():
         return
 
-    # Extract topics via LLM
     try:
         from langchain_openai import ChatOpenAI
         llm = ChatOpenAI(model=os.environ.get("QUICK_FILTER_MODEL", "deepseek-chat"), temperature=0.2)
         resp = llm.invoke(
-            f"Extract 2-3 short topic phrases (2-5 words each) from this paper's method and motivation. "
+            f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
             f"Return ONLY a JSON array of strings, no explanation.\n\n"
             f"Method: {method[:500]}\nMotivation: {motivation[:300]}"
         )
         topics = json.loads(resp.content)
         if not isinstance(topics, list):
             return
-        topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()][:3]
+        topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()][:7]
     except Exception as e:
         logging.getLogger(__name__).warning(f"主题提取失败 {paper_id}: {e}")
         return
@@ -736,7 +735,6 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
     if not topics:
         return
 
-    # Update research_profile.json
     profile_path = Path("research_profile.json")
     try:
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
@@ -746,15 +744,13 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
     key = "liked_topics" if rating == "like" else "disliked_topics"
     current = profile.get(key, [])
 
-    # Append new topics, deduplicate (case-insensitive)
     existing_lower = {t.lower() for t in current}
     for t in topics:
         if t.lower() not in existing_lower:
             current.append(t)
             existing_lower.add(t.lower())
 
-    # Keep last 20
-    profile[key] = current[-20:]
+    profile[key] = current[-50:]
     profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
     logging.getLogger(__name__).info(f"Profile updated: {key} += {topics}")
 
