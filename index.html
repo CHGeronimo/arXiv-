@@ -155,7 +155,7 @@
                 <div class="sub-tab" data-tab="journals">期刊</div>
                 <div class="sub-tab" data-tab="conferences">会议</div>
                 <div class="sub-tab" data-tab="authors">作者</div>
-                <div class="sub-tab" data-tab="search">搜索</div>
+                <div class="sub-tab" data-tab="search">研究方向</div>
                 <div class="sub-tab" data-tab="notify">通知</div>
             </div>
 
@@ -206,12 +206,20 @@
             </div>
 
             <div id="sub-tab-search" style="display:none">
-                <p>Semantic Scholar 关键词搜索（自动复用研究方向关键词）</p>
-                <div style="margin:8px 0">
-                    <label><input type="checkbox" id="use-profile-keywords" checked> 使用研究方向关键词</label>
+                <label style="font-size:0.82rem;color:var(--text-2);display:block;margin-bottom:4px">研究方向描述</label>
+                <textarea id="inline-profile-direction" rows="2" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem;resize:vertical" placeholder="描述你的研究方向，如：动态不确定环境下的智能感知与协同决策"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px">
+                    <span style="font-size:0.82rem;color:var(--text-2)">搜索关键词</span>
+                    <span style="display:flex;align-items:center;gap:4px;font-size:0.78rem;color:var(--text-3)"><input type="checkbox" id="use-profile-keywords" checked> 自动从方向提取</span>
                 </div>
-                <textarea id="custom-keywords" rows="3" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem;display:none;resize:vertical" placeholder="输入关键词，每行一个..."></textarea>
-                <button id="btn-save-keywords" class="btn btn--secondary" style="margin-top:8px">保存搜索关键词</button>
+                <div id="keyword-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+                <div id="custom-keywords-section" style="display:none">
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <input id="custom-keywords" type="text" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem" placeholder="输入关键词，逗号/分号分隔，回车添加" />
+                        <button id="btn-add-keyword" class="btn btn--secondary" style="font-size:0.82rem;padding:5px 12px;white-space:nowrap">添加</button>
+                    </div>
+                </div>
+                <button id="btn-save-profile-inline" class="btn btn--primary" style="width:100%;margin-top:12px">保存并触发搜索</button>
             </div>
             <div id="sub-tab-notify" style="display:none">
                 <p style="font-size:0.85rem;color:var(--text-2);margin-bottom:12px">通知功能即将上线，敬请期待。</p>

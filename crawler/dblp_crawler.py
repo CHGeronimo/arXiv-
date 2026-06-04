@@ -1,3 +1,7 @@
+"""crawler/dblp_crawler.py — Conference paper fetching via OpenAlex (replaces DBLP API).
+
+OpenAlex provides stable venue-based search without DBLP's 500/429 errors.
+"""
 from __future__ import annotations
 
 import logging
@@ -12,11 +16,10 @@ from crawler.subs_store import Conference
 
 logger = logging.getLogger(__name__)
 
-DBLP_BASE = "https://dblp.uni-trier.de/search/publ/api"
 OPENALEX_BASE = "https://api.openalex.org/works"
 
+# Map user-facing venue names to OpenAlex source display names for matching
 VENUE_MAP = {
-    # AI
     "CVPR": "CVPR", "ICCV": "ICCV", "ECCV": "ECCV",
     "NeurIPS": "NeurIPS", "ICML": "ICML", "ICLR": "ICLR",
     "AAAI": "AAAI", "IJCAI": "IJCAI",
@@ -24,29 +27,26 @@ VENUE_MAP = {
     "UAI": "UAI", "ECAI": "ECAI", "AAMAS": "AAMAS",
     "ICRA": "ICRA", "IROS": "IROS",
     "MICCAI": "MICCAI",
-    # Data/IR
     "SIGMOD": "SIGMOD", "SIGKDD": "KDD", "ICDE": "ICDE",
     "SIGIR": "SIGIR", "VLDB": "VLDB",
-    "WWW": "TheWebConf", "WSDM": "WSDM",
+    "WWW": "TheWebConf", "WWW_conf": "The Web Conference",
+    "WSDM": "WSDM",
     "CIKM": "CIKM", "ICDM": "ICDM", "RecSys": "RecSys",
-    # Graphics/Multimedia
-    "ACMMM": "ACMMM", "SIGGRAPH": "SIGGRAPH",
+    "ACMMM": "ACM Multimedia", "SIGGRAPH": "SIGGRAPH",
     "INTERSPEECH": "INTERSPEECH", "ICASSP": "ICASSP",
     "ICME": "ICME",
-    # Theory
     "STOC": "STOC", "FOCS": "FOCS", "SODA": "SODA",
-    # SE
     "ICSE": "ICSE", "FSE": "FSE", "ASE": "ASE",
     "SOSP": "SOSP", "OSDI": "OSDI",
-    # Network
     "SIGCOMM": "SIGCOMM", "NSDI": "NSDI", "INFOCOM": "INFOCOM",
-    # Security
     "CCS": "CCS", "NDSS": "NDSS",
-    # Architecture
+    "EUROCRYPT": "EUROCRYPT", "S&P": "IEEE S&P", "CRYPTO": "CRYPTO",
+    "USENIXSecurity": "USENIX Security",
     "ISCA": "ISCA", "MICRO": "MICRO", "HPCA": "HPCA",
     "ASPLOS": "ASPLOS", "SC": "SC", "DAC": "DAC",
-    # HCI
     "CHI": "CHI", "CSCW": "CSCW", "UbiComp": "UbiComp",
+    "UIST": "UIST",
+    "MobiCom": "MobiCom", "RTSS": "RTSS",
 }
 
 
@@ -65,88 +65,93 @@ class DblpCrawler:
         except Exception:
             return True
 
-    def _fetch_recent(self, venue: str, year: int) -> List[dict]:
-        dblp_venue = VENUE_MAP.get(venue, venue)
-        query = f"venue:{dblp_venue} year:{year}"
-        url = f"{DBLP_BASE}?q={query}&format=json&h=100"
+    def _fetch_venue(self, venue: str, year: int) -> List[dict]:
+        openalex_venue = VENUE_MAP.get(venue, venue)
+        params = {
+            "filter": f"from_publication_date:{year}-01-01,to_publication_date:{year}-12-31,type:article",
+            "search": openalex_venue,
+            "per_page": 100,
+            "sort": "relevance_score:desc",
+            "select": "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,cited_by_count,concepts",
+            "mailto": "openalex@arxivsci-daily.local",
+        }
         for attempt in range(3):
             try:
-                resp = httpx.get(url, timeout=30)
+                resp = httpx.get(OPENALEX_BASE, params=params, timeout=30)
                 resp.raise_for_status()
                 data = resp.json()
-                hits = data.get("result", {}).get("hits", {}).get("hit", [])
-                return hits if isinstance(hits, list) else [hits]
+                results = data.get("results") or []
+                # Post-filter: only keep papers whose venue matches
+                matched = []
+                for item in results:
+                    loc = item.get("primary_location") or {}
+                    source = loc.get("source") or {}
+                    source_name = (source.get("display_name") or "").lower()
+                    if openalex_venue.lower() in source_name or source_name in openalex_venue.lower():
+                        matched.append(item)
+                return matched
             except Exception as e:
                 wait = (attempt + 1) * 3
-                logger.warning(f"DBLP 获取第 {attempt+1}/3 次尝试失败: {e}，{wait}s 后重试")
+                logger.warning(f"OpenAlex 会议搜索第 {attempt+1}/3 次尝试失败: {e}，{wait}s 后重试")
                 if attempt == 2:
-                    logger.error(f"DBLP 获取 {venue} {year} 在 3 次重试后失败")
+                    logger.error(f"OpenAlex 搜索 {venue} {year} 在 3 次重试后失败")
                 else:
                     time.sleep(wait)
         return []
 
-    def _parse_hit(self, hit: dict, venue: str) -> Paper | None:
-        info = hit.get("info", {})
-        title = info.get("title", "")
+    def _decode_abstract(self, inv_index: dict | None) -> str:
+        if not inv_index:
+            return ""
+        length = max(max(pos) for pos in inv_index.values()) + 1
+        words = [""] * length
+        for word, positions in inv_index.items():
+            for pos in positions:
+                words[pos] = word
+        return " ".join(words)
+
+    def _parse_paper(self, item: dict, venue: str) -> Paper | None:
+        title = item.get("title") or ""
         if not title:
             return None
 
-        # Authors: single dict for 1 author, list of dicts for multiple
-        raw_authors = info.get("authors", {}).get("author", [])
-        if isinstance(raw_authors, dict):
-            raw_authors = [raw_authors]
-        authors = [a.get("text", "") for a in raw_authors if a.get("text")]
+        abstract = self._decode_abstract(item.get("abstract_inverted_index"))
 
-        doi = info.get("doi", "")
-        year = info.get("year", "")
-        url = info.get("url", "")
-        ee = info.get("ee", "")
-        key = info.get("key", "")
+        authors: List[str] = []
+        for a in item.get("authorships") or []:
+            name = a.get("author", {}).get("display_name", "")
+            if name:
+                authors.append(name)
+
+        doi = (item.get("doi") or "").replace("https://doi.org/", "")
+        openalex_id = item.get("id", "")
+        paper_id = doi or openalex_id.split("/")[-1] if openalex_id else ""
+
+        loc = item.get("primary_location") or {}
+        url = f"https://doi.org/{doi}" if doi else (openalex_id or "")
+        pdf = loc.get("pdf_url") or ""
+
+        pub_year = item.get("publication_year")
+        pub_date = f"{pub_year}-01-01" if pub_year else ""
+
+        citation_count = item.get("cited_by_count") or 0
 
         return Paper(
-            id=doi or f"dblp-{abs(hash(title))}",
+            id=paper_id,
             source="dblp",
             title=title,
-            summary="",
+            summary=abstract,
             authors=authors,
             categories=[],
             doi=doi,
-            published_date=f"{year}-01-01" if year else "",
-            url=ee or url,
-            pdf="",
-            publisher="DBLP",
-            venue=f"{venue} {year}",
+            published_date=pub_date,
+            url=url,
+            pdf=pdf,
+            venue=f"{venue} {pub_year}" if pub_year else venue,
+            citation_count=citation_count if isinstance(citation_count, int) else 0,
         )
-
-    def _fill_abstracts_openalex(self, papers: List[Paper]) -> None:
-        dois = [p.doi for p in papers if p.doi and not p.summary]
-        if not dois:
-            return
-        logger.info(f"通过 OpenAlex 补充 {len(dois)} 篇论文的摘要")
-        doi_to_paper = {p.doi: p for p in papers if p.doi}
-
-        for doi in dois:
-            try:
-                url = f"{OPENALEX_BASE}/doi:{doi}"
-                resp = httpx.get(url, timeout=10)
-                if resp.status_code != 200:
-                    continue
-                data = resp.json()
-                inv_index = data.get("abstract_inverted_index")
-                if inv_index:
-                    words = sorted(
-                        [(pos, w) for w, positions in inv_index.items() for pos in positions]
-                    )
-                    abstract = " ".join(w for _, w in words)
-                    paper = doi_to_paper.get(doi)
-                    if paper:
-                        paper.summary = abstract
-            except Exception:
-                continue
 
     def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_dois: Set[str] = set()
-        seen_titles: Set[str] = set()
         current_year = datetime.now(timezone.utc).year
 
         for conf in self.conferences:
@@ -155,12 +160,12 @@ class DblpCrawler:
                 continue
 
             for year in (current_year, current_year - 1):
-                logger.info(f"从 DBLP 获取 {conf.venue} {year}")
-                hits = self._fetch_recent(conf.venue, year)
+                logger.info(f"从 OpenAlex 获取 {conf.venue} {year}")
+                items = self._fetch_venue(conf.venue, year)
 
                 batch: List[Paper] = []
-                for hit in hits:
-                    paper = self._parse_hit(hit, conf.venue)
+                for item in items:
+                    paper = self._parse_paper(item, conf.venue)
                     if paper is None:
                         continue
                     dedup_key = paper.doi if paper.doi else paper.title.lower().strip()
@@ -169,14 +174,11 @@ class DblpCrawler:
                     seen_dois.add(dedup_key)
                     batch.append(paper)
 
-                self._fill_abstracts_openalex(batch)
-
                 for paper in batch:
                     yield paper
                 logger.info(f"从 {conf.venue} {year} 获取到 {len(batch)} 篇新论文")
 
-            # 会议间间隔 2s，避免 DBLP 限流
-            time.sleep(2)
+            time.sleep(0.5)
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())

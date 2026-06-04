@@ -135,7 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sidebar clear
     document.getElementById('sidebar-clear')?.addEventListener('click', () => { clearAllFilters(); buildFilterOptions(); renderPapers(); });
 
-    document.getElementById('btn-profile').addEventListener('click', openProfileModal);
+    document.getElementById('btn-profile').addEventListener('click', () => {
+        const searchTab = document.querySelector('[data-tab="search"]');
+        if (searchTab) window.switchSubTab('search', searchTab);
+        window.openSubscriptionModal();
+    });
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
     document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
 
@@ -177,16 +181,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Subscription modal (functions from subscriptions.js — global scope)
     document.getElementById('close-subs-modal').addEventListener('click', () => window.closeSubscriptionModal());
     document.getElementById('subscription-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) window.closeSubscriptionModal(); });
-    document.getElementById('btn-save-keywords').addEventListener('click', () => window.saveSearchKeywords?.());
     document.getElementById('sub-tabs-container').addEventListener('click', (e) => {
         const tab = e.target.closest('[data-tab]');
         if (tab) window.switchSubTab(tab.dataset.tab, tab);
     });
     document.getElementById('journal-search-input')?.addEventListener('input', (e) => window.handleJournalSearch?.());
-    document.getElementById('use-profile-keywords')?.addEventListener('change', () => window.toggleCustomKeywords?.());
 
     // Paper container delegation
     document.getElementById('paper-container').addEventListener('click', async (e) => {
+        const pageBtn = e.target.closest('.page-btn[data-goto]');
+        if (pageBtn) { e.stopPropagation(); setCurrentPage(parseInt(pageBtn.dataset.goto)); renderPapers(); return; }
         const bmBtn = e.target.closest('.bookmark-btn');
         if (bmBtn) { e.stopPropagation(); toggleBookmark(bmBtn.dataset.bmId); renderPapers(); return; }
         const authorLink = e.target.closest('.author-link');
@@ -202,6 +206,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Live import to get current filteredPapers
             const { filteredPapers: fp } = await import('./state.js');
             if (fp[idx]) openPaperDetail(fp[idx]);
+        }
+    });
+
+    // Paper container delegation (page jump Enter key)
+    document.getElementById('paper-container').addEventListener('keydown', (e) => {
+        if (e.target.id === 'page-jump' && e.key === 'Enter') {
+            const p = parseInt(e.target.value);
+            if (p && p > 0) { setCurrentPage(p); renderPapers(); }
         }
     });
 

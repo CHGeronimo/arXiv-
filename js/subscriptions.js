@@ -257,6 +257,7 @@ function renderSubscriptionUI() {
     renderConferenceChips();
     renderSubscribedAuthors();
     renderSubStats();
+    loadProfileKeywords().then(() => renderKeywordChips());
 }
 
 function renderSubStats() {
@@ -613,18 +614,134 @@ function switchSubTab(tab, el) {
 
 function toggleCustomKeywords() {
     const useProfile = document.getElementById('use-profile-keywords').checked;
-    document.getElementById('custom-keywords').style.display = useProfile ? 'none' : 'block';
+    document.getElementById('custom-keywords-section').style.display = useProfile ? 'none' : 'block';
+    renderKeywordChips();
+}
+
+function parseKeywords(text) {
+    return text.split(/[,\n;]/).map(k => k.trim()).filter(k => k);
+}
+
+function addKeywords() {
+    const input = document.getElementById('custom-keywords');
+    const newKws = parseKeywords(input.value);
+    if (!newKws.length) return;
+    const existing = subscriptions.search?.keywords || [];
+    const merged = [...existing];
+    for (const kw of newKws) {
+        if (!merged.includes(kw)) merged.push(kw);
+    }
+    subscriptions.search = { keywords: merged, useProfile: false };
+    input.value = '';
+    saveSubscriptions(subscriptions, 's2');
+    renderKeywordChips();
+}
+
+function removeKeyword(kw) {
+    const keywords = (subscriptions.search?.keywords || []).filter(k => k !== kw);
+    subscriptions.search = { keywords, useProfile: false };
+    saveSubscriptions(subscriptions, 's2');
+    renderKeywordChips();
+}
+
+let _profileKeywords = [];
+let _enabledKeywords = null; // null = all enabled, Set = specific set
+
+async function loadProfileKeywords() {
+    try {
+        const resp = await fetch('/api/profile');
+        if (resp.ok) {
+            const profile = await resp.json();
+            _profileKeywords = profile.keywords || [];
+            const dirInput = document.getElementById('inline-profile-direction');
+            if (dirInput) dirInput.value = profile.direction || '';
+            // Restore enabled set from saved search keywords
+            const saved = subscriptions.search?.keywords;
+            if (saved && saved.length > 0) {
+                _enabledKeywords = new Set(saved);
+            } else {
+                _enabledKeywords = new Set(_profileKeywords);
+            }
+        }
+    } catch {}
+}
+
+async function saveProfileInline() {
+    const direction = document.getElementById('inline-profile-direction')?.value || '';
+    const useProfile = document.getElementById('use-profile-keywords').checked;
+    const keywords = useProfile ? [...(_enabledKeywords || _profileKeywords)] : (subscriptions.search?.keywords || []);
+    const quality_criteria = '';
+    try {
+        await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction, keywords: _profileKeywords, quality_criteria }),
+        });
+        const origDir = document.getElementById('profile-direction');
+        if (origDir) origDir.value = direction;
+        const origKw = document.getElementById('profile-keywords');
+        if (origKw) origKw.value = _profileKeywords.join(', ');
+        // Save enabled keywords to subscriptions
+        if (useProfile) {
+            subscriptions.search = { keywords: keywords, useProfile: true };
+        }
+        await saveSubscriptions(subscriptions, 's2');
+        await loadProfileKeywords();
+        renderKeywordChips();
+        fetch('/api/trigger/s2', { method: 'POST' }).catch(() => {});
+        if (typeof showToast === 'function') showToast('已保存，正在搜索...');
+    } catch (e) {
+        console.error('Failed to save profile inline:', e);
+        if (typeof showToast === 'function') showToast('保存失败');
+    }
+}
+
+function toggleProfileKeyword(kw) {
+    if (!_enabledKeywords) _enabledKeywords = new Set(_profileKeywords);
+    if (_enabledKeywords.has(kw)) _enabledKeywords.delete(kw);
+    else _enabledKeywords.add(kw);
+    const enabled = _profileKeywords.filter(k => _enabledKeywords.has(k));
+    subscriptions.search = { keywords: enabled, useProfile: true };
+    saveSubscriptions(subscriptions, 's2');
+    renderKeywordChips();
+}
+
+function renderKeywordChips() {
+    const container = document.getElementById('keyword-chips');
+    if (!container) return;
+    const useProfile = subscriptions.search?.useProfile !== false;
+
+    if (useProfile) {
+        if (!_profileKeywords.length) {
+            container.innerHTML = '<span style="color:var(--text-3);font-size:0.82rem">请在下方描述研究方向并保存</span>';
+            return;
+        }
+        container.innerHTML = _profileKeywords.map(kw => {
+            const enabled = !_enabledKeywords || _enabledKeywords.has(kw);
+            return `<span class="badge badge--secondary ${enabled ? 'selected' : ''}" data-toggle-kw="${kw}" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 10px;font-size:0.82rem;${enabled ? '' : 'opacity:0.4'}">${kw}</span>`;
+        }).join('');
+        return;
+    }
+
+    const keywords = subscriptions.search?.keywords || [];
+    if (!keywords.length) {
+        container.innerHTML = '<span style="color:var(--text-3);font-size:0.82rem">输入关键词后点击添加</span>';
+        return;
+    }
+    container.innerHTML = keywords.map(kw =>
+        `<span class="badge badge--secondary selected" style="display:inline-flex;align-items:center;gap:4px;cursor:default;padding:4px 10px;font-size:0.82rem">
+            ${kw}
+            <button data-remove-kw="${kw}" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:0.9rem;padding:0 2px;line-height:1">&times;</button>
+        </span>`
+    ).join('');
 }
 
 async function saveSearchKeywords() {
     const useProfile = document.getElementById('use-profile-keywords').checked;
     if (useProfile) {
         subscriptions.search = { keywords: [], useProfile: true };
-    } else {
-        const text = document.getElementById('custom-keywords').value;
-        const keywords = text.split('\n').map(k => k.trim()).filter(k => k);
-        subscriptions.search = { keywords, useProfile: false };
     }
+    // Custom keywords are saved via addKeywords/removeKeyword, no separate save needed
     await saveSubscriptions(subscriptions, 's2');
     fetch('/api/trigger/s2', { method: 'POST' }).catch(() => {});
 }
@@ -792,6 +909,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('journal-search-section').style.display = view === 'search' ? '' : 'none';
         });
     });
+
+    // Keyword chip events
+    document.getElementById('btn-add-keyword')?.addEventListener('click', addKeywords);
+    document.getElementById('use-profile-keywords')?.addEventListener('change', toggleCustomKeywords);
+    document.getElementById('custom-keywords')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addKeywords(); }
+    });
+    document.getElementById('keyword-chips')?.addEventListener('click', (e) => {
+        const toggleBtn = e.target.closest('[data-toggle-kw]');
+        if (toggleBtn) { toggleProfileKeyword(toggleBtn.dataset.toggleKw); return; }
+        const removeBtn = e.target.closest('[data-remove-kw]');
+        if (removeBtn) removeKeyword(removeBtn.dataset.removeKw);
+    });
+    document.getElementById('btn-save-profile-inline')?.addEventListener('click', saveProfileInline);
 });
 
 const _KEYWORD_MAP = {

@@ -96,11 +96,24 @@ export function renderPapers() {
     }).join('');
 
     if (totalPages > 1) {
+        const pageBtns = [];
+        const maxBtns = 7;
+        let startP = Math.max(1, page - 3);
+        let endP = Math.min(totalPages, startP + maxBtns - 1);
+        if (endP - startP < maxBtns - 1) startP = Math.max(1, endP - maxBtns + 1);
+
+        if (startP > 1) { pageBtns.push(`<button class="page-btn" data-goto="1">1</button>`); if (startP > 2) pageBtns.push(`<span class="page-ellipsis">...</span>`); }
+        for (let p = startP; p <= endP; p++) { pageBtns.push(`<button class="page-btn${p === page ? ' active' : ''}" data-goto="${p}">${p}</button>`); }
+        if (endP < totalPages) { if (endP < totalPages - 1) pageBtns.push(`<span class="page-ellipsis">...</span>`); pageBtns.push(`<button class="page-btn" data-goto="${totalPages}">${totalPages}</button>`); }
+
         container.innerHTML += `
-            <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;gap:8px;padding:16px">
+            <div class="pagination" style="grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:6px;padding:16px;flex-wrap:wrap">
                 <button class="btn btn--secondary" onclick="window._changePage(-1)" ${page <= 1 ? 'disabled style="opacity:0.5"' : ''}>上一页</button>
-                <span style="padding:6px 12px;color:var(--text-2)">${page}/${totalPages}</span>
+                ${pageBtns.join('')}
                 <button class="btn btn--secondary" onclick="window._changePage(1)" ${page >= totalPages ? 'disabled style="opacity:0.5"' : ''}>下一页</button>
+                <span style="margin-left:8px;color:var(--text-3);font-size:0.8rem">跳至</span>
+                <input id="page-jump" type="number" min="1" max="${totalPages}" value="${page}" style="width:48px;padding:2px 6px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-1);color:var(--text-0);font-size:0.85rem;text-align:center" />
+                <span style="color:var(--text-3);font-size:0.8rem">/${totalPages}</span>
             </div>`;
     }
 }
