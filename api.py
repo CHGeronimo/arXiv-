@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import logging.handlers
+import os
 import threading
 from pathlib import Path
 
@@ -18,6 +20,39 @@ from jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
     run_s2_job, run_author_job, run_retro_enhance, run_digest_job,
 )
+
+
+# ── Logging setup ──────────────────────────────────────────────────
+_LOG_DIR = os.environ.get("LOG_DIR", "logs")
+os.makedirs(_LOG_DIR, exist_ok=True)
+
+_log_fmt = logging.Formatter(
+    "%(asctime)s %(levelname)-5s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+_file_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_LOG_DIR, "arxivsci.log"),
+    maxBytes=10 * 1024 * 1024,
+    backupCount=5,
+    encoding="utf-8",
+)
+_file_handler.setFormatter(_log_fmt)
+
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_log_fmt)
+
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.INFO)
+# Clear any handlers added by basicConfig or Flask reloader
+_root_logger.handlers.clear()
+_root_logger.addHandler(_file_handler)
+_root_logger.addHandler(_console_handler)
+# Prevent basicConfig from adding another StreamHandler
+logging.getLogger().propagate = False
+
+_log_path = os.path.abspath(os.path.join(_LOG_DIR, "arxivsci.log"))
+_root_logger.info(f"日志文件: {_log_path}")
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
@@ -483,6 +518,19 @@ def trigger_trend():
     from ai.trend_analyzer import generate_trend_report
     threading.Thread(target=generate_trend_report, daemon=True).start()
     return jsonify({"status": "triggered"})
+
+
+# ── Logs ───────────────────────────────────────────────────────────
+
+@app.route("/api/logs", methods=["GET"])
+def get_logs():
+    n = min(500, max(1, int(request.args.get("lines", 100))))
+    log_path = os.path.join(_LOG_DIR, "arxivsci.log")
+    if not os.path.exists(log_path):
+        return jsonify({"logs": []})
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()[-n:]
+    return jsonify({"logs": [l.rstrip("\n") for l in lines]})
 
 
 # ── Idea Check (L3b) ───────────────────────────────────────────────

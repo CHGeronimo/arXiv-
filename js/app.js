@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const card = e.target.closest('.paper-card[data-idx]');
-        if (card) {
+        if (card && !e.target.closest('[data-feedback-action], .card-feedback-detail, .bookmark-btn, .author-link')) {
             const idx = parseInt(card.dataset.idx);
             // Live import to get current filteredPapers
             const { filteredPapers: fp } = await import('./state.js');
