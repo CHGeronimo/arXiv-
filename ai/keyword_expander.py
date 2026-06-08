@@ -56,7 +56,7 @@ def expand_keywords(
             logger.info(f"使用缓存的扩展关键词（{len(cached['queries'])} 条查询）")
             return cached["queries"]
 
-    model_name = os.environ.get("KEYWORD_MODEL", os.environ.get("MODEL_NAME", "deepseek-v4-flash"))
+    model_name = os.environ.get("KEYWORD_MODEL", "deepseek-v4-pro")
     llm = ChatOpenAI(model=model_name, temperature=0.3)
     prompt = ChatPromptTemplate.from_messages([
         ("system", EXPAND_SYSTEM),

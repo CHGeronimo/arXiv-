@@ -42,7 +42,7 @@ def get_ai_chain():
     global _ai_chain, _ai_profile
     if _ai_chain is None:
         import os
-        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
+        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-pro")
         _ai_chain = build_chain(model_name)
         _ai_profile = load_research_profile()
         logger.info(f"AI 链已初始化: {model_name}")

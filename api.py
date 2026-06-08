@@ -718,7 +718,7 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
 
     try:
         from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model=os.environ.get("QUICK_FILTER_MODEL", "deepseek-chat"), temperature=0.2)
+        llm = ChatOpenAI(model=os.environ.get("TOPIC_MODEL", "deepseek-v4-pro"), temperature=0.2)
         resp = llm.invoke(
             f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
             f"Return ONLY a JSON array of strings, no explanation.\n\n"
