@@ -739,7 +739,9 @@ function renderKeywordChips() {
 async function saveSearchKeywords() {
     const useProfile = document.getElementById('use-profile-keywords').checked;
     if (useProfile) {
-        subscriptions.search = { keywords: [], useProfile: true };
+        // Save the currently enabled subset, not an empty array
+        const enabled = _profileKeywords.filter(k => _enabledKeywords?.has(k));
+        subscriptions.search = { keywords: enabled.length ? enabled : [..._profileKeywords], useProfile: true };
     }
     // Custom keywords are saved via addKeywords/removeKeyword, no separate save needed
     await saveSubscriptions(subscriptions, 's2');

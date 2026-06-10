@@ -145,6 +145,7 @@ def put_subscriptions():
         journals_data = data.get("crossref", {}).get("journals", [])
         conferences_data = data.get("conferences", [])
         search_keywords = data.get("search", {}).get("keywords", [])
+        use_profile = data.get("search", {}).get("useProfile", True)
         authors_data = data.get("authors", [])
         journals = [
             Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
@@ -169,6 +170,7 @@ def put_subscriptions():
             crossref_journals=journals,
             conferences=conferences,
             search_keywords=search_keywords,
+            use_profile_keywords=use_profile,
             authors=authors,
         )
         _save_subs(subs)
@@ -694,12 +696,36 @@ Select categories that would contain papers relevant to this researcher."""
         return jsonify({"error": str(e)}), 500
 
 
+def _deduplicate_topics(topics: list[str]) -> list[str]:
+    """Use LLM to semantically deduplicate a topic list, keeping the most general phrasing."""
+    if len(topics) <= 3:
+        return topics
+    try:
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(
+            model=os.environ.get("TOPIC_MODEL", "deepseek-v4-pro"), temperature=0.1,
+        )
+        resp = llm.invoke(
+            "Given a list of research topic phrases, merge semantically duplicate or near-duplicate entries. "
+            "Keep the most general/canonical phrasing for each group. "
+            "Return ONLY a JSON array of strings, no explanation.\n\n"
+            + json.dumps(topics, ensure_ascii=False)
+        )
+        merged = json.loads(resp.content)
+        if isinstance(merged, list):
+            return [t.strip() for t in merged if isinstance(t, str) and t.strip()]
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"语义去重失败: {e}")
+    return topics
+
+
 def _update_profile_from_feedback(paper_id: str, rating: str):
     """Extract topics from a liked/disliked paper and update research_profile.json.
 
     Uses LLM to extract 5-7 topic phrases from the paper's AI analysis,
     then appends them to liked_topics or disliked_topics in the profile.
-    Keeps the most recent 50 entries per list, deduplicated.
+    After appending, runs LLM semantic dedup on the full list.
+    Keeps the most recent 100 entries per list.
     """
     if rating not in ("like", "dislike"):
         return
@@ -745,14 +771,19 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
     current = profile.get(key, [])
 
     existing_lower = {t.lower() for t in current}
+    new_added = []
     for t in topics:
         if t.lower() not in existing_lower:
             current.append(t)
             existing_lower.add(t.lower())
+            new_added.append(t)
 
-    profile[key] = current[-50:]
+    if new_added and len(current) > 5:
+        current = _deduplicate_topics(current)
+
+    profile[key] = current[-100:]
     profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
-    logging.getLogger(__name__).info(f"Profile updated: {key} += {topics}")
+    logging.getLogger(__name__).info(f"Profile updated: {key} += {new_added} (after dedup: {len(profile[key])} topics)")
 
 
 # ── Author Search ─────────────────────────────────────────────────

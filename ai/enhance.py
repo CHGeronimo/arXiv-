@@ -90,8 +90,8 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
             "quality_criteria": profile.get("quality_criteria", ""),
-            "liked_topics": "\n".join(profile.get("liked_topics", [])[-30:]),
-            "disliked_topics": "\n".join(profile.get("disliked_topics", [])[-30:]),
+            "liked_topics": "\n".join(profile.get("liked_topics", [])[-100:]),
+            "disliked_topics": "\n".join(profile.get("disliked_topics", [])[-100:]),
         })
         paper["AI"] = response.model_dump()
     except langchain_core.exceptions.OutputParserException as e:

@@ -48,8 +48,8 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
         result: QuickFilter = chain.invoke({
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
-            "liked_topics": ", ".join(profile.get("liked_topics", [])[-30:]),
-            "disliked_topics": ", ".join(profile.get("disliked_topics", [])[-30:]),
+            "liked_topics": ", ".join(profile.get("liked_topics", [])[-100:]),
+            "disliked_topics": ", ".join(profile.get("disliked_topics", [])[-100:]),
             "title": paper.get("title", ""),
             "content": paper.get("summary", "")[:1000],
         })

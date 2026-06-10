@@ -270,15 +270,20 @@ class S2Job(BaseCrawlerJob):
         """Expand seed keywords via LLM, then search via OpenAlex."""
         profile = load_research_profile()
         user_keywords = subs.search_keywords or []
-        profile_keywords = profile.get("keywords", [])
-        # Merge user keywords with profile keywords, user-specified ones first
-        seen = set()
-        seed_keywords = []
-        for kw in user_keywords + profile_keywords:
-            kl = kw.lower()
-            if kl not in seen:
-                seen.add(kl)
-                seed_keywords.append(kw)
+        # When use_profile_keywords is True, search_keywords already contains
+        # the user's selected subset of profile keywords — don't re-add all of them.
+        # When False, user set custom keywords — still merge profile keywords.
+        if subs.use_profile_keywords:
+            seed_keywords = list(dict.fromkeys(user_keywords))  # deduplicate, preserve order
+        else:
+            profile_keywords = profile.get("keywords", [])
+            seen = set()
+            seed_keywords = []
+            for kw in user_keywords + profile_keywords:
+                kl = kw.lower()
+                if kl not in seen:
+                    seen.add(kl)
+                    seed_keywords.append(kw)
         if not seed_keywords:
             return None
         try:

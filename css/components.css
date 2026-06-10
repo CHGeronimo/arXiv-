@@ -750,6 +750,13 @@
   color: var(--warning);
 }
 
+.card-vote-btn.delete {
+  color: var(--text-3);
+}
+.card-vote-btn.delete:hover {
+  color: var(--danger);
+}
+
 /* --- Feedback sliders --- */
 .card-feedback-detail {
   margin-top: var(--sp-2);

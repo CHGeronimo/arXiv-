@@ -163,10 +163,21 @@ export function applyFiltersAndSort() {
         result = result.filter(p => (p.categories || []).some(c => activeFilters.category.has(c)));
     if (activeFilters.type.size > 0)
         result = result.filter(p => {
-            if (activeFilters.type.has('unread')) return !_readPapers.has(p.id);
+            const ai = p.AI || {};
+            const rec = ai.recommendation || '';
+            const isRefLow = rec === 'reference' && (ai.relevance_score || 0) < 7;
+            const recKey = isRefLow ? 'ref-low' : rec;
             const at = p.article_type || inferType(p);
-            const rec = (p.AI || {}).recommendation || '';
-            return activeFilters.type.has(at) || activeFilters.type.has(rec);
+
+            // Build all applicable type tags for this paper
+            const tags = new Set([at, recKey]);
+            if (!_readPapers.has(p.id)) tags.add('unread');
+
+            // Intersection: paper must match ALL selected type filters
+            for (const f of activeFilters.type) {
+                if (!tags.has(f)) return false;
+            }
+            return true;
         });
     if (activeFilters.bookmarked.size > 0)
         result = result.filter(p => _bookmarks.has(p.id));

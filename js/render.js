@@ -85,6 +85,7 @@ export function renderPapers() {
                     <div class="card-actions">
                         <button class="card-vote-btn up ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" title="有用">&#9757;</button>
                         <button class="card-vote-btn down ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" title="没用">&#9759;</button>
+                        <button class="card-vote-btn delete" data-delete-id="${escAttr(paper.id)}" title="删除">✕</button>
                         <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                     </div>
                 </div>

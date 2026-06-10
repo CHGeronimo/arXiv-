@@ -68,8 +68,8 @@ def expand_keywords(
         "direction": direction,
         "keywords": ", ".join(seed_keywords),
         "quality_criteria": quality_criteria,
-        "liked": "\n".join((liked or [])[-30:]),
-        "disliked": "\n".join((disliked or [])[-30:]),
+        "liked": "\n".join((liked or [])[-100:]),
+        "disliked": "\n".join((disliked or [])[-100:]),
     })
 
     try:

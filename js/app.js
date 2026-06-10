@@ -190,9 +190,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Paper container delegation
     document.getElementById('paper-container').addEventListener('click', async (e) => {
         const pageBtn = e.target.closest('.page-btn[data-goto]');
-        if (pageBtn) { e.stopPropagation(); setCurrentPage(parseInt(pageBtn.dataset.goto)); renderPapers(); return; }
+        if (pageBtn) { e.stopPropagation(); setCurrentPage(parseInt(pageBtn.dataset.goto)); renderPapers(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
         const bmBtn = e.target.closest('.bookmark-btn');
         if (bmBtn) { e.stopPropagation(); toggleBookmark(bmBtn.dataset.bmId); renderPapers(); return; }
+        const delBtn = e.target.closest('.card-vote-btn.delete');
+        if (delBtn) {
+            e.stopPropagation();
+            const paperId = delBtn.dataset.deleteId;
+            if (paperId && confirm('确认删除此论文？')) {
+                fetch(`/api/paper/${encodeURIComponent(paperId)}`, { method: 'DELETE' }).then(r => {
+                    if (r.ok) { loadPapers(); } else { alert('删除失败'); }
+                });
+            }
+            return;
+        }
         const authorLink = e.target.closest('.author-link');
         if (authorLink) {
             e.stopPropagation();
@@ -201,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const card = e.target.closest('.paper-card[data-idx]');
-        if (card && !e.target.closest('[data-feedback-action], .card-feedback-detail, .bookmark-btn, .author-link')) {
+        if (card && !e.target.closest('[data-feedback-action], .card-feedback-detail, .bookmark-btn, .card-vote-btn.delete, .author-link')) {
             const idx = parseInt(card.dataset.idx);
             // Live import to get current filteredPapers
             const { filteredPapers: fp } = await import('./state.js');
@@ -213,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('paper-container').addEventListener('keydown', (e) => {
         if (e.target.id === 'page-jump' && e.key === 'Enter') {
             const p = parseInt(e.target.value);
-            if (p && p > 0) { setCurrentPage(p); renderPapers(); }
+            if (p && p > 0) { setCurrentPage(p); renderPapers(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
         }
     });
 

@@ -36,6 +36,7 @@ class Subscriptions:
     crossref_journals: List[Journal] = field(default_factory=list)
     conferences: List[Conference] = field(default_factory=list)
     search_keywords: List[str] = field(default_factory=list)
+    use_profile_keywords: bool = True
     authors: List[Author] = field(default_factory=list)
 
     @classmethod
@@ -54,6 +55,7 @@ class Subscriptions:
             for c in data.get("conferences", [])
         ]
         keywords = data.get("search", {}).get("keywords", [])
+        use_profile = data.get("search", {}).get("useProfile", True)
         authors = [
             Author(
                 name=a["name"],
@@ -69,6 +71,7 @@ class Subscriptions:
             crossref_journals=journals,
             conferences=conferences,
             search_keywords=keywords,
+            use_profile_keywords=use_profile,
             authors=authors,
         )
 
@@ -89,7 +92,7 @@ class Subscriptions:
                 {"venue": c.venue, "lastUpdated": c.last_updated}
                 for c in self.conferences
             ],
-            "search": {"keywords": self.search_keywords},
+            "search": {"keywords": self.search_keywords, "useProfile": self.use_profile_keywords},
             "authors": [
                 {
                     "name": a.name,
@@ -117,7 +120,7 @@ class Subscriptions:
                 {"venue": c.venue, "lastUpdated": c.last_updated}
                 for c in self.conferences
             ],
-            "search": {"keywords": self.search_keywords},
+            "search": {"keywords": self.search_keywords, "useProfile": self.use_profile_keywords},
             "authors": [
                 {
                     "name": a.name,
