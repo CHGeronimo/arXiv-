@@ -252,6 +252,33 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
     });
 
+    // L1/L2/L3 page navigation
+    function showPage(pageId) {
+        document.getElementById('paper-container').style.display = 'none';
+        document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
+        const page = document.getElementById(pageId);
+        if (page) page.style.display = '';
+    }
+    function hidePages() {
+        document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
+        document.getElementById('paper-container').style.display = '';
+    }
+    document.getElementById('btn-graph')?.addEventListener('click', () => {
+        showPage('graph-page');
+        loadGraph();
+    });
+    document.getElementById('btn-trend')?.addEventListener('click', () => {
+        showPage('trend-page');
+        loadTrendRadar();
+    });
+    document.getElementById('btn-idea')?.addEventListener('click', () => {
+        showPage('idea-page');
+    });
+    document.querySelectorAll('.btn-back-papers').forEach(btn => {
+        btn.addEventListener('click', hidePages);
+    });
+    document.querySelector('.header-left h1')?.addEventListener('click', hidePages);
+
     // Knowledge graph
     document.getElementById('btn-refresh-graph')?.addEventListener('click', loadGraph);
 

@@ -38,6 +38,9 @@
                 </div>
             </div>
             <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
+            <button id="btn-graph" class="btn btn--icon" title="知识图谱">🕸️</button>
+            <button id="btn-trend" class="btn btn--icon" title="趋势雷达">📡</button>
+            <button id="btn-idea" class="btn btn--icon" title="想法检查">💡</button>
             <button id="btn-theme" class="btn btn--icon" title="切换主题（深色/浅色/学术/暖色）">🌙</button>
             <button id="btn-subs" class="btn btn--icon" title="订阅管理">⚙️</button>
             <button id="sidebar-toggle" class="btn btn--icon" title="筛选面板">☰</button>
@@ -83,7 +86,7 @@
         <h2 class="page-header">知识图谱</h2>
         <div class="page-toolbar page-toolbar--top">
             <button id="btn-refresh-graph" class="btn btn--secondary">刷新图谱</button>
-            <button class="btn btn--secondary" onclick="document.getElementById('graph-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="graph-empty" class="page-empty-state">
             <p>暂无知识图谱数据</p>
@@ -96,7 +99,7 @@
         <h2 class="page-header">趋势雷达</h2>
         <div class="page-toolbar page-toolbar--top">
             <button id="btn-generate-trend" class="btn btn--secondary">生成报告</button>
-            <button class="btn btn--secondary" onclick="document.getElementById('trend-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="trend-empty" class="page-empty-state">
             <p>暂无趋势报告</p>
@@ -110,7 +113,7 @@
         <textarea id="idea-input" rows="3" placeholder="输入你的研究想法..." class="form-textarea idea-textarea"></textarea>
         <div class="page-toolbar page-toolbar--bottom">
             <button id="btn-check-idea" class="btn btn--secondary">分析</button>
-            <button class="btn btn--secondary" onclick="document.getElementById('idea-page').style.display='none';document.getElementById('paper-container').style.display=''">返回论文</button>
+            <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="idea-empty" class="page-empty-state">
             <p>输入研究想法，AI 将分析其可行性和差异化</p>

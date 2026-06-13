@@ -14,11 +14,18 @@ from db import get_conn
 logger = logging.getLogger(__name__)
 
 MIN_CLUSTER_SIZE = 3
-SEED_MIN_FREQ = 3
+SEED_MIN_FREQ = 2
+MAX_CLUSTERS = 30
 
 
 def compute_clusters() -> list[dict]:
-    """Build clusters from knowledge_cards keywords."""
+    """Build clusters from knowledge_cards keywords.
+
+    Two-phase approach:
+    1. Identify high-frequency keywords as cluster seeds (top-N by frequency).
+    2. Assign each paper to its best-matching seed based on keyword overlap,
+       preferring the most specific (lowest-frequency) seed when ties exist.
+    """
     conn = get_conn()
     rows = conn.execute("SELECT paper_id, keywords FROM knowledge_cards").fetchall()
 
@@ -32,21 +39,24 @@ def compute_clusters() -> list[dict]:
     if not paper_kw:
         return []
 
-    # Select seed keywords (high frequency)
-    seeds = [kw for kw, cnt in kw_counter.items() if cnt >= SEED_MIN_FREQ]
-    # Sort by frequency descending so bigger topics get priority
-    seeds.sort(key=lambda kw: -kw_counter[kw])
+    # Select seed keywords: top-N by frequency, minimum SEED_MIN_FREQ occurrences
+    candidates = [(kw, cnt) for kw, cnt in kw_counter.items() if cnt >= SEED_MIN_FREQ]
+    candidates.sort(key=lambda x: -x[1])
+    # Skip overly broad top-2 seeds that swallow everything
+    seeds = [kw for kw, _ in candidates[2:2 + MAX_CLUSTERS]]
+    seed_set = set(seeds)
 
     # Assign each paper to its best-matching seed
-    cluster_map: dict[str, list[str]] = {}  # seed -> [paper_ids]
+    cluster_map: dict[str, list[str]] = {}
     assigned: set[str] = set()
     misc: list[str] = []
 
     for pid, kws in paper_kw.items():
         best_seed = None
         best_overlap = 0
+        kw_set = set(kws)
         for seed in seeds:
-            overlap = sum(1 for k in kws if k == seed)
+            overlap = len(kw_set & {seed})
             if overlap > best_overlap:
                 best_overlap = overlap
                 best_seed = seed
@@ -56,8 +66,7 @@ def compute_clusters() -> list[dict]:
         else:
             misc.append(pid)
 
-    # Merge small clusters into parent topic if they share keywords
-    # Build final clusters, only keeping those above MIN_CLUSTER_SIZE
+    # Build final clusters
     clusters: list[dict] = []
     for seed, pids in cluster_map.items():
         if len(pids) < MIN_CLUSTER_SIZE:
@@ -76,7 +85,7 @@ def compute_clusters() -> list[dict]:
     # Sort by size descending
     clusters.sort(key=lambda c: -len(json.loads(c["paper_ids"])))
 
-    # Add misc cluster if any
+    # Add misc cluster
     if misc and len(misc) >= MIN_CLUSTER_SIZE:
         misc_kw: set[str] = set()
         for pid in misc:
