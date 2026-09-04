@@ -42,7 +42,7 @@ export function renderPapers() {
             ? `<span class="badge badge--source-s2">作者</span>`
             : `<span class="badge badge--source-arxiv">arXiv</span>`;
         const venueBadge = paper.venue ? `<span class="badge badge--venue">${paper.venue}</span>` : '';
-        const accBadge = paper.acceptance ? `<span class="badge badge--acc">${paper.acceptance}</span>` : '';
+
         const citeBadge = paper.citation_count ? `<span class="cite-badge">&#9733; ${paper.citation_count}</span>` : '';
         const articleType = paper.article_type || inferType(paper);
         const typeTag = articleType === 'news' ? '<span class="paper-cat" style="background:rgba(249,115,22,0.2);color:#f97316">新闻</span>' : '';
@@ -90,7 +90,7 @@ export function renderPapers() {
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec === 'reference' && relScore < 7 ? 'ref-low' : rec}">
                 <div class="paper-header">
-                    ${sourceBadge}${venueBadge}${ccfBadge}${accBadge}${aiBadge}${recBadge}${scoreChips}${typeTag}
+                    ${sourceBadge}${venueBadge}${ccfBadge}${aiBadge}${recBadge}${scoreChips}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
                 </div>

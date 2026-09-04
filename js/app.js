@@ -9,7 +9,7 @@ import {
 import { fetchPapers, quickFollowAuthor, triggerCrawl, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
-import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
+import { openPaperDetail, closePaperModal } from './modal.js';
 import { loadGraph } from './graph.js';
 import { loadTrendRadar } from './trend.js';
 import { initDigestPage } from './digest.js';
@@ -182,10 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Profile modal
-    document.getElementById('close-profile-modal').addEventListener('click', closeProfileModal);
-    document.getElementById('profile-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeProfileModal(); });
-    document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
+    // Profile 编辑入口在订阅面板"研究方向"tab（旧 profile-modal 已移除）
 
     // Subscription modal (functions from subscriptions.js — global scope)
     document.getElementById('close-subs-modal').addEventListener('click', () => window.closeSubscriptionModal());
@@ -480,6 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:0.82rem">
                 <span style="color:var(--text-3)">${p.paper_id}</span>
                 <span style="float:right;color:var(--accent-primary);font-size:0.75rem">${p.reason}</span>
+                ${p.reason_detail ? `<span style="display:block;color:var(--text-2);font-size:0.76rem;margin-top:2px">${p.reason_detail}</span>` : ''}
                 <span style="display:block;color:var(--text-3);font-size:0.72rem">${p.ignored_at || ''}</span>
             </div>`
         ).join('') || '<p style="color:var(--text-3);text-align:center;padding:20px">无被过滤论文</p>';

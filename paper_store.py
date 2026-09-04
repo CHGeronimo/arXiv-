@@ -287,9 +287,10 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
 
         quick_chain = get_quick_chain()
         chain, profile = get_ai_chain()
-        if not quick_filter_paper(paper_dict, quick_chain, profile):
-            logger.debug(f"Quick filter rejected: {paper.id}")
-            ignore_paper(paper.id, "quick_filter_reject")
+        passed, q_reason = quick_filter_paper(paper_dict, quick_chain, profile)
+        if not passed:
+            ignore_paper(paper.id, "quick_filter_reject", detail=q_reason)
+            logger.debug(f"Quick filter rejected ({q_reason[:60]}): {paper.id}")
             return "filter_reject"
 
         try:

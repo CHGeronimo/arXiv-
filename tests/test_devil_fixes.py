@@ -59,7 +59,7 @@ try:
              patch.object(paper_store, "ignore_paper", side_effect=lambda pid, r="": calls.append(r)), \
              patch.object(paper_store, "get_local_terms",
                           return_value={"reinforcement", "multi", "agent", "mechanism"}), \
-             patch.object(paper_store, "quick_filter_paper", return_value=True), \
+             patch.object(paper_store, "quick_filter_paper", return_value=(True, "")), \
              patch.object(paper_store, "get_quick_chain", return_value=None), \
              patch.object(paper_store, "get_ai_chain", return_value=(None, {})), \
              patch.object(paper_store, "enhance_single",

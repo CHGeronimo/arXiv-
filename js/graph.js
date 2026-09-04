@@ -172,6 +172,11 @@ function _showDetail(d) {
       <span class="graph-detail-dot" style="background:${d.color}"></span>
       <span class="graph-detail-name">${d.name}</span>
     </div>
+    ${d.domains && d.domains.length ? `
+    <div class="graph-detail-stat">
+      <span class="graph-detail-label">问题域</span>
+      <span class="graph-detail-value">${d.domains.join('、')}</span>
+    </div>` : ''}
     <div class="graph-detail-stat">
       <span class="graph-detail-label">论文数</span>
       <span class="graph-detail-value">${d.size}</span>

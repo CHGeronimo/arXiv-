@@ -170,6 +170,12 @@ data/papers.db             # SQLite 数据库（自动创建+迁移）
 - 通知 tab 为预留 UI，后端未实现
 - ES module (app.js) 与普通 script (subscriptions.js) 通过 window. 桥接
 
+## 设计决策：subscriptions 保留 JSON 文件（不迁 SQLite）
+
+`subscriptions` 表建了但**有意不用**：单用户场景下 JSON 文件经原子写（tmp+rename）、
+并发写锁、git 版本管理三重加固后已无实际痛点；迁移只引入风险不解决疼痛。
+若未来出现多进程写入或多人共享需求，再迁移（表结构已就绪）。
+
 ## 测试
 
 ```bash

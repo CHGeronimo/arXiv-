@@ -314,19 +314,22 @@ def get_jobs():
 
 @app.route("/api/digest/<date_str>", methods=["GET"])
 def get_digest(date_str: str):
+    # 文件优先，文件缺失（被清理/换机器）时从 digests 表回退
     digest_path = Path("digests") / f"{date_str}.md"
     if digest_path.exists():
         return digest_path.read_text(encoding="utf-8"), 200, {"Content-Type": "text/markdown"}
+    row = get_conn().execute("SELECT content FROM digests WHERE date = ?", (date_str,)).fetchone()
+    if row:
+        return row[0], 200, {"Content-Type": "text/markdown"}
     return jsonify({"error": "digest not found"}), 404
 
 
 @app.route("/api/digests", methods=["GET"])
 def list_digests():
     digest_dir = Path("digests")
-    if not digest_dir.exists():
-        return jsonify({"digests": []})
-    digests = sorted(digest_dir.glob("*.md"), reverse=True)
-    return jsonify({"digests": [d.stem for d in digests]})
+    file_dates = {d.stem for d in digest_dir.glob("*.md")} if digest_dir.exists() else set()
+    db_dates = {r[0] for r in get_conn().execute("SELECT date FROM digests")}
+    return jsonify({"digests": sorted(file_dates | db_dates, reverse=True)})
 
 
 # ── Feedback ──────────────────────────────────────────────────────
@@ -613,7 +616,8 @@ def get_knowledge_graph():
     for i, c in enumerate(clusters):
         pids = json.loads(c["paper_ids"]) if isinstance(c["paper_ids"], str) else c["paper_ids"]
         kws = json.loads(c["method_keywords"]) if isinstance(c["method_keywords"], str) else c["method_keywords"]
-        nodes.append({"id": i, "name": c["cluster_name"], "size": len(pids), "keywords": kws[:5]})
+        domains = json.loads(c["problem_domains"]) if isinstance(c.get("problem_domains"), str) else (c.get("problem_domains") or [])
+        nodes.append({"id": i, "name": c["cluster_name"], "size": len(pids), "keywords": kws[:5], "domains": [d for d in domains if d]})
     for i in range(len(clusters)):
         ki = set(json.loads(clusters[i]["method_keywords"]) if isinstance(clusters[i]["method_keywords"], str) else clusters[i]["method_keywords"])
         for j in range(i + 1, len(clusters)):
@@ -653,6 +657,14 @@ def get_trend_by_week(week: str):
     if not row:
         return jsonify({"report": None})
     return jsonify({"report": dict(row)})
+
+
+@app.route("/api/trend-radars", methods=["GET"])
+def list_trend_weeks():
+    """Available trend report weeks (history browser)."""
+    conn = get_conn()
+    weeks = [r[0] for r in conn.execute("SELECT week_start FROM trend_reports ORDER BY week_start DESC")]
+    return jsonify({"weeks": weeks})
 
 
 @app.route("/api/trigger/trend", methods=["POST"])
@@ -877,6 +889,14 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
     if not row or (not row["method"] and not row["motivation"]):
         return
 
+    # 用户滑杆分值一并提供：相关性/新颖性打分影响主题提取的倾向
+    fb = conn.execute(
+        "SELECT relevance, novelty FROM feedback WHERE paper_id = ?", (paper_id,)
+    ).fetchone()
+    score_hint = ""
+    if fb and (fb["relevance"] or fb["novelty"]):
+        score_hint = f"\nUser scores (1-5): relevance={fb['relevance'] or '-'}, novelty={fb['novelty'] or '-'}."
+
     method = row["method"] or ""
     motivation = row["motivation"] or ""
     if not method.strip() and not motivation.strip():
@@ -888,7 +908,7 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
         resp = llm.invoke(
             f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
             f"Return ONLY a JSON array of strings, no explanation.\n\n"
-            f"Method: {method[:500]}\nMotivation: {motivation[:300]}"
+            f"Method: {method[:500]}\nMotivation: {motivation[:300]}{score_hint}"
         )
         topics = json.loads(resp.content)
         if not isinstance(topics, list):
@@ -1068,19 +1088,19 @@ def get_ignored_papers():
             where = "WHERE reason NOT IN ('quick_filter_reject', 'user_deleted', 'purge', 'purge_before_date')"
             total = conn.execute(f"SELECT COUNT(*) FROM ignored_papers {where}").fetchone()[0]
             rows = conn.execute(
-                f"SELECT paper_id, reason, ignored_at FROM ignored_papers {where} ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+                f"SELECT paper_id, reason, reason_detail, ignored_at FROM ignored_papers {where} ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
                 (per_page, (page - 1) * per_page),
             ).fetchall()
         else:
             total = conn.execute("SELECT COUNT(*) FROM ignored_papers WHERE reason = ?", (reason,)).fetchone()[0]
             rows = conn.execute(
-                "SELECT paper_id, reason, ignored_at FROM ignored_papers WHERE reason = ? ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+                "SELECT paper_id, reason, reason_detail, ignored_at FROM ignored_papers WHERE reason = ? ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
                 (reason, per_page, (page - 1) * per_page),
             ).fetchall()
     else:
         total = conn.execute("SELECT COUNT(*) FROM ignored_papers").fetchone()[0]
         rows = conn.execute(
-            "SELECT paper_id, reason, ignored_at FROM ignored_papers ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
+            "SELECT paper_id, reason, reason_detail, ignored_at FROM ignored_papers ORDER BY ignored_at DESC LIMIT ? OFFSET ?",
             (per_page, (page - 1) * per_page),
         ).fetchall()
 
@@ -1097,7 +1117,7 @@ def get_ignored_papers():
     """).fetchall()
 
     return jsonify({
-        "ignored": [{"paper_id": r[0], "reason": r[1], "ignored_at": r[2]} for r in rows],
+        "ignored": [{"paper_id": r[0], "reason": r[1], "reason_detail": r[2], "ignored_at": r[3]} for r in rows],
         "total": total,
         "page": page,
         "per_page": per_page,

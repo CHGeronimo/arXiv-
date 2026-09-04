@@ -37,12 +37,12 @@ def build_quick_filter(model_name: str | None = None):
     return prompt | llm
 
 
-def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
-    """Return True if the paper passes the quick relevance filter.
+def quick_filter_paper(paper: dict, chain, profile: dict) -> tuple[bool, str]:
+    """Classify a paper's relevance. Returns (is_relevant, relevance_reason).
 
-    Rejects papers clearly outside the research direction to avoid
-    the cost of full AI enhancement (~86% of arXiv papers are rejected).
-    On failure, defaults to True (conservative: let full enhancement decide).
+    The reason is the LLM's one-sentence explanation — persisted by callers
+    so rejected papers can be audited with human-readable justification.
+    On failure, defaults to (True, "") (conservative: let full enhancement decide).
     """
     try:
         result: QuickFilter = chain.invoke({
@@ -53,7 +53,7 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> bool:
             "title": paper.get("title", ""),
             "content": paper.get("summary", "")[:1000],
         })
-        return result.is_relevant
+        return result.is_relevant, (result.relevance_reason or "").strip()
     except Exception as e:
         logger.warning(f"快速过滤失败 {paper.get('id','?')}: {e}，默认保留")
-        return True
+        return True, ""

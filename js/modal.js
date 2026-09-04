@@ -29,7 +29,6 @@ export async function openPaperDetail(paper) {
         : `<span class="badge badge--source-arxiv">arXiv</span>`;
     const venueInfo = paper.venue ? ` <span class="badge badge--venue">${paper.venue}</span>` : '';
     const ccfInfo = paper.ccf_tier ? ` <span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
-    const accInfo = paper.acceptance ? ` <span class="badge badge--acc">${paper.acceptance}</span>` : '';
     const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-2)">&#9733; ${paper.citation_count} citations</div>` : '';
 
     const aiFields = paper.AI || {};
@@ -42,16 +41,6 @@ export async function openPaperDetail(paper) {
     if (aiFields.conclusion) aiParts.push(`<b>Conclusion</b> ${aiFields.conclusion}`);
     if (aiParts.length) sections.push(`<h3>AI 解读</h3><p>${aiParts.join('<br><br>')}</p>`);
 
-    if (!aiParts.length) {
-        const fallbackParts = [];
-        if (paper.tldr) fallbackParts.push(`<b>TL;DR</b> ${paper.tldr}`);
-        if (paper.motivation) fallbackParts.push(`<b>Motivation</b> ${paper.motivation}`);
-        if (paper.method) fallbackParts.push(`<b>Method</b> ${paper.method}`);
-        if (paper.result) fallbackParts.push(`<b>Result</b> ${paper.result}`);
-        if (paper.conclusion) fallbackParts.push(`<b>Conclusion</b> ${paper.conclusion}`);
-        if (fallbackParts.length) sections.push(`<h3>解读</h3><p>${fallbackParts.join('<br><br>')}</p>`);
-    }
-
     const summaryZh = aiFields.summary_zh || paper.summary_zh || '';
     if (summaryZh) sections.push(`<h3>中文摘要</h3><p>${summaryZh}</p>`);
     const abstractEn = paper.summary || '';
@@ -59,7 +48,7 @@ export async function openPaperDetail(paper) {
     if (!sections.length) sections.push(`<p style="color:var(--text-2)">暂无摘要</p>`);
 
     const codeUrl = paper.code_url || '';
-    const codeStars = paper.code_stars ? ` (${paper.code_stars} stars)` : '';
+
 
     const fb = getFeedbackForPaper(paper.id);
     const userRating = fb.rating || '';
@@ -68,7 +57,7 @@ export async function openPaperDetail(paper) {
     const hasFeedback = userRating || userRel || userNov;
 
     detail.innerHTML = `
-        <div class="paper-header">${sourceBadge}${venueInfo}${ccfInfo}${accInfo}
+        <div class="paper-header">${sourceBadge}${venueInfo}${ccfInfo}
             <span class="paper-cat">${paper.published_date || ''}</span>
         </div>
         <h2 style="margin:12px 0">${title}</h2>
@@ -82,7 +71,7 @@ export async function openPaperDetail(paper) {
             ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn--secondary">论文链接</a>` : ''}
             ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="btn btn--secondary">PDF</a>` : ''}
             ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="btn btn--secondary">DOI</a>` : ''}
-            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="btn btn--secondary" style="border-color:#22c55e;color:#22c55e">Code${codeStars}</a>` : ''}
+            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="btn btn--secondary" style="border-color:#22c55e;color:#22c55e">Code</a>` : ''}
             <button class="btn btn--secondary" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
             <button class="btn btn--secondary ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" style="border-color:#22c55e;color:#22c55e;font-size:0.95rem;padding:8px 18px">&#9757; 有用</button>
             <button class="btn btn--secondary ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" style="border-color:#ef4444;color:#ef4444;font-size:0.95rem;padding:8px 18px">&#9759; 没用</button>
@@ -137,35 +126,5 @@ export function closePaperModal() {
     document.body.style.overflow = '';
 }
 
-export async function openProfileModal() {
-    try {
-        const resp = await fetch('/api/profile');
-        if (resp.ok) {
-            const data = await resp.json();
-            document.getElementById('profile-direction').value = data.direction || '';
-            document.getElementById('profile-keywords').value = (data.keywords || []).join(', ');
-            document.getElementById('profile-quality').value = data.quality_criteria || '';
-        }
-    } catch {}
-    document.getElementById('profile-modal').classList.add('active');
-}
-
-export function closeProfileModal() {
-    document.getElementById('profile-modal').classList.remove('active');
-}
-
-export async function saveProfile() {
-    const direction = document.getElementById('profile-direction').value;
-    const keywords = document.getElementById('profile-keywords').value.split(',').map(k => k.trim()).filter(k => k);
-    const quality_criteria = document.getElementById('profile-quality').value;
-    try {
-        await fetch('/api/profile', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ direction, keywords, quality_criteria }),
-        });
-        closeProfileModal();
-    } catch (e) {
-        console.error('Failed to save profile:', e);
-    }
-}
+// 注：profile 编辑入口已统一到订阅面板"研究方向"tab（subscriptions.js），
+// 旧的 profile-modal（openProfileModal/saveProfile）已移除。

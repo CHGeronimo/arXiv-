@@ -88,18 +88,36 @@ def main():
     if args.sample > 0:
         print()
         print("═" * 60)
-        print(f"④ 抽查 {args.sample} 条本地预筛拒绝的论文（人工判断是否误杀）")
+        print(f"④ 抽查 {args.sample} 条被过滤论文（含过滤理由，人工判断是否误杀）")
         print("═" * 60)
         rows = conn.execute("""
-            SELECT paper_id FROM ignored_papers
-            WHERE reason='local_filter_reject' ORDER BY RANDOM() LIMIT ?
+            SELECT paper_id, reason, reason_detail FROM ignored_papers
+            ORDER BY RANDOM() LIMIT ?
         """, (args.sample,)).fetchall()
-        if not rows:
-            print("  （暂无 local_filter_reject 记录——本地预筛上线后的首轮爬取还未发生）")
-        for (pid,) in rows:
+        for pid, reason, detail in rows:
             row = conn.execute("SELECT title FROM papers WHERE id=?", (pid,)).fetchone()
             title = row[0] if row else "(论文未入库，仅记录了ID)"
-            print(f"  - [{pid}] {title}")
+            print(f"  - [{reason}] {title}")
+            if detail:
+                print(f"      理由: {detail}")
+
+    print()
+    print("═" * 60)
+    print("⑤ 反馈滑杆分值 × 推荐级别（校准参考：AI评分 vs 用户体感）")
+    print("═" * 60)
+    rows = conn.execute("""
+        SELECT COALESCE(a.recommendation, '(无AI)'),
+               COUNT(f.relevance), ROUND(AVG(f.relevance), 2), ROUND(AVG(f.novelty), 2)
+        FROM feedback f LEFT JOIN ai_results a ON a.paper_id = f.paper_id
+        WHERE f.relevance IS NOT NULL
+        GROUP BY 1 ORDER BY 1
+    """).fetchall()
+    if rows:
+        print(f"  {'推荐级别':<14s}{'样本':>8s}{'相关性均值':>10s}{'新颖性均值':>10s}")
+        for rec, n, rel, nov in rows:
+            print(f"  {rec:<14s}{n:>8d}{rel:>10.2f}{nov:>10.2f}")
+    else:
+        print("  （尚无滑杆评分数据）")
 
     conn.close()
 

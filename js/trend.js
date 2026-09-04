@@ -7,7 +7,7 @@ const SECTION_META = {
   opportunities:   { title: '机会点',     icon: '★', color: '#a78bfa',         bg: 'rgba(167,139,250,0.06)' },
 };
 
-export async function loadTrendRadar() {
+export async function loadTrendRadar(week) {
   const emptyEl = document.getElementById('trend-empty');
   const contentEl = document.getElementById('trend-content');
   if (!contentEl) return;
@@ -18,7 +18,24 @@ export async function loadTrendRadar() {
   }
   contentEl.innerHTML = '';
 
-  const resp = await fetch('/api/trend-radar');
+  // 历史周选择器（有历史数据时显示）
+  const sel = document.getElementById('trend-week-select');
+  if (sel && sel.dataset.bound !== '1') {
+    sel.dataset.bound = '1';
+    try {
+      const listResp = await fetch('/api/trend-radars');
+      const { weeks } = await listResp.json();
+      if (weeks && weeks.length > 1) {
+        sel.style.display = '';
+        sel.innerHTML = weeks.map(w => `<option value="${w}">${w} 周</option>`).join('');
+        sel.addEventListener('change', () => loadTrendRadar(sel.value));
+      }
+    } catch { /* 历史列表失败不影响最新报告 */ }
+  }
+  if (sel && week) sel.value = week;
+
+  const url = week ? `/api/trend-radar/${week}` : '/api/trend-radar';
+  const resp = await fetch(url);
   if (!resp.ok) {
     if (emptyEl) emptyEl.innerHTML = '<p>加载失败</p><p class="hint">请稍后重试</p>';
     return;

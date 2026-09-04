@@ -766,10 +766,6 @@ async function saveProfileInline() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ direction, keywords: _profileKeywords, quality_criteria }),
         });
-        const origDir = document.getElementById('profile-direction');
-        if (origDir) origDir.value = direction;
-        const origKw = document.getElementById('profile-keywords');
-        if (origKw) origKw.value = _profileKeywords.join(', ');
         // Save enabled keywords to subscriptions
         if (useProfile) {
             subscriptions.search = { keywords: keywords, useProfile: true };

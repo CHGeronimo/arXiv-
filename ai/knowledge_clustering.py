@@ -200,6 +200,37 @@ def _assign_papers_to_themes_kw(
     return dict(theme_assignments)
 
 
+def _label_problem_domains(cluster_names: list[str]) -> dict[str, str]:
+    """One cheap LLM call: label each cluster with its problem domain
+    (e.g. 序贯决策/机制设计/感知估计). Returns {} on failure —
+    problem_domains then stays empty, which the UI tolerates."""
+    if not cluster_names:
+        return {}
+    try:
+        from .llm import build_chat
+        llm = build_chat(
+            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            thinking=False, temperature=0.1, timeout=60,
+        )
+        prompt = (
+            "为每个研究主题标注其所属的问题域（研究问题所属的更粗粒度领域，"
+            "如：序贯决策与控制、机制设计与激励、感知与状态估计、学习理论与泛化、"
+            "系统与安全、应用落地等，6-12字）。"
+            '返回 JSON 对象 {"主题": "问题域"}，不要解释。\n'
+            + json.dumps(cluster_names, ensure_ascii=False)
+        )
+        resp = llm.invoke(prompt)
+        import re
+        m = re.search(r'\{.*\}', resp.content, re.DOTALL)
+        if not m:
+            return {}
+        data = json.loads(m.group())
+        return {str(k): str(v) for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning(f"问题域标注失败（保持为空）: {e}")
+        return {}
+
+
 def compute_clusters() -> list[dict]:
     """Build clusters using LLM-based theme extraction + multi-label assignment."""
     conn = get_conn()
@@ -247,6 +278,12 @@ def compute_clusters() -> list[dict]:
 
     # Sort by size descending
     clusters.sort(key=lambda c: -len(json.loads(c["paper_ids"])))
+
+    # 问题域标注（单个 LLM 调用，失败保持空数组）
+    domains = _label_problem_domains([c["cluster_name"] for c in clusters])
+    for c in clusters:
+        domain = domains.get(c["cluster_name"], "")
+        c["problem_domains"] = json.dumps([domain] if domain else [], ensure_ascii=False)
 
     return clusters
 

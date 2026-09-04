@@ -38,7 +38,7 @@ with patch.object(paper_store, "_paper_exists", return_value=False), \
      patch.object(paper_store, "ignore_paper", side_effect=lambda pid, r="": ignored_calls.append((pid, r))), \
      patch.object(paper_store, "get_quick_chain", return_value=None), \
      patch.object(paper_store, "get_ai_chain", return_value=(None, {})), \
-     patch.object(paper_store, "quick_filter_paper", return_value=True), \
+     patch.object(paper_store, "quick_filter_paper", return_value=(True, "")), \
      patch.object(paper_store, "enhance_single", return_value={"AI": {**enhance.DEFAULT_AI, "_llm_failed": True}}), \
      patch.object(paper_store, "_local_filter_enabled", return_value=False):
     r = paper_store.append_paper(p, enhance=True)
@@ -51,7 +51,7 @@ with patch.object(paper_store, "_paper_exists", return_value=False), \
      patch.object(paper_store, "ignore_paper", side_effect=lambda pid, r="": ignored_calls.append((pid, r))), \
      patch.object(paper_store, "get_quick_chain", return_value=None), \
      patch.object(paper_store, "get_ai_chain", return_value=(None, {})), \
-     patch.object(paper_store, "quick_filter_paper", return_value=True), \
+     patch.object(paper_store, "quick_filter_paper", return_value=(True, "")), \
      patch.object(paper_store, "enhance_single", return_value={"AI": {**enhance.DEFAULT_AI, "recommendation": "ignore", "skip_reason": "low_relevance"}}), \
      patch.object(paper_store, "_insert_paper_row"), \
      patch.object(paper_store, "_local_filter_enabled", return_value=False):

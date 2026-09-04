@@ -198,6 +198,9 @@ def init_db() -> None:
     papers_cols = {r[1] for r in conn.execute("PRAGMA table_info(papers)")}
     if "code_url" not in papers_cols:
         conn.execute("ALTER TABLE papers ADD COLUMN code_url TEXT")
+    ignored_cols = {r[1] for r in conn.execute("PRAGMA table_info(ignored_papers)")}
+    if "reason_detail" not in ignored_cols:
+        conn.execute("ALTER TABLE ignored_papers ADD COLUMN reason_detail TEXT")
 
     logger.info("数据库架构已初始化")
 
@@ -330,15 +333,15 @@ def sync_write(sql: str, params: tuple[Any, ...] = ()) -> None:
         raise
 
 
-def ignore_paper(paper_id: str, reason: str = "") -> None:
+def ignore_paper(paper_id: str, reason: str = "", detail: str = "") -> None:
     """Record a paper as ignored so it won't be re-fetched.
 
-    Uses the async write queue. Safe for concurrent use — each paper
-    is only processed by one thread so no cross-thread visibility needed.
+    detail carries the human explanation (e.g. quick_filter's
+    relevance_reason) for later audit. Uses the async write queue.
     """
     queue_write(
-        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason, ignored_at) VALUES (?, ?, datetime('now'))",
-        (paper_id, reason),
+        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason, reason_detail, ignored_at) VALUES (?, ?, ?, datetime('now'))",
+        (paper_id, reason, detail or None),
     )
 
 
