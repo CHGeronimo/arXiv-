@@ -648,6 +648,11 @@ let _profileKeywords = [];
 let _chipKeywords = [];   // chips 数据源：profile 关键词 ∪ 已保存的提取结果
 let _enabledKeywords = null; // null = all enabled, Set = specific set
 
+// LLM 生成的关键词可能含 " ' < &，插入 HTML 属性前必须转义
+function _kwEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+}
+
 async function loadProfileKeywords() {
     try {
         const resp = await fetch('/api/profile');
@@ -759,7 +764,7 @@ function renderKeywordChips() {
         }
         container.innerHTML = _chipKeywords.map(kw => {
             const enabled = !_enabledKeywords || _enabledKeywords.has(kw);
-            return `<span class="badge badge--secondary ${enabled ? 'selected' : ''}" data-toggle-kw="${kw}" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 10px;font-size:0.82rem;${enabled ? '' : 'opacity:0.4'}">${kw}</span>`;
+            return `<span class="badge badge--secondary ${enabled ? 'selected' : ''}" data-toggle-kw="${_kwEsc(kw)}" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 10px;font-size:0.82rem;${enabled ? '' : 'opacity:0.4'}">${_kwEsc(kw)}</span>`;
         }).join('');
         const enabledCount = _chipKeywords.filter(k => !_enabledKeywords || _enabledKeywords.has(k)).length;
         const hint = document.getElementById('keyword-chips-hint');
@@ -776,8 +781,8 @@ function renderKeywordChips() {
     }
     container.innerHTML = keywords.map(kw =>
         `<span class="badge badge--secondary selected" style="display:inline-flex;align-items:center;gap:4px;cursor:default;padding:4px 10px;font-size:0.82rem">
-            ${kw}
-            <button data-remove-kw="${kw}" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:0.9rem;padding:0 2px;line-height:1">&times;</button>
+            ${_kwEsc(kw)}
+            <button data-remove-kw="${_kwEsc(kw)}" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:0.9rem;padding:0 2px;line-height:1">&times;</button>
         </span>`
     ).join('');
 }

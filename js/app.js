@@ -251,8 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'j') changePage(1);
         else if (e.key === 'k') changePage(-1);
         else if (e.key === 'f') {
-            const { filteredPapers: fp, currentPage: cp, toggleBookmark: tb } = await import('./state.js');
-            const first = fp[cp - 1];
+            const { filteredPapers: fp, currentPage: cp, PAGE_SIZE: ps, toggleBookmark: tb } = await import('./state.js');
+            const first = fp[(cp - 1) * ps] || fp[0];  // 当前页第一篇，而非全列表第 N 篇
             if (first) { tb(first.id); renderPapers(); }
         }
         else if (e.key === '/') { e.preventDefault(); document.getElementById('sidebar-search-input')?.focus(); }

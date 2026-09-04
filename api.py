@@ -110,7 +110,7 @@ def get_papers():
     except (ValueError, TypeError):
         page = 1
     try:
-        per_page = min(5000, max(1, int(request.args.get("per_page", 50))))
+        per_page = min(50000, max(1, int(request.args.get("per_page", 50))))
     except (ValueError, TypeError):
         per_page = 50
 
@@ -345,7 +345,14 @@ def save_feedback():
         return jsonify({"error": "invalid rating"}), 400
 
     sync_write(
-        "INSERT OR REPLACE INTO feedback (paper_id, rating, relevance, novelty, note, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
+        """INSERT INTO feedback (paper_id, rating, relevance, novelty, note, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))
+           ON CONFLICT(paper_id) DO UPDATE SET
+             rating = excluded.rating,
+             relevance = excluded.relevance,
+             novelty = excluded.novelty,
+             note = excluded.note,
+             updated_at = datetime('now')""",
         (paper_id, rating or None, relevance, novelty, note or None),
     )
     if rating in ("like", "dislike"):
@@ -914,6 +921,8 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
 
     profile[key] = current[-100:]
     profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 立即失效缓存的 AI 链画像，否则反馈闭环要等 daemon 重启才生效
+    reset_ai_chain()
     logging.getLogger(__name__).info(f"Profile updated: {key} += {new_added} (after dedup: {len(profile[key])} topics)")
 
 

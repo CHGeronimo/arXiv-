@@ -51,6 +51,9 @@ def request_shutdown() -> None:
 
 SUBS_PATH = "subscriptions.json"
 
+# 并发任务（手动"全部爬取"）同时收尾时保护 subscriptions.json 的读-改-写
+_subs_lock = threading.Lock()
+
 
 def _load_subs() -> Subscriptions:
     return Subscriptions.load(SUBS_PATH)
@@ -231,14 +234,17 @@ class CrossrefJob(BaseCrawlerJob):
             info["journals"].add(paper.journal_title)
 
     def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
-        """Update last_updated timestamp for journals that had papers fetched."""
+        """Update last_updated timestamps for journals that had papers fetched."""
         fetched_journals = fetched_info.get("journals", set())
-        if fetched_journals:
+        if not fetched_journals:
+            return
+        with _subs_lock:
+            fresh = _load_subs()  # 重读，避免覆盖其他并发任务刚写入的更新
             now = datetime.now(timezone.utc).isoformat()
-            for j in subs.crossref_journals:
+            for j in fresh.crossref_journals:
                 if j.name in fetched_journals:
                     j.last_updated = now
-            _save_subs(subs)
+            _save_subs(fresh)
 
 
 class DblpJob(BaseCrawlerJob):
@@ -260,12 +266,15 @@ class DblpJob(BaseCrawlerJob):
 
     def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
         fetched_venues = fetched_info.get("venues", set())
-        if fetched_venues:
+        if not fetched_venues:
+            return
+        with _subs_lock:
+            fresh = _load_subs()
             now = datetime.now(timezone.utc).isoformat()
-            for c in subs.conferences:
+            for c in fresh.conferences:
                 if any(c.venue in v for v in fetched_venues):
                     c.last_updated = now
-            _save_subs(subs)
+            _save_subs(fresh)
 
 
 class S2Job(BaseCrawlerJob):
@@ -325,10 +334,12 @@ class AuthorJob(BaseCrawlerJob):
         return "no authors"
 
     def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        for a in subs.authors:
-            a.last_updated = now
-        _save_subs(subs)
+        with _subs_lock:
+            fresh = _load_subs()
+            now = datetime.now(timezone.utc).isoformat()
+            for a in fresh.authors:
+                a.last_updated = now
+            _save_subs(fresh)
 
 
 # ---------------------------------------------------------------------------

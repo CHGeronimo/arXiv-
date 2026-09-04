@@ -257,10 +257,12 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
             _insert_paper_row(paper_dict)
             return "written"
 
-        # 本地零成本预筛：与研究方向零重叠的论文不进 LLM
-        if _local_filter_enabled():
+        # 本地零成本预筛：与研究方向零重叠的论文不进 LLM。
+        # 豁免：作者订阅（用户显式关注，篇篇都值得 LLM 评估）；
+        #       无摘要论文（仅凭标题 token 判定误伤率高，交给 LLM）
+        if _local_filter_enabled() and paper.source not in ("author_s2", "semantic_scholar"):
             terms = get_local_terms()
-            if terms and local_reject(paper_dict, terms):
+            if terms and paper_dict.get("summary") and local_reject(paper_dict, terms):
                 ignore_paper(paper.id, "local_filter_reject")
                 logger.debug(f"Local filter rejected: {paper.id}")
                 return "filter_reject"

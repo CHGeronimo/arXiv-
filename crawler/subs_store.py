@@ -104,8 +104,12 @@ class Subscriptions:
                 for a in self.authors
             ],
         }
-        with open(path, "w", encoding="utf-8") as f:
+        # 原子写：先写临时文件再替换，中断不会留下半截 JSON
+        # （半截文件会让 Subscriptions.load 抛异常回退默认订阅）
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
 
     def to_dict(self) -> dict:
         return {
