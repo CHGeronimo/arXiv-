@@ -50,6 +50,12 @@ export function buildFilterOptions() {
             { value: 'ignore', label: '已过滤' },
             { value: 'unread', label: '未读' },
         ]},
+        { key: 'today', label: '时效', options: [
+            { value: 'yes', label: '🌅 今日新到' },
+        ]},
+        { key: 'code', label: '代码', options: [
+            { value: 'yes', label: '🐙 有代码' },
+        ]},
         { key: 'bookmarked', label: '收藏', options: [
             { value: 'yes', label: '⭐ 已收藏' },
         ]},
@@ -186,6 +192,13 @@ export function applyFiltersAndSort() {
         result = result.filter(p => _bookmarks.has(p.id));
     if (activeFilters.ccf.size > 0)
         result = result.filter(p => activeFilters.ccf.has(p.ccf_tier || ''));
+    if (activeFilters.today.size > 0) {
+        // created_at 是 UTC：本地凌晨 2 点的跑批落在 UTC 前一天，36h 窗口兜住
+        const cutoff = new Date(Date.now() - 36 * 3600 * 1000).toISOString().slice(0, 10);
+        result = result.filter(p => (p.created_at || '') >= cutoff);
+    }
+    if (activeFilters.code.size > 0)
+        result = result.filter(p => !!p.code_url);
 
     const sq = document.getElementById('sidebar-search-input')?.value?.trim().toLowerCase() || '';
     if (sq) {

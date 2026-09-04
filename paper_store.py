@@ -121,8 +121,23 @@ PAPER_COLS = [
     "doi", "published_date", "url", "pdf",
     "publisher", "journal_title", "issn",
     "comment", "article_type",
-    "venue", "acceptance", "citation_count", "ccf_tier", "version",
+    "venue", "acceptance", "citation_count", "ccf_tier", "version", "code_url",
 ]
+
+# 从摘要/评论中提取代码仓库链接（arXiv 论文常在摘要里给 github 链接），零 LLM 成本
+_CODE_RE = re.compile(
+    r"https?://(?:www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", re.IGNORECASE
+)
+
+
+def extract_code_url(paper: dict) -> str:
+    """Return the first GitHub repo URL found in summary/comment, normalized."""
+    for field in ("summary", "comment"):
+        m = _CODE_RE.search(paper.get(field) or "")
+        if m:
+            url = m.group(0).rstrip(".,;)")
+            return url
+    return ""
 
 AI_COLS = [
     "paper_id",
@@ -180,6 +195,9 @@ def _insert_paper_row(p: dict) -> None:
 
     if not row.get("ccf_tier"):
         row["ccf_tier"] = _match_ccf(row.get("venue", ""), row.get("journal_title", "")) or None
+
+    if not row.get("code_url"):
+        row["code_url"] = extract_code_url(p) or None
 
     placeholders = ", ".join(f":{c}" for c in PAPER_COLS)
     cols = ", ".join(PAPER_COLS)
@@ -496,18 +514,28 @@ def load_all_papers(light: bool = True) -> list[dict]:
     light=True drops heavy text columns (summary/motivation/method/result/
     conclusion/summary_zh) — the list UI doesn't need them and full payloads
     reached 12.5MB; the detail modal lazy-loads via /api/paper/<id>.
+    Always includes created_at (今日新到筛选) and the knowledge card's
+    relation_to_profile (卡片推荐理由).
     """
     conn = get_conn()
 
-    paper_cols = [c for c in PAPER_COLS if not (light and c == "summary")]
+    paper_cols = [c for c in PAPER_COLS if not (light and c == "summary")] + ["created_at"]
     ai_cols = AI_LIGHT_COLS if light else AI_COLS[1:]
     sql = (
-        f"SELECT {', '.join(f'p.{c}' for c in paper_cols)}, {', '.join(f'a.{c}' for c in ai_cols)} "
+        f"SELECT {', '.join(f'p.{c}' for c in paper_cols)}, {', '.join(f'a.{c}' for c in ai_cols)}, "
+        f"kc.relation_to_profile "
         f"FROM papers p LEFT JOIN ai_results a ON p.id = a.paper_id "
+        f"LEFT JOIN knowledge_cards kc ON p.id = kc.paper_id "
         f"ORDER BY p.created_at DESC"
     )
     rows = conn.execute(sql).fetchall()
-    return [_row_to_dict(row, paper_cols, ai_cols) for row in rows]
+    out = []
+    row_keys = [c.split(".")[-1] for c in paper_cols]  # p.created_at → created_at
+    for row in rows:
+        d = _row_to_dict(row, row_keys, ai_cols)
+        d["relation"] = row["relation_to_profile"]
+        out.append(d)
+    return out
 
 
 def get_written_count() -> int:

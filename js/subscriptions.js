@@ -645,12 +645,53 @@ function removeKeyword(kw) {
 }
 
 let _profileKeywords = [];
+let _profileLiked = [];
+let _profileDisliked = [];
 let _chipKeywords = [];   // chips 数据源：profile 关键词 ∪ 已保存的提取结果
 let _enabledKeywords = null; // null = all enabled, Set = specific set
 
 // LLM 生成的关键词可能含 " ' < &，插入 HTML 属性前必须转义
 function _kwEsc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+}
+
+// ── 反馈学到的偏好可视化（liked/disliked 主题，可删）──
+function renderTopicChips() {
+    const section = document.getElementById('profile-topics-section');
+    const likedEl = document.getElementById('liked-topics-chips');
+    const dislikedEl = document.getElementById('disliked-topics-chips');
+    if (!section || !likedEl || !dislikedEl) return;
+    const hasAny = _profileLiked.length || _profileDisliked.length;
+    section.style.display = hasAny ? '' : 'none';
+    const chip = (t, kind) =>
+        `<span class="badge badge--secondary" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:0.78rem">
+            ${_kwEsc(t)}
+            <button data-remove-topic="${kind}" data-topic="${_kwEsc(t)}" style="background:none;border:none;color:var(--text-3);cursor:pointer;padding:0 2px;line-height:1">&times;</button>
+        </span>`;
+    likedEl.innerHTML = _profileLiked.map(t => chip(t, 'liked')).join('') ||
+        '<span style="font-size:0.75rem;color:var(--text-3)">（暂无——点赞论文后系统会自动提取）</span>';
+    dislikedEl.innerHTML = _profileDisliked.map(t => chip(t, 'disliked')).join('') ||
+        '<span style="font-size:0.75rem;color:var(--text-3)">（暂无）</span>';
+}
+
+async function removeTopic(kind, topic) {
+    const arr = kind === 'liked' ? _profileLiked : _profileDisliked;
+    const idx = arr.indexOf(topic);
+    if (idx < 0) return;
+    arr.splice(idx, 1);
+    try {
+        // 只发被改的字段，后端 merge 保存保留其余 profile 内容
+        const body = kind === 'liked' ? { liked_topics: arr } : { disliked_topics: arr };
+        await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (showToast) showToast('已删除该偏好主题');
+    } catch {
+        if (showToast) showToast('保存失败');
+    }
+    renderTopicChips();
 }
 
 async function loadProfileKeywords() {
@@ -672,6 +713,10 @@ async function loadProfileKeywords() {
             } else {
                 _enabledKeywords = new Set(_profileKeywords);
             }
+            // 展示反馈闭环学到的偏好（可删）
+            _profileLiked = profile.liked_topics || [];
+            _profileDisliked = profile.disliked_topics || [];
+            renderTopicChips();
         }
     } catch {}
 }
@@ -967,6 +1012,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-add-keyword')?.addEventListener('click', addKeywords);
     document.getElementById('use-profile-keywords')?.addEventListener('change', toggleCustomKeywords);
     document.getElementById('btn-extract-keywords')?.addEventListener('click', autoExtractKeywords);
+    // 删除学到的偏好主题（liked/disliked chips）
+    document.getElementById('sub-tab-search')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-topic]');
+        if (btn) removeTopic(btn.dataset.removeTopic, btn.dataset.topic);
+    });
     document.getElementById('custom-keywords')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addKeywords(); }
     });

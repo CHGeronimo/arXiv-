@@ -12,6 +12,8 @@ import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal, openProfileModal, closeProfileModal, saveProfile } from './modal.js';
 import { loadGraph } from './graph.js';
 import { loadTrendRadar } from './trend.js';
+import { initDigestPage } from './digest.js';
+import { toggleCompare, openCompare, closeCompare, clearCompare } from './compare.js';
 
 // Theme
 const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色' };
@@ -218,6 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (name && confirm(`关注作者 "${name}" 的最新论文？`)) quickFollowAuthor(name);
             return;
         }
+        const cmpBtn = e.target.closest('.compare-btn');
+        if (cmpBtn) {
+            e.stopPropagation();
+            const cmpId = cmpBtn.dataset.compareId;
+            const { filteredPapers: fpLive } = await import('./state.js');
+            const target = fpLive.find(p => p.id === cmpId) || { id: cmpId, title: '' };
+            toggleCompare(target);
+            return;
+        }
         const card = e.target.closest('.paper-card[data-idx]');
         if (card && !e.target.closest('[data-feedback-action], .card-feedback-detail, .bookmark-btn, .card-vote-btn.delete, .author-link')) {
             const idx = parseInt(card.dataset.idx);
@@ -264,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         graph: { id: 'graph-page', load: () => loadGraph() },
         trend: { id: 'trend-page', load: () => loadTrendRadar() },
         idea: { id: 'idea-page', load: null },
+        digest: { id: 'digest-page', load: () => initDigestPage() },
     };
     function showPage(pageId) {
         document.getElementById('paper-container').style.display = 'none';
@@ -289,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-graph')?.addEventListener('click', () => { location.hash = '#/graph'; });
     document.getElementById('btn-trend')?.addEventListener('click', () => { location.hash = '#/trend'; });
     document.getElementById('btn-idea')?.addEventListener('click', () => { location.hash = '#/idea'; });
+    document.getElementById('btn-digest')?.addEventListener('click', () => { location.hash = '#/digest'; });
     document.querySelectorAll('.btn-back-papers').forEach(btn => {
         btn.addEventListener('click', () => { location.hash = '#/'; });
     });
@@ -377,6 +390,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 emptyEl.style.display = '';
             }
         }
+    });
+
+    // Compare modal + floating bar
+    document.getElementById('close-compare-modal')?.addEventListener('click', closeCompare);
+    document.getElementById('compare-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeCompare(); });
+    document.getElementById('btn-compare-go')?.addEventListener('click', openCompare);
+    document.getElementById('btn-compare-clear')?.addEventListener('click', clearCompare);
+
+    // BibTeX batch export: current filtered list → .bib download
+    document.getElementById('btn-export-bibtex')?.addEventListener('click', async () => {
+        const { filteredPapers: fp } = await import('./state.js');
+        if (!fp.length) { showToast('当前筛选无论文'); return; }
+        const ids = fp.map(p => p.id);
+        try {
+            const resp = await fetch('/api/export/bibtex', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids }),
+            });
+            if (!resp.ok) throw new Error();
+            const text = await resp.text();
+            const blob = new Blob([text], { type: 'application/x-bibtex' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `arxivsci-${new Date().toISOString().slice(0, 10)}-${ids.length}papers.bib`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            showToast(`已导出 ${ids.length} 篇 BibTeX`);
+        } catch { showToast('导出失败'); }
     });
 
     // Close dropdowns on outside click (no-op for sidebar)

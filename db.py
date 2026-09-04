@@ -195,6 +195,9 @@ def init_db() -> None:
         conn.execute("ALTER TABLE feedback ADD COLUMN bookmarked INTEGER DEFAULT 0")
     if "is_read" not in feedback_cols:
         conn.execute("ALTER TABLE feedback ADD COLUMN is_read INTEGER DEFAULT 0")
+    papers_cols = {r[1] for r in conn.execute("PRAGMA table_info(papers)")}
+    if "code_url" not in papers_cols:
+        conn.execute("ALTER TABLE papers ADD COLUMN code_url TEXT")
 
     logger.info("数据库架构已初始化")
 

@@ -946,9 +946,15 @@ def search_author_api():
 # ── BibTeX Export ─────────────────────────────────────────────────
 
 def _bibtex_for(paper: dict) -> str:
-    authors = " and ".join(paper.get("authors") or [])
+    authors_list = paper.get("authors") or []
+    authors = " and ".join(authors_list)
     year = (paper.get("published_date") or "")[:4]
-    key = (paper.get("id") or "unknown").replace("/", "_").replace(":", "_")[:40]
+    # authorYear 风格引用键（LaTeX 惯例）：第一作者姓氏+年份+标题首个实义词
+    first_author = (authors_list[0].split()[-1] if authors_list else "anon").lower()
+    title_words = [w for w in (paper.get("title") or "").split() if w]
+    content_words = [w for w in title_words if w.lower() not in ("a", "an", "the")]
+    first_word = "".join(ch for ch in (content_words[0] if content_words else "paper") if ch.isalpha()).lower()
+    key = "".join(ch for ch in f"{first_author}{year}{first_word}" if ch.isalnum()) or "unknown"
     title = paper.get("title") or ""
     venue = paper.get("venue") or paper.get("journal_title") or ""
     doi = paper.get("doi") or ""

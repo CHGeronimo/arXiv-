@@ -10,6 +10,8 @@ export let activeFilters = {
     type: new Set(),
     bookmarked: new Set(),
     ccf: new Set(),
+    today: new Set(),
+    code: new Set(),
 };
 export let searchQuery = '';
 export let dateFilter = '';

@@ -37,6 +37,7 @@
                 </div>
             </div>
             <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
+            <button id="btn-digest" class="btn btn--icon" title="每日简报">📰</button>
             <button id="btn-graph" class="btn btn--icon" title="知识图谱">🕸️</button>
             <button id="btn-trend" class="btn btn--icon" title="趋势雷达">📡</button>
             <button id="btn-idea" class="btn btn--icon" title="想法检查">💡</button>
@@ -63,6 +64,7 @@
         <div class="sidebar-data-mgmt">
             <div class="filter-group-header" id="toggle-data-mgmt">数据管理 <span class="group-arrow">▼</span></div>
             <div class="filter-group-body" id="data-mgmt-body" style="display:none">
+                <button class="btn btn--secondary" id="btn-export-bibtex" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">📤 导出当前筛选 BibTeX</button>
                 <button class="btn btn--secondary" id="btn-purge-skip" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">删除所有 skip 论文</button>
                 <div style="display:flex;gap:4px;margin-bottom:6px">
                     <input type="date" id="purge-date-input" style="flex:1;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.78rem">
@@ -80,6 +82,20 @@
             <span>正在加载论文...</span>
         </div>
     </main>
+
+    <div id="digest-page" class="page-section">
+        <h2 class="page-header">每日简报</h2>
+        <p class="page-subtitle">AI 按主题分组整理的新论文简报，含必读推荐与亮点</p>
+        <div class="page-toolbar page-toolbar--top">
+            <select id="digest-date-select" style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-0);color:var(--text-0);font-size:0.85rem"></select>
+            <button class="btn btn--secondary btn-back-papers">返回论文</button>
+        </div>
+        <div id="digest-empty" class="page-empty-state">
+            <p>暂无简报</p>
+            <p class="hint">简报每天凌晨随自动跑批生成；也可在爬取菜单触发后稍等</p>
+        </div>
+        <div id="digest-content" class="digest-content" style="display:none"></div>
+    </div>
 
     <div id="graph-page" class="page-section">
         <h2 class="page-header">知识图谱</h2>
@@ -133,6 +149,22 @@
             <p>输入研究想法，AI 将分析其可行性和差异化</p>
         </div>
         <div id="idea-result" class="idea-result"></div>
+    </div>
+
+    <!-- Paper Compare Modal -->
+    <div id="compare-modal" class="modal">
+        <div class="modal-content" style="max-width:1100px">
+            <button class="close-btn" id="close-compare-modal">&times;</button>
+            <h2 style="margin:0 0 12px">论文对比</h2>
+            <div id="compare-content"></div>
+        </div>
+    </div>
+
+    <!-- Compare floating bar -->
+    <div id="compare-bar" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-full);padding:8px 16px;box-shadow:var(--shadow-lg);display:none;align-items:center;gap:10px">
+        <span id="compare-count" style="font-size:0.85rem;color:var(--text-1)"></span>
+        <button id="btn-compare-go" class="btn btn--primary" style="font-size:0.82rem;padding:4px 14px">对比</button>
+        <button id="btn-compare-clear" class="btn btn--secondary" style="font-size:0.82rem;padding:4px 10px">清除</button>
     </div>
 
     <!-- Paper Detail Modal -->
@@ -234,6 +266,16 @@
                 </div>
                 <div id="keyword-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"></div>
                 <p id="keyword-chips-hint" style="font-size:0.72rem;color:var(--text-3);margin:0 0 8px"></p>
+                <div id="profile-topics-section" style="display:none">
+                    <details style="margin-bottom:6px">
+                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">✅ 系统学到的偏好（点赞提取，点 ✕ 删除）</summary>
+                        <div id="liked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+                    </details>
+                    <details>
+                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">🚫 学到的负偏好（点踩提取，点 ✕ 删除）</summary>
+                        <div id="disliked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+                    </details>
+                </div>
                 <div id="custom-keywords-section" style="display:none">
                     <div style="display:flex;gap:6px;align-items:center">
                         <input id="custom-keywords" type="text" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem" placeholder="输入关键词，逗号/分号分隔，回车添加" />

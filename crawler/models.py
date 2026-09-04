@@ -28,6 +28,7 @@ class Paper:
     acceptance: str = ""
     citation_count: int = 0
     version: str = ""
+    code_url: str = ""
 
     def to_jsonl(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
