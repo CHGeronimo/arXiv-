@@ -71,7 +71,7 @@ export async function triggerCrawl(job, { loadPapers }) {
         } catch { showToast('启动失败'); }
         return;
     }
-    const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2'] : [job];
+    const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2', 'citations'] : [job];
     for (const j of jobs) {
         const el = document.getElementById(`crawl-${j}`);
         if (el) el.textContent = '...';

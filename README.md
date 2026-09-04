@@ -37,8 +37,11 @@ S2 Author (04:00)─┘      ↓
 | arXiv | `crawler/arxiv_crawler.py` | 每日 02:00 | 按 category 订阅，后续串联增强/知识卡片/全文分析/digest |
 | Crossref | `crawler/crossref_crawler.py` | 每日 02:30 | 期刊订阅（Nature 等），仅保留 research |
 | DBLP | `crawler/dblp_crawler.py` | 每日 03:00 | 55 个 CCF 会议（AI/数据/图形/理论/SE/网络/安全/体系/HCI） |
-| OpenAlex | `crawler/openalex_crawler.py` | 每日 03:30 | LLM扩展关键词+语义搜索，替代S2 |
+| OpenAlex | `crawler/openalex_crawler.py` | 每日 03:30 | LLM扩展关键词+语义搜索（日期降序，保新论文可见），替代S2 |
 | Author | `crawler/author_crawler.py` | 每日 04:00 | S2 Author API + ORCID 辅助查找 |
+| 引文 | `crawler/citation_crawler.py` | 每日 04:30 | 顺藤摸瓜：must-read∪点赞论文的引用/被引（OpenAlex 免费，锚点轮换） |
+
+发现质量审计：`python scripts/audit_discovery.py --sample 20`（漏斗结构 / 评分×反馈混淆矩阵 / 锚点池）。arXiv 支持断档回补（停机 ≥2 天自动按提交日期区间补抓）。
 
 ## 存储层
 

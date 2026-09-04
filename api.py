@@ -18,7 +18,8 @@ from paper_store import (
 from db import get_conn, queue_write, sync_write
 from jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
-    run_s2_job, run_author_job, run_retro_enhance, run_digest_job,
+    run_s2_job, run_author_job, run_citations_job,
+    run_retro_enhance, run_digest_job,
 )
 
 
@@ -290,6 +291,7 @@ def trigger_job(job: str):
         "dblp": run_dblp_job,
         "s2": run_s2_job,
         "author": run_author_job,
+        "citations": run_citations_job,
     }
     if job not in job_funcs:
         return jsonify({"error": "unknown job"}), 400

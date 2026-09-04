@@ -33,6 +33,12 @@ export function renderPapers() {
             ? `<span class="badge badge--source-dblp">DBLP</span>`
             : paper.source === 'semantic_scholar'
             ? `<span class="badge badge--source-s2">S2</span>`
+            : paper.source === 'citation'
+            ? `<span class="badge badge--venue">🔗 引文</span>`
+            : paper.source === 'openalex'
+            ? `<span class="badge badge--source-s2">OA</span>`
+            : paper.source === 'author_s2'
+            ? `<span class="badge badge--source-s2">作者</span>`
             : `<span class="badge badge--source-arxiv">arXiv</span>`;
         const venueBadge = paper.venue ? `<span class="badge badge--venue">${paper.venue}</span>` : '';
         const accBadge = paper.acceptance ? `<span class="badge badge--acc">${paper.acceptance}</span>` : '';

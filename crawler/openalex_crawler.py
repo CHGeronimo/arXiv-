@@ -29,7 +29,9 @@ class OpenAlexCrawler:
             "search": keyword,
             "per_page": self.max_per_keyword,
             "filter": f"from_publication_date:{self.year_from}-01-01,type:article",
-            "sort": "relevance_score:desc",
+            # 日期降序：relevance 排序下老经典长期霸榜，新论文进不了 top-N
+            # 就永远发现不了；精度交给下游漏斗
+            "sort": "publication_date:desc",
             "select": "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,cited_by_count,concepts",
         }
         data = openalex_get(OPENALEX_BASE, params) or {}

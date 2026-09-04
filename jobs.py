@@ -24,6 +24,7 @@ from ai.enhance import enhance_single, load_research_profile
 from ai.keyword_expander import expand_keywords
 from crawler.arxiv_crawler import ArxivCrawler
 from crawler.author_crawler import AuthorCrawler
+from crawler.citation_crawler import CitationCrawler
 from crawler.crossref_crawler import CrossrefCrawler
 from crawler.dblp_crawler import DblpCrawler
 from crawler.openalex_crawler import OpenAlexCrawler
@@ -195,7 +196,11 @@ class ArxivJob(BaseCrawlerJob):
     name = "arxiv"
 
     def _create_crawler(self, subs: Subscriptions):
-        """Build ArxivCrawler with categories and all known/ignored IDs excluded."""
+        """Build ArxivCrawler with categories and all known/ignored IDs excluded.
+
+        Tracks the last successful run in the KV table; if the daemon was down
+        for >= 2 days, enables submittedDate backfill so missed days are
+        re-fetched instead of lost forever."""
         if not subs.arxiv_categories:
             return None
         conn = get_conn()
@@ -206,12 +211,38 @@ class ArxivJob(BaseCrawlerJob):
         # Exclude previously filtered papers to avoid re-processing
         ignored_rows = conn.execute("SELECT paper_id FROM ignored_papers").fetchall()
         existing_ids |= {row["paper_id"] for row in ignored_rows}
+
+        backfill_since = None
+        kv = conn.execute(
+            "SELECT value FROM subscriptions WHERE key = 'arxiv_last_success'"
+        ).fetchone()
+        if kv:
+            try:
+                from datetime import date
+                last = date.fromisoformat(kv["value"][:10])
+                gap = (date.today() - last).days
+                if gap >= 2:
+                    backfill_since = kv["value"][:10]
+                    logger.info(f"[arxiv] 检测到断档 {gap} 天，启用回补（自 {backfill_since}）")
+            except ValueError:
+                pass
+
         return ArxivCrawler(
-            categories=subs.arxiv_categories, existing_ids=existing_ids
+            categories=subs.arxiv_categories,
+            existing_ids=existing_ids,
+            backfill_since=backfill_since,
         )
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no categories"
+
+    def _post_run(self, subs: Subscriptions, fetched_info: dict) -> None:
+        from datetime import date
+        conn = get_conn()
+        conn.execute(
+            "INSERT OR REPLACE INTO subscriptions (key, value) VALUES ('arxiv_last_success', ?)",
+            (date.today().isoformat(),),
+        )
 
 
 class CrossrefJob(BaseCrawlerJob):
@@ -342,6 +373,39 @@ class AuthorJob(BaseCrawlerJob):
             _save_subs(fresh)
 
 
+class CitationJob(BaseCrawlerJob):
+    """Citation-following discovery: expand must-read/liked anchors via OpenAlex."""
+    name = "citations"
+
+    def _create_crawler(self, subs: Subscriptions):
+        if os.environ.get("CITATION_ENABLED", "on").strip().lower() in ("off", "0", "false"):
+            return None
+        limit = int(os.environ.get("CITATION_ANCHORS_PER_RUN", "10"))
+        conn = get_conn()
+        rows = conn.execute("""
+            SELECT p.id, p.doi, p.title FROM papers p
+            LEFT JOIN feedback f ON f.paper_id = p.id
+            WHERE p.doi IS NOT NULL AND p.doi != ''
+              AND (
+                EXISTS (SELECT 1 FROM ai_results a WHERE a.paper_id = p.id AND a.recommendation = 'must-read')
+                OR f.rating = 'like'
+              )
+            ORDER BY p.created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        anchors = [dict(r) for r in rows]
+        if not anchors:
+            return None
+        logger.info(f"[citations] 本轮锚点 {len(anchors)} 篇（must-read ∪ 用户点赞，含 DOI）")
+        return CitationCrawler(
+            anchors=anchors,
+            max_per_anchor=int(os.environ.get("CITATION_MAX_PER_ANCHOR", "15")),
+        )
+
+    def _skip_reason(self, subs: Subscriptions) -> str:
+        return "disabled or no must-read/liked anchors with DOI"
+
+
 # ---------------------------------------------------------------------------
 # Job registry
 # ---------------------------------------------------------------------------
@@ -352,6 +416,7 @@ JOBS: dict[str, BaseCrawlerJob] = {
     "dblp": DblpJob(),
     "s2": S2Job(),
     "author": AuthorJob(),
+    "citations": CitationJob(),
 }
 
 
@@ -377,6 +442,10 @@ def run_s2_job():
 
 def run_author_job():
     JOBS["author"].run()
+
+
+def run_citations_job():
+    JOBS["citations"].run()
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +553,7 @@ JOB_FUNCS = {
     "dblp": run_dblp_job,
     "s2": run_s2_job,
     "author": run_author_job,
+    "citations": run_citations_job,
 }
 
 

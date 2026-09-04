@@ -26,9 +26,11 @@ class ArxivCrawler:
         existing_ids: Set[str] | None = None,
         delay_seconds: float = 1.0,
         num_retries: int = 5,
+        backfill_since: str | None = None,
     ):
         self.categories = categories
         self.existing_ids = existing_ids or set()
+        self.backfill_since = backfill_since  # "YYYY-MM-DD"，断档回补起点
         self.client = arxiv.Client(
             page_size=100,
             delay_seconds=delay_seconds,
@@ -143,8 +145,36 @@ class ArxivCrawler:
             except Exception as e:
                 logger.error(f"元数据批次失败 ({i//batch_size + 1}): {e}")
 
+    def _backfill_ids(self) -> List[str]:
+        """Query the arXiv API by submittedDate range for days the new-listing
+        crawl may have missed (daemon downtime). /list/<cat>/new only shows the
+        latest announcement — skipped days are gone forever without this."""
+        from datetime import datetime, timezone
+
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        start = self.backfill_since.replace("-", "")
+        ids: List[str] = []
+        for cat in self.categories:
+            try:
+                search = arxiv.Search(
+                    query=f"cat:{cat} AND submittedDate:[{start}0000 TO {today}2359]",
+                    max_results=400,
+                    sort_by=arxiv.SortCriterion.SubmittedDateDescending,
+                )
+                for result in self.client.results(search):
+                    raw = result.entry_id.split("/")[-1]
+                    ids.append(re.sub(r"v\d+$", "", raw))
+            except Exception as e:
+                logger.warning(f"arXiv 回补 {cat} 失败: {e}")
+        return ids
+
     def crawl_iter(self) -> Generator[Paper, None, None]:
         ids = self.fetch_new_ids()
+        if self.backfill_since:
+            backfilled = self._backfill_ids()
+            before = len(set(ids))
+            ids = list(dict.fromkeys(ids + backfilled))
+            logger.info(f"[arxiv] 回补窗口 {self.backfill_since} → 今天: 新增 {len(set(ids)) - before} 个 ID")
         new_ids = [i for i in ids if i not in self.existing_ids]
         logger.info(f"[arxiv] 共 {len(ids)} 篇, {len(new_ids)} 篇新增 (跳过 {len(ids) - len(new_ids)} 篇已知)")
         yield from self.fetch_metadata_iter(new_ids)

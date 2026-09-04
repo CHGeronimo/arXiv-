@@ -28,6 +28,9 @@ export function buildFilterOptions() {
             { value: 'arxiv', label: 'arXiv' },
             { value: 'crossref', label: '期刊' },
             { value: 'dblp', label: 'DBLP 会议' },
+            { value: 'openalex', label: 'OA 搜索' },
+            { value: 'citation', label: '引文追踪' },
+            { value: 'author_s2', label: '作者' },
             { value: 'semantic_scholar', label: 'S2 搜索' },
         ]},
         { key: 'venue', label: '会议', options:
