@@ -110,6 +110,7 @@ export function renderPapers() {
                 <div class="card-feedback-detail ${showFb ? 'visible' : ''}" data-feedback-detail="${escAttr(paper.id)}">
                     <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
                     <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
+                    <div class="feedback-note-row"><input type="text" class="feedback-note" data-note-id="${escAttr(paper.id)}" value="${escAttr(fb.note || '')}" placeholder="评语（可选）：为什么有用/没用？会直接影响 AI 评分"></div>
                 </div>
             </div>`;
     }).join('');

@@ -69,6 +69,15 @@ def _save_subs(subs: Subscriptions) -> None:
     subs.save(SUBS_PATH)
 
 
+def _write_profile_atomic(profile: dict) -> None:
+    """Atomic profile write (tmp+replace) — concurrent readers (tests, the
+    running daemon) never see a torn file."""
+    tmp = "research_profile.json.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(profile, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, "research_profile.json")
+
+
 # ── Static ────────────────────────────────────────────────────────
 
 # The project root doubles as the static dir; never serve secrets or data.
@@ -234,9 +243,7 @@ def put_profile():
         except Exception:
             merged = {}
     merged.update(data)
-    profile_path.write_text(
-        json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    _write_profile_atomic(merged)
     reset_ai_chain()
     return jsonify(merged)
 
@@ -354,9 +361,9 @@ def save_feedback():
            VALUES (?, ?, ?, ?, ?, datetime('now'))
            ON CONFLICT(paper_id) DO UPDATE SET
              rating = excluded.rating,
-             relevance = excluded.relevance,
-             novelty = excluded.novelty,
-             note = excluded.note,
+             relevance = COALESCE(excluded.relevance, relevance),
+             novelty = COALESCE(excluded.novelty, novelty),
+             note = COALESCE(excluded.note, note),
              updated_at = datetime('now')""",
         (paper_id, rating or None, relevance, novelty, note or None),
     )
@@ -871,81 +878,99 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
     return topics
 
 
+_profile_lock = threading.Lock()
+
+
 def _update_profile_from_feedback(paper_id: str, rating: str):
     """Extract topics from a liked/disliked paper and update research_profile.json.
 
     Uses LLM to extract 5-7 topic phrases from the paper's AI analysis,
     then appends them to liked_topics or disliked_topics in the profile.
     After appending, runs LLM semantic dedup on the full list.
-    Keeps the most recent 100 entries per list.
+    Keeps the most recent 100 entries per list. Serialized by _profile_lock —
+    concurrent feedback threads must not read-modify-write over each other.
     """
     if rating not in ("like", "dislike"):
         return
-
-    conn = get_conn()
-    row = conn.execute(
-        "SELECT method, motivation FROM ai_results WHERE paper_id = ?", (paper_id,)
-    ).fetchone()
-    if not row or (not row["method"] and not row["motivation"]):
-        return
-
-    # 用户滑杆分值一并提供：相关性/新颖性打分影响主题提取的倾向
-    fb = conn.execute(
-        "SELECT relevance, novelty FROM feedback WHERE paper_id = ?", (paper_id,)
-    ).fetchone()
-    score_hint = ""
-    if fb and (fb["relevance"] or fb["novelty"]):
-        score_hint = f"\nUser scores (1-5): relevance={fb['relevance'] or '-'}, novelty={fb['novelty'] or '-'}."
-
-    method = row["method"] or ""
-    motivation = row["motivation"] or ""
-    if not method.strip() and not motivation.strip():
-        return
-
-    try:
-        from ai.llm import build_chat
-        llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
-        resp = llm.invoke(
-            f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
-            f"Return ONLY a JSON array of strings, no explanation.\n\n"
-            f"Method: {method[:500]}\nMotivation: {motivation[:300]}{score_hint}"
-        )
-        topics = json.loads(resp.content)
-        if not isinstance(topics, list):
+    with _profile_lock:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT method, motivation FROM ai_results WHERE paper_id = ?", (paper_id,)
+        ).fetchone()
+        if not row or (not row["method"] and not row["motivation"]):
             return
-        topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()][:7]
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"主题提取失败 {paper_id}: {e}")
-        return
 
-    if not topics:
-        return
+        # 用户滑杆分值 + 评语一并提供：精细反馈参与画像提取
+        fb = conn.execute(
+            "SELECT relevance, novelty, note FROM feedback WHERE paper_id = ?", (paper_id,)
+        ).fetchone()
+        score_hint = ""
+        if fb and (fb["relevance"] or fb["novelty"]):
+            score_hint = f"\nUser scores (1-5): relevance={fb['relevance'] or '-'}, novelty={fb['novelty'] or '-'}."
+        note = (fb["note"] if fb and fb["note"] else "").strip()
+        note_hint = f"\nUser comment (highest-priority signal, extract topics it emphasizes): {note}" if note else ""
 
-    profile_path = Path("research_profile.json")
-    try:
-        profile = json.loads(profile_path.read_text(encoding="utf-8"))
-    except Exception:
-        return
+        method = row["method"] or ""
+        motivation = row["motivation"] or ""
+        if not method.strip() and not motivation.strip():
+            return
 
-    key = "liked_topics" if rating == "like" else "disliked_topics"
-    current = profile.get(key, [])
+        # 评语原文进入 profile.feedback_notes（最近20条），直通 AI 评分提示词
+        if note:
+            try:
+                profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+            except Exception:
+                profile = {}
+            notes = profile.get("feedback_notes", [])
+            tagged = f"[{rating}] {note[:200]}"
+            if tagged not in notes:
+                notes.append(tagged)
+                profile["feedback_notes"] = notes[-20:]
+                _write_profile_atomic(profile)
 
-    existing_lower = {t.lower() for t in current}
-    new_added = []
-    for t in topics:
-        if t.lower() not in existing_lower:
-            current.append(t)
-            existing_lower.add(t.lower())
-            new_added.append(t)
+        try:
+            from ai.llm import build_chat
+            llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
+            resp = llm.invoke(
+                f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
+                f"Return ONLY a JSON array of strings, no explanation.\n\n"
+                f"Method: {method[:500]}\nMotivation: {motivation[:300]}{score_hint}{note_hint}"
+            )
+            topics = json.loads(resp.content)
+            if not isinstance(topics, list):
+                return
+            topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()][:7]
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"主题提取失败 {paper_id}: {e}")
+            return
 
-    if new_added and len(current) > 5:
-        current = _deduplicate_topics(current)
+        if not topics:
+            return
 
-    profile[key] = current[-100:]
-    profile_path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
-    # 立即失效缓存的 AI 链画像，否则反馈闭环要等 daemon 重启才生效
-    reset_ai_chain()
-    logging.getLogger(__name__).info(f"Profile updated: {key} += {new_added} (after dedup: {len(profile[key])} topics)")
+        try:
+            profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+        except Exception:
+            return
+
+        key = "liked_topics" if rating == "like" else "disliked_topics"
+        current = profile.get(key, [])
+
+        existing_lower = {t.lower() for t in current}
+        new_added = []
+        for t in topics:
+            if t.lower() not in existing_lower:
+                current.append(t)
+                existing_lower.add(t.lower())
+                new_added.append(t)
+
+        if new_added and len(current) > 5:
+            current = _deduplicate_topics(current)
+
+        profile[key] = current[-100:]
+        _write_profile_atomic(profile)
+        # 立即失效缓存的 AI 链画像，否则反馈闭环要等 daemon 重启才生效
+        reset_ai_chain()
+        logging.getLogger(__name__).info(f"Profile updated: {key} += {new_added} (after dedup: {len(profile[key])} topics)")
 
 
 # ── Author Search ─────────────────────────────────────────────────

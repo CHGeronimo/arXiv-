@@ -508,6 +508,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(r => r.ok ? fetchFeedback() : Promise.resolve()).then(() => renderPapers());
     });
 
+    // Feedback: note input (delegation from card and modal; 'change' fires on blur with modified value)
+    document.addEventListener('change', (e) => {
+        const noteInput = e.target;
+        if (!noteInput.classList || !noteInput.classList.contains('feedback-note')) return;
+        const paperId = noteInput.dataset.noteId;
+        const current = feedbackData[paperId] || {};
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paper_id: paperId,
+                rating: current.rating || '',
+                relevance: current.relevance || null,
+                novelty: current.novelty || null,
+                note: noteInput.value.trim().slice(0, 200),
+            }),
+        }).then(r => r.ok ? fetchFeedback() : null).then(() => showToast('评语已保存，将影响后续评分'));
+    });
+
     // Feedback: sliders (delegation from card and modal)
     document.addEventListener('change', (e) => {
         if (!e.target.classList.contains('feedback-slider')) return;

@@ -847,6 +847,22 @@
 .digest-content hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
 .digest-content a { color: var(--accent-primary); }
 
+.feedback-note-row { margin-top: 4px; }
+.feedback-note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--text-1);
+}
+.feedback-note:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
 .feedback-slider-row {
   display: flex;
   align-items: center;

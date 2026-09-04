@@ -4,6 +4,7 @@ Keywords: {keywords}
 Quality Criteria: {quality_criteria}
 Preferred Topics: {liked_topics}
 Disliked Topics: {disliked_topics}
+Recent Feedback Notes (user's own words — treat as highest-priority preference signal): {recent_notes}
 
 ## Paper to Analyze
 Title: {title}
