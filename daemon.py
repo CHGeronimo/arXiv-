@@ -46,6 +46,8 @@ def main():
 
     def _signal_handler(sig, frame):
         logger.info("正在关闭...")
+        from jobs import request_shutdown
+        request_shutdown()
         sched.stop()
         stop_writer()
         sys.exit(0)

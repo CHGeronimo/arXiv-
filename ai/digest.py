@@ -40,14 +40,16 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
     from db import get_conn, queue_write
 
     conn = get_conn()
+    # 按入库时间取论文：published_date 是投稿日（arXiv 早 1-2 天、会议论文是年初），
+    # 按 published_date=今天 查永远查空；凌晨跑批时用当天 created_at 才能覆盖本轮新论文
     rows = conn.execute(
         """SELECT p.title, p.source, p.journal_title, p.categories,
                   ai.tldr, ai.recommendation, ai.quality_score, ai.relevance_score
            FROM papers p JOIN ai_results ai ON p.id = ai.paper_id
-           WHERE p.published_date = ?
+           WHERE p.created_at >= ? AND ai.recommendation != 'ignore'
            ORDER BY ai.relevance_score DESC, ai.quality_score DESC
            LIMIT 80""",
-        (date_str,),
+        (f"{date_str} 00:00:00",),
     ).fetchall()
 
     if not rows:

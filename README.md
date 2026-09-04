@@ -165,8 +165,14 @@ data/papers.db             # SQLite 数据库（自动创建+迁移）
 - S2 Author API 无 key 时会 429 rate limit（仅影响作者订阅功能）
 - DBLP 论文摘要依赖 OpenAlex，部分论文可能无 DOI
 - 通知 tab 为预留 UI，后端未实现
-- 前端收藏/已读状态仅 localStorage
 - ES module (app.js) 与普通 script (subscriptions.js) 通过 window. 桥接
+
+## 测试
+
+```bash
+tests/*.py  # 9 个回归测试：路由黑名单/LLM故障不误杀/本地预筛/聚类回退/
+            # 收藏后端化+digest窗口/关键词扩展/提取端点/调度器/OpenAlex节流
+```
 
 ## 后续方向
 

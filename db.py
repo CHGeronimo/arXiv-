@@ -186,7 +186,15 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_ai_results_relevance_score ON ai_results(relevance_score);
         CREATE INDEX IF NOT EXISTS idx_knowledge_cards_keywords ON knowledge_cards(keywords);
         CREATE INDEX IF NOT EXISTS idx_papers_ccf_tier ON papers(ccf_tier);
+        CREATE INDEX IF NOT EXISTS idx_papers_created_at ON papers(created_at);
     """)
+
+    # Schema migrations for databases created before bookmarks were server-side
+    feedback_cols = {r[1] for r in conn.execute("PRAGMA table_info(feedback)")}
+    if "bookmarked" not in feedback_cols:
+        conn.execute("ALTER TABLE feedback ADD COLUMN bookmarked INTEGER DEFAULT 0")
+    if "is_read" not in feedback_cols:
+        conn.execute("ALTER TABLE feedback ADD COLUMN is_read INTEGER DEFAULT 0")
 
     logger.info("数据库架构已初始化")
 

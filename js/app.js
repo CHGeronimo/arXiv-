@@ -2,7 +2,7 @@
 
 import {
     setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
-    refreshTimer, toggleBookmark, showToast,
+    refreshTimer, toggleBookmark, showToast, syncServerFlags,
     filteredPapers, currentPage, setCurrentTheme, currentTheme, setSidebarOpen, sidebarOpen,
     setFeedbackData, feedbackData,
 } from './state.js';
@@ -66,9 +66,13 @@ function startAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     const timer = setInterval(async () => {
         try {
-            const papers = await fetchPapers();
+            // 先查轻量计数，库变了才拉全量列表（列表接口 ~MB 级）
+            const statResp = await fetch('/api/stats');
+            if (!statResp.ok) return;
+            const { total_papers } = await statResp.json();
             const { allPapers } = await import('./state.js');
-            if (papers.length !== allPapers.length) {
+            if (total_papers !== allPapers.length) {
+                const papers = await fetchPapers();
                 setAllPapers(papers);
                 buildFilterOptions();
                 renderPapers();
@@ -82,6 +86,7 @@ function startAutoRefresh() {
 document.addEventListener('DOMContentLoaded', () => {
     loadPapers();
     fetchFeedback();
+    syncServerFlags();  // 合并服务端收藏/已读到本地状态
     startAutoRefresh();
     window.addEventListener('beforeunload', () => { if (refreshTimer) clearInterval(refreshTimer); });
 

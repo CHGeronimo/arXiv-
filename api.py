@@ -70,13 +70,31 @@ def _save_subs(subs: Subscriptions) -> None:
 
 # ── Static ────────────────────────────────────────────────────────
 
+# The project root doubles as the static dir; never serve secrets or data.
+# Flask 的内置 static 路由（static_folder="."）会先于自定义路由匹配，
+# 所以用 before_request 拦截，保证任何路径都过黑名单。
+_STATIC_BLOCKED_PREFIXES = (
+    "ai/", "data/", "logs/", ".git", ".claude", ".understand-anything",
+    "__pycache__", "design-system/", "docs/",
+)
+_STATIC_BLOCKED_SUFFIXES = (".env", ".db", ".db-wal", ".db-shm", ".pyc")
+
+
+@app.before_request
+def _block_sensitive_static():
+    p = request.path.lstrip("/").lower()
+    if p.startswith(_STATIC_BLOCKED_PREFIXES) or p.endswith(_STATIC_BLOCKED_SUFFIXES):
+        return jsonify({"error": "forbidden"}), 403
+    return None
+
+
 @app.route("/")
 def index():
     return send_from_directory(".", "index.html")
 
 
 @app.route("/<path:path>")
-def static_files(path):
+def static_files(path: str):
     return send_from_directory(".", path)
 
 
@@ -86,6 +104,7 @@ def static_files(path):
 def get_papers():
     source_filter = request.args.get("source", "all")
     article_type = request.args.get("type", "all")
+    light = request.args.get("light", "1") != "0"
     try:
         page = max(1, int(request.args.get("page", 1)))
     except (ValueError, TypeError):
@@ -95,7 +114,7 @@ def get_papers():
     except (ValueError, TypeError):
         per_page = 50
 
-    papers = load_all_papers()
+    papers = load_all_papers(light=light)
 
     if source_filter != "all":
         papers = [p for p in papers if p.get("source") == source_filter]
@@ -110,6 +129,15 @@ def get_papers():
         "page": page,
         "per_page": per_page,
     })
+
+
+@app.route("/api/paper/<paper_id>", methods=["GET"])
+def get_paper(paper_id: str):
+    """Full paper record incl. all AI text fields (detail-modal lazy load)."""
+    paper = find_paper_by_id(paper_id)
+    if paper is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(paper)
 
 
 @app.route("/api/stats")
@@ -320,7 +348,9 @@ def save_feedback():
         "INSERT OR REPLACE INTO feedback (paper_id, rating, relevance, novelty, note, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
         (paper_id, rating or None, relevance, novelty, note or None),
     )
-    _update_profile_from_feedback(paper_id, rating)
+    if rating in ("like", "dislike"):
+        # LLM 主题提取可能耗时数秒，放后台线程避免阻塞点赞请求
+        threading.Thread(target=_update_profile_from_feedback, args=(paper_id, rating), daemon=True).start()
     return jsonify({"status": "saved"})
 
 
@@ -335,6 +365,55 @@ def get_feedback():
             "novelty": row[3], "note": row[4], "updated_at": row[5],
         }
     return jsonify(result)
+
+
+# ── Bookmarks / Read state (server-side, was localStorage-only) ────
+
+def _set_feedback_flag(paper_id: str, column: str, value: bool) -> bool:
+    if column not in ("bookmarked", "is_read"):
+        return False
+    import sqlite3
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("INSERT OR IGNORE INTO feedback (paper_id) VALUES (?)", (paper_id,))
+        conn.execute(f"UPDATE feedback SET {column} = ? WHERE paper_id = ?", (1 if value else 0, paper_id))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        logging.getLogger(__name__).warning(f"收藏/已读目标论文不存在: {paper_id}")
+        return False
+
+
+@app.route("/api/bookmarks", methods=["GET"])
+def get_bookmarks():
+    conn = get_conn()
+    bookmarks = [r[0] for r in conn.execute("SELECT paper_id FROM feedback WHERE bookmarked = 1")]
+    reads = [r[0] for r in conn.execute("SELECT paper_id FROM feedback WHERE is_read = 1")]
+    return jsonify({"bookmarks": bookmarks, "reads": reads})
+
+
+@app.route("/api/bookmark", methods=["POST"])
+def set_bookmark():
+    data = request.get_json() or {}
+    pid = data.get("paper_id", "")
+    if not pid:
+        return jsonify({"error": "paper_id required"}), 400
+    if not _set_feedback_flag(pid, "bookmarked", bool(data.get("on"))):
+        return jsonify({"error": "paper not found"}), 404
+    return jsonify({"status": "saved"})
+
+
+@app.route("/api/read", methods=["POST"])
+def mark_read_api():
+    data = request.get_json() or {}
+    pid = data.get("paper_id", "")
+    if not pid:
+        return jsonify({"error": "paper_id required"}), 400
+    if not _set_feedback_flag(pid, "is_read", True):
+        return jsonify({"error": "paper not found"}), 404
+    return jsonify({"status": "saved"})
 
 
 # ── Knowledge Cards (L1) ──────────────────────────────────────────

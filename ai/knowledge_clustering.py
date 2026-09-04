@@ -63,6 +63,7 @@ def _extract_themes(all_keywords: list[str], kw_counter: Counter) -> list[str]:
 def _assign_papers_to_themes_llm(
     paper_kw: dict[str, list[str]],
     themes: list[str],
+    kw_counter: Counter,
     batch_size: int = 200,
 ) -> dict[str, list[str]]:
     """Assign papers to themes using LLM for semantic matching."""
@@ -109,7 +110,7 @@ def _assign_papers_to_themes_llm(
 
     except Exception as e:
         logger.warning(f"LLM assignment failed: {e}, falling back to keyword matching")
-        return _assign_papers_to_themes_kw(paper_kw, themes)
+        return _assign_papers_to_themes_kw(paper_kw, themes, kw_counter)
 
 
 def _assign_papers_to_themes_kw(
@@ -220,7 +221,7 @@ def compute_clusters() -> list[dict]:
     logger.info(f"Extracted {len(themes)} themes: {themes[:10]}...")
 
     # Phase 2: Assign papers (LLM-first, keyword fallback)
-    assignments = _assign_papers_to_themes_llm(paper_kw, themes)
+    assignments = _assign_papers_to_themes_llm(paper_kw, themes, kw_counter)
 
     # Build clusters from assignments
     cluster_papers: dict[str, list[str]] = defaultdict(list)

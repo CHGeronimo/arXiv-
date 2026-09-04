@@ -40,8 +40,14 @@ from paper_store import (
 logger = logging.getLogger("jobs")
 
 _job_status: dict[str, dict] = {}
-_ai_max_workers = int(os.environ.get("AI_MAX_WORKERS", "10"))
+_ai_max_workers = int(os.environ.get("AI_MAX_WORKERS", "5"))
 _shutdown = False
+
+
+def request_shutdown() -> None:
+    """Flag background AI loops to stop early (called on SIGINT/SIGTERM)."""
+    global _shutdown
+    _shutdown = True
 
 SUBS_PATH = "subscriptions.json"
 
@@ -421,6 +427,8 @@ def run_retro_enhance():
                 p = futures[future]
                 try:
                     result = future.result()
+                    if result and result.get("AI", {}).get("_llm_failed"):
+                        continue  # LLM 故障：不写 ignore 结果，下轮重试
                     if result:
                         ai_data = result.get("AI", result)
                         _insert_ai_row(p["id"], ai_data)

@@ -1,12 +1,17 @@
 // js/modal.js — paper detail and profile modals
 
 import { markRead, escAttr, showToast, setAllPapers, getFeedbackForPaper } from './state.js';
-import { exportBibtex, fetchKnowledgeCard, fetchFulltextAnalysis, deletePaper } from './api.js';
+import { exportBibtex, fetchKnowledgeCard, fetchFulltextAnalysis, fetchFullPaper, deletePaper } from './api.js';
 import { renderPapers } from './render.js';
 
-export function openPaperDetail(paper) {
+export async function openPaperDetail(paper) {
     const wasRead = markRead(paper.id);
     if (wasRead) renderPapers();
+    // 列表是轻字段，打开详情时懒加载完整 AI 解读/摘要
+    const full = await fetchFullPaper(paper.id);
+    if (full && full.id) {
+        paper = { ...paper, ...full, AI: { ...(paper.AI || {}), ...(full.AI || {}) } };
+    }
     const modal = document.getElementById('paper-modal');
     const detail = document.getElementById('paper-detail');
 

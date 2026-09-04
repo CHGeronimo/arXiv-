@@ -3,10 +3,20 @@
 import { showToast } from './state.js';
 
 export async function fetchPapers() {
-    const resp = await fetch('/api/papers?per_page=10000');
+    const resp = await fetch('/api/papers?per_page=10000&light=1');
     if (!resp.ok) throw new Error('fetch failed');
     const data = await resp.json();
     return data.papers || [];
+}
+
+export async function fetchFullPaper(paperId) {
+    try {
+        const resp = await fetch(`/api/paper/${encodeURIComponent(paperId)}`);
+        if (!resp.ok) return null;
+        return await resp.json();
+    } catch {
+        return null;
+    }
 }
 
 export async function quickFollowAuthor(name) {

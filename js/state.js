@@ -49,6 +49,30 @@ export function setSidebarOpen(v) {
 export const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
 export const _readPapers = new Set(JSON.parse(localStorage.getItem('readPapers') || '[]'));
 
+function _postFlag(url, body) {
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    }).catch(() => {});
+}
+
+export async function syncServerFlags() {
+    // 启动时把服务端收藏/已读合并进本地（服务端为准补充，本地缓存兜底）
+    try {
+        const resp = await fetch('/api/bookmarks');
+        if (!resp.ok) return;
+        const { bookmarks = [], reads = [] } = await resp.json();
+        let changed = false;
+        bookmarks.forEach(id => { if (!_bookmarks.has(id)) { _bookmarks.add(id); changed = true; } });
+        reads.forEach(id => { if (!_readPapers.has(id)) { _readPapers.add(id); changed = true; } });
+        if (changed) {
+            localStorage.setItem('bookmarks', JSON.stringify([..._bookmarks]));
+            localStorage.setItem('readPapers', JSON.stringify([..._readPapers]));
+        }
+    } catch {}
+}
+
 // Mutators
 export function setAllPapers(p) { allPapers = p; }
 export function setFilteredPapers(p) { filteredPapers = p; }
@@ -62,13 +86,17 @@ export function saveBookmarks() {
     localStorage.setItem('bookmarks', JSON.stringify([..._bookmarks]));
 }
 export function toggleBookmark(id) {
-    _bookmarks.has(id) ? _bookmarks.delete(id) : _bookmarks.add(id);
+    const on = !_bookmarks.has(id);
+    if (on) _bookmarks.add(id);
+    else _bookmarks.delete(id);
     saveBookmarks();
+    _postFlag('/api/bookmark', { paper_id: id, on });
 }
 export function markRead(id) {
     if (!_readPapers.has(id)) {
         _readPapers.add(id);
         localStorage.setItem('readPapers', JSON.stringify([..._readPapers]));
+        _postFlag('/api/read', { paper_id: id });
         return true;
     }
     return false;

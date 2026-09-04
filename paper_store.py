@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
+from pathlib import Path
 
 from ai.enhance import enhance_single, build_chain, load_research_profile
 from ai.knowledge_extractor import extract_knowledge_card
@@ -51,9 +54,10 @@ def get_ai_chain():
 
 def reset_ai_chain():
     """Clear cached AI chain and profile so they are rebuilt on next use."""
-    global _ai_chain, _ai_profile
+    global _ai_chain, _ai_profile, _local_terms
     _ai_chain = None
     _ai_profile = None
+    _local_terms = None
 
 
 def get_quick_chain():
@@ -63,6 +67,48 @@ def get_quick_chain():
         _quick_chain = build_quick_filter()
         logger.info("快速过滤链已初始化")
     return _quick_chain
+
+
+# ---------------------------------------------------------------------------
+# Local zero-cost pre-filter (runs before any LLM call)
+# ---------------------------------------------------------------------------
+
+_local_terms: set[str] | None = None
+
+
+def _local_filter_enabled() -> bool:
+    return os.environ.get("LOCAL_FILTER", "on").strip().lower() not in ("off", "0", "false")
+
+
+def get_local_terms() -> set[str]:
+    """Build the local-filter term set: tokens (len>=4) from profile keywords
+    plus the LLM-expanded search queries cache. Cached until profile reset."""
+    global _local_terms
+    if _local_terms is None:
+        phrases = list(load_research_profile().get("keywords", []))
+        try:
+            cached = json.loads(
+                Path("data/expanded_keywords.json").read_text(encoding="utf-8")
+            )
+            phrases += cached.get("queries", [])
+        except Exception:
+            pass
+        terms: set[str] = set()
+        for phrase in phrases:
+            for tok in re.split(r"[^a-z0-9]+", phrase.lower()):
+                if len(tok) >= 4:
+                    terms.add(tok)
+        _local_terms = terms
+        logger.info(f"本地预筛词表: {len(terms)} 个 token")
+    return _local_terms
+
+
+def local_reject(paper: dict, terms: set[str]) -> bool:
+    """True if title+abstract contain NONE of the term tokens — clearly
+    outside the research direction, not worth an LLM call. Conservative:
+    a single token hit passes through to the LLM filter."""
+    text = f"{paper.get('title', '')} {paper.get('summary', '')}".lower()
+    return not any(t in text for t in terms)
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +131,10 @@ AI_COLS = [
     "quality_score", "relevance_score",
     "recommendation", "skip_reason",
 ]
+
+# 列表页轻字段：去掉 motivation/method/result/conclusion/summary_zh 等长文本，
+# 详情弹窗通过 /api/paper/<id> 懒加载完整内容（12.5MB → ~2-3MB）
+AI_LIGHT_COLS = ["tldr", "title_zh", "quality_score", "relevance_score", "recommendation", "skip_reason"]
 
 _JSON_FIELDS = {"authors", "categories", "issn"}
 
@@ -207,6 +257,14 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
             _insert_paper_row(paper_dict)
             return "written"
 
+        # 本地零成本预筛：与研究方向零重叠的论文不进 LLM
+        if _local_filter_enabled():
+            terms = get_local_terms()
+            if terms and local_reject(paper_dict, terms):
+                ignore_paper(paper.id, "local_filter_reject")
+                logger.debug(f"Local filter rejected: {paper.id}")
+                return "filter_reject"
+
         quick_chain = get_quick_chain()
         chain, profile = get_ai_chain()
         if not quick_filter_paper(paper_dict, quick_chain, profile):
@@ -218,6 +276,10 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
             enhanced = enhance_single(paper_dict, chain, profile, AI_LANGUAGE)
             if enhanced:
                 ai_data = enhanced.get("AI", enhanced)
+                if ai_data.get("_llm_failed"):
+                    # LLM 不可达/超时：不拉黑、不落库，下轮自动重试
+                    logger.warning(f"LLM 增强失败，跳过 {paper.id}（不进 ignored，下轮重试）")
+                    return "error"
                 if ai_data.get("recommendation") in ("ignore",):
                     raw_reason = ai_data.get("skip_reason", "") or "low_relevance"
                     reason = _SKIP_REASON_MAP.get(raw_reason, "low_relevance")
@@ -252,7 +314,11 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
 # Query helpers
 # ---------------------------------------------------------------------------
 
-def _row_to_dict(row: sqlite3.Row) -> dict:
+def _row_to_dict(
+    row,
+    paper_cols: list[str] | None = None,
+    ai_cols: list[str] | None = None,
+) -> dict:
     """Convert a joined papers+ai_results row to a dict.
 
     Paper fields are flattened; AI fields are nested under an "AI" key
@@ -260,8 +326,11 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     """
     import sqlite3
 
+    paper_cols = PAPER_COLS if paper_cols is None else paper_cols
+    ai_cols = AI_COLS[1:] if ai_cols is None else ai_cols
+
     d: dict = {}
-    for col in PAPER_COLS:
+    for col in paper_cols:
         val = row[col]
         if col in _JSON_FIELDS and val is not None:
             try:
@@ -273,7 +342,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     # Build AI sub-dict only if there is meaningful AI data
     has_ai = False
     ai: dict = {}
-    for col in AI_COLS[1:]:  # skip paper_id
+    for col in ai_cols:
         val = row[col]
         ai[col] = val
         # Non-default means some AI processing happened
@@ -419,22 +488,24 @@ def find_paper_by_id(paper_id: str) -> dict | None:
     return _row_to_dict(row)
 
 
-def load_all_papers() -> list[dict]:
+def load_all_papers(light: bool = True) -> list[dict]:
     """Load all papers with their AI results, newest first.
 
-    Returns a list of dicts with paper fields and optional "AI" sub-dict.
+    light=True drops heavy text columns (summary/motivation/method/result/
+    conclusion/summary_zh) — the list UI doesn't need them and full payloads
+    reached 12.5MB; the detail modal lazy-loads via /api/paper/<id>.
     """
     conn = get_conn()
 
-    paper_cols = ", ".join(f"p.{c}" for c in PAPER_COLS)
-    ai_cols = ", ".join(f"a.{c}" for c in AI_COLS[1:])
+    paper_cols = [c for c in PAPER_COLS if not (light and c == "summary")]
+    ai_cols = AI_LIGHT_COLS if light else AI_COLS[1:]
     sql = (
-        f"SELECT {paper_cols}, {ai_cols} "
+        f"SELECT {', '.join(f'p.{c}' for c in paper_cols)}, {', '.join(f'a.{c}' for c in ai_cols)} "
         f"FROM papers p LEFT JOIN ai_results a ON p.id = a.paper_id "
         f"ORDER BY p.created_at DESC"
     )
     rows = conn.execute(sql).fetchall()
-    return [_row_to_dict(row) for row in rows]
+    return [_row_to_dict(row, paper_cols, ai_cols) for row in rows]
 
 
 def get_written_count() -> int:

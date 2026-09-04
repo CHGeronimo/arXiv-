@@ -80,7 +80,9 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
 
     Always returns the paper dict with an 'AI' key populated.
     On partial parse failure, fills missing fields from DEFAULT_AI.
-    On full failure, sets paper['AI'] to DEFAULT_AI.
+    On full failure, sets paper['AI'] to DEFAULT_AI plus '_llm_failed': True
+    so callers can distinguish "LLM said ignore" from "LLM was unreachable"
+    and avoid permanently blacklisting the paper.
     """
     try:
         response: Structure = chain.invoke({
@@ -96,12 +98,15 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
         paper["AI"] = response.model_dump()
     except langchain_core.exceptions.OutputParserException as e:
         partial = _extract_partial(str(e))
-        paper["AI"] = {**DEFAULT_AI, **partial}
         if partial:
+            paper["AI"] = {**DEFAULT_AI, **partial}
             logger.warning(f"论文 {paper.get('id', '?')} AI 数据不完整: {list(partial.keys())}")
+        else:
+            paper["AI"] = {**DEFAULT_AI, "_llm_failed": True}
+            logger.error(f"论文 {paper.get('id', '?')} 增强失败: {e}")
     except Exception as e:
+        paper["AI"] = {**DEFAULT_AI, "_llm_failed": True}
         logger.error(f"论文 {paper.get('id', '?')} 增强失败: {e}")
-        paper["AI"] = dict(DEFAULT_AI)
 
     # Sanitize recommendation to exact allowed values
     rec = paper["AI"].get("recommendation", "ignore")
