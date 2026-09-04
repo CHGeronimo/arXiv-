@@ -84,6 +84,7 @@
 
     <div id="graph-page" class="page-section">
         <h2 class="page-header">知识图谱</h2>
+        <p class="page-subtitle">基于论文关键词的力导向聚类图谱，悬停节点查看详情，拖拽调整布局</p>
         <div class="page-toolbar page-toolbar--top">
             <button id="btn-refresh-graph" class="btn btn--secondary">刷新图谱</button>
             <button class="btn btn--secondary btn-back-papers">返回论文</button>
@@ -92,11 +93,24 @@
             <p>暂无知识图谱数据</p>
             <p class="hint">先触发知识卡片提取和聚类，然后刷新图谱</p>
         </div>
-        <svg id="graph-svg" viewBox="0 0 960 600" preserveAspectRatio="xMidYMid meet" class="graph-svg" style="display:none"></svg>
+        <div class="graph-layout" style="display:none" id="graph-layout">
+            <div class="graph-canvas-wrap">
+                <svg id="graph-svg" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet" class="graph-svg"></svg>
+                <div class="graph-controls">
+                    <button onclick="window._graphZoomReset?.()" title="重置缩放">⟲</button>
+                </div>
+            </div>
+            <div id="graph-detail" class="graph-detail" style="display:none">
+                <div id="graph-detail-content">
+                    <p class="graph-detail-hint">悬停节点查看详情</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="trend-page" class="page-section">
         <h2 class="page-header">趋势雷达</h2>
+        <p class="page-subtitle">AI 自动分析本周论文动态，识别新方法、进展、争议与机会</p>
         <div class="page-toolbar page-toolbar--top">
             <button id="btn-generate-trend" class="btn btn--secondary">生成报告</button>
             <button class="btn btn--secondary btn-back-papers">返回论文</button>
@@ -110,9 +124,10 @@
 
     <div id="idea-page" class="page-section">
         <h2 class="page-header">点子可行性检查</h2>
-        <textarea id="idea-input" rows="3" placeholder="输入你的研究想法..." class="form-textarea idea-textarea"></textarea>
+        <p class="page-subtitle">输入研究想法，AI 分析可行性、新颖性与风险</p>
+        <textarea id="idea-input" rows="3" placeholder="描述你的研究想法，例如：基于因果推理的多智能体信用分配方法..." class="form-textarea idea-textarea"></textarea>
         <div class="page-toolbar page-toolbar--bottom">
-            <button id="btn-check-idea" class="btn btn--secondary">分析</button>
+            <button id="btn-check-idea" class="btn btn--primary">分析</button>
             <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="idea-empty" class="page-empty-state">
@@ -213,9 +228,13 @@
                 <textarea id="inline-profile-direction" rows="2" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem;resize:vertical" placeholder="描述你的研究方向，如：动态不确定环境下的智能感知与协同决策"></textarea>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 4px">
                     <span style="font-size:0.82rem;color:var(--text-2)">搜索关键词</span>
-                    <span style="display:flex;align-items:center;gap:4px;font-size:0.78rem;color:var(--text-3)"><input type="checkbox" id="use-profile-keywords" checked> 自动从方向提取</span>
+                    <span style="display:flex;align-items:center;gap:8px">
+                        <button id="btn-extract-keywords" class="btn btn--secondary" style="font-size:0.75rem;padding:3px 10px" title="LLM 从研究方向描述穷举概念并扩展为搜索关键词">🤖 从方向提取</button>
+                        <span style="display:flex;align-items:center;gap:4px;font-size:0.78rem;color:var(--text-3)"><input type="checkbox" id="use-profile-keywords" checked> 跟随研究方向</span>
+                    </span>
                 </div>
-                <div id="keyword-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"></div>
+                <div id="keyword-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"></div>
+                <p id="keyword-chips-hint" style="font-size:0.72rem;color:var(--text-3);margin:0 0 8px"></p>
                 <div id="custom-keywords-section" style="display:none">
                     <div style="display:flex;gap:6px;align-items:center">
                         <input id="custom-keywords" type="text" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface-0);color:var(--text-0);font-size:0.85rem" placeholder="输入关键词，逗号/分号分隔，回车添加" />

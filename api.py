@@ -194,11 +194,62 @@ def put_profile():
     data = request.get_json()
     if not data:
         return jsonify({"error": "empty body"}), 400
-    Path("research_profile.json").write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+    # Merge with existing profile: the UI forms only send direction/keywords/
+    # quality_criteria, so blindly overwriting would wipe feedback-learned
+    # fields (liked_topics / disliked_topics). Payload keys still win.
+    profile_path = Path("research_profile.json")
+    merged: dict = {}
+    if profile_path.exists():
+        try:
+            merged = json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            merged = {}
+    merged.update(data)
+    profile_path.write_text(
+        json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     reset_ai_chain()
-    return jsonify(data)
+    return jsonify(merged)
+
+
+# ── Keyword Extraction from Direction ─────────────────────────────
+
+@app.route("/api/extract-keywords", methods=["POST"])
+def extract_keywords():
+    """Two-stage LLM extraction of search keywords from a research direction.
+
+    Stage 1 mines every concept in the direction (Chinese→English); stage 2
+    expands seeds + concepts into query variants. liked/disliked topics are
+    pulled from the saved profile for personalization. Results are cached
+    by expand_keywords, so repeated clicks with the same inputs are fast.
+    """
+    data = request.get_json() or {}
+    direction = data.get("direction", "").strip()
+    if not direction:
+        return jsonify({"error": "direction required"}), 400
+
+    seeds = data.get("seed_keywords") or []
+    profile = {}
+    try:
+        profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    if not seeds:
+        seeds = profile.get("keywords", [])
+
+    from ai.keyword_expander import extract_keywords_strict
+    try:
+        keywords = extract_keywords_strict(
+            direction=direction,
+            seed_keywords=seeds,
+            quality_criteria=data.get("quality_criteria") or profile.get("quality_criteria", ""),
+            liked=profile.get("liked_topics", []),
+            disliked=profile.get("disliked_topics", []),
+        )
+    except Exception as e:
+        logging.getLogger(__name__).error(f"关键词提取失败: {e}")
+        return jsonify({"error": str(e)}), 502
+    return jsonify({"keywords": keywords, "count": len(keywords)})
 
 
 # ── Jobs / Triggers ───────────────────────────────────────────────
@@ -647,9 +698,9 @@ def recommend_categories():
     if not direction and not keywords:
         return jsonify({"error": "direction or keywords required"}), 400
 
-    from langchain_openai import ChatOpenAI
     from pydantic import BaseModel, Field
     import os
+    from ai.llm import build_chat
 
     class CategoryRecommendation(BaseModel):
         primary: list[str] = Field(description="5-10 most relevant arXiv category codes (e.g. cs.CV, cs.LG)")
@@ -668,8 +719,8 @@ Available arXiv categories:
 Select categories that would contain papers relevant to this researcher."""
 
     try:
-        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
-        llm = ChatOpenAI(model=model_name).with_structured_output(CategoryRecommendation, method="json_mode")
+        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        llm = build_chat(model_name, thinking=False).with_structured_output(CategoryRecommendation, method="json_mode")
         from langchain_core.prompts import ChatPromptTemplate
         chain = ChatPromptTemplate.from_template(prompt) | llm
         try:
@@ -677,7 +728,7 @@ Select categories that would contain papers relevant to this researcher."""
             primary = result.primary if isinstance(result.primary, list) else [result.primary]
             secondary = result.secondary if isinstance(result.secondary, list) else [result.secondary]
         except Exception as parse_err:
-            # DeepSeek sometimes returns strings instead of lists; extract manually
+            # LLM sometimes returns strings instead of lists; extract manually
             import json, re
             err_str = str(parse_err)
             json_match = re.search(r'\{.*\}', err_str)
@@ -701,9 +752,10 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
     if len(topics) <= 3:
         return topics
     try:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(
-            model=os.environ.get("TOPIC_MODEL", "deepseek-v4-pro"), temperature=0.1,
+        from ai.llm import build_chat
+        llm = build_chat(
+            os.environ.get("TOPIC_MODEL", "glm-5.3-flash"),
+            thinking=False, temperature=0.1,
         )
         resp = llm.invoke(
             "Given a list of research topic phrases, merge semantically duplicate or near-duplicate entries. "
@@ -743,8 +795,8 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
         return
 
     try:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(model=os.environ.get("TOPIC_MODEL", "deepseek-v4-pro"), temperature=0.2)
+        from ai.llm import build_chat
+        llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
         resp = llm.invoke(
             f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
             f"Return ONLY a JSON array of strings, no explanation.\n\n"

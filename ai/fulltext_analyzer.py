@@ -5,9 +5,9 @@ import logging
 import os
 from typing import Optional
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
+from .llm import build_chat
 from .structure import FulltextAnalysis
 from .fulltext_fetcher import fetch_and_extract
 from .enhance import load_research_profile
@@ -45,8 +45,8 @@ _CHAIN = None
 def _get_chain():
     global _CHAIN
     if _CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
-        llm = ChatOpenAI(model=model_name).with_structured_output(FulltextAnalysis, method="json_mode")
+        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        llm = build_chat(model_name, thinking=True).with_structured_output(FulltextAnalysis, method="json_mode")
         _CHAIN = ChatPromptTemplate.from_template(_FULLTEXT_PROMPT) | llm
     return _CHAIN
 

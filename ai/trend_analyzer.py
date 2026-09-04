@@ -5,10 +5,10 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from db import get_conn
+from .llm import build_chat
 from .structure import TrendReport
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,8 @@ _RAW_CHAIN = None
 def _get_raw_chain():
     global _RAW_CHAIN
     if _RAW_CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
-        llm = ChatOpenAI(model=model_name, model_kwargs={"response_format": {"type": "json_object"}})
+        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        llm = build_chat(model_name, thinking=True, response_format={"type": "json_object"})
         _RAW_CHAIN = ChatPromptTemplate.from_template(_TREND_PROMPT) | llm
     return _RAW_CHAIN
 

@@ -5,9 +5,8 @@ import logging
 import time
 from typing import Generator, List, Set
 
-import httpx
-
 from crawler.models import Paper
+from crawler.openalex_client import openalex_get
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +31,9 @@ class OpenAlexCrawler:
             "filter": f"from_publication_date:{self.year_from}-01-01,type:article",
             "sort": "relevance_score:desc",
             "select": "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,cited_by_count,concepts",
-            "mailto": "openalex@arxivsci-daily.local",
         }
-        try:
-            resp = httpx.get(OPENALEX_BASE, params=params, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("results") or []
-        except Exception as e:
-            logger.warning(f"OpenAlex 搜索 '{keyword}' 失败: {e}")
-            return []
+        data = openalex_get(OPENALEX_BASE, params) or {}
+        return data.get("results") or []
 
     def _decode_abstract(self, inv_index: dict | None) -> str:
         """Decode OpenAlex inverted index abstract to plain text."""
@@ -126,7 +118,7 @@ class OpenAlexCrawler:
                     count += 1
 
             logger.info(f"OpenAlex '{keyword}' 获取到 {count} 篇论文")
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())

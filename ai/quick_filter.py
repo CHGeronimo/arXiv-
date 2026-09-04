@@ -1,9 +1,9 @@
 import os
 import logging
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
+from .llm import build_chat
 from .structure import QuickFilter
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,8 @@ Abstract:
 
 
 def build_quick_filter(model_name: str | None = None):
-    model = model_name or os.environ.get("QUICK_FILTER_MODEL", "deepseek-chat")
-    llm = ChatOpenAI(model=model).with_structured_output(QuickFilter, method="json_mode")
+    model = model_name or os.environ.get("QUICK_FILTER_MODEL", "glm-5.3-flash")
+    llm = build_chat(model, thinking=False).with_structured_output(QuickFilter, method="json_mode")
     prompt = ChatPromptTemplate.from_messages([
         ("system", QUICK_SYSTEM),
         ("human", QUICK_TEMPLATE),

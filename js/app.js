@@ -35,6 +35,8 @@ _initTheme();
 
 // Expose for inline onclick handlers
 window._changePage = changePage;
+// Expose for non-module scripts (subscriptions.js etc.) — toasts were silently lost before
+window.showToast = showToast;
 
 // Data loading
 async function loadPapers() {
@@ -257,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('paper-container').style.display = 'none';
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
         const page = document.getElementById(pageId);
-        if (page) page.style.display = '';
+        if (page) page.style.display = 'block';
     }
     function hidePages() {
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
@@ -307,7 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!idea) return;
         const emptyEl = document.getElementById('idea-empty');
         const el = document.getElementById('idea-result');
-        // Hide empty state, show loading
         if (emptyEl) emptyEl.style.display = 'none';
         el.innerHTML = '<div class="spinner"></div>';
         try {
@@ -324,15 +325,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 return;
             }
-            const colors = {high: '#22c55e', medium: '#eab308', low: '#ef4444'};
+            const gaugeColors = {high: 'var(--success)', medium: 'var(--warning)', low: 'var(--danger)'};
+            const gaugeBg = {high: 'rgba(52,211,153,0.15)', medium: 'rgba(251,191,36,0.15)', low: 'rgba(248,113,113,0.15)'};
+            const feasColor = gaugeColors[analysis.feasibility] || 'var(--text-3)';
+            const novelColor = gaugeColors[analysis.novelty] || 'var(--text-3)';
+            const feasBg = gaugeBg[analysis.feasibility] || 'var(--surface-2)';
+            const novelBg = gaugeBg[analysis.novelty] || 'var(--surface-2)';
+            const feasLabel = {high: '高', medium: '中', low: '低'}[analysis.feasibility] || analysis.feasibility;
+            const novelLabel = {high: '高', medium: '中', low: '低'}[analysis.novelty] || analysis.novelty;
             el.innerHTML = `
-                <div style="display:flex;gap:12px;margin-bottom:12px">
-                    <span style="color:${colors[analysis.feasibility]}">可行性: ${analysis.feasibility}</span>
-                    <span style="color:${colors[analysis.novelty]}">新颖性: ${analysis.novelty}</span>
+                <div class="idea-gauges">
+                    <div class="idea-gauge">
+                        <div class="idea-gauge-ring" style="background:${feasBg};color:${feasColor};border:2px solid ${feasColor}">${feasLabel}</div>
+                        <span class="idea-gauge-label">可行性</span>
+                    </div>
+                    <div class="idea-gauge">
+                        <div class="idea-gauge-ring" style="background:${novelBg};color:${novelColor};border:2px solid ${novelColor}">${novelLabel}</div>
+                        <span class="idea-gauge-label">新颖性</span>
+                    </div>
                 </div>
-                <h3>相关工作</h3><p style="font-size:0.88rem">${analysis.related_work}</p>
-                <h3>差异化建议</h3><p style="font-size:0.88rem">${analysis.differentiation}</p>
-                <h3>风险</h3><p style="font-size:0.88rem">${analysis.risks}</p>`;
+                <div class="idea-section">
+                    <div class="idea-section-title">相关工作</div>
+                    <div class="idea-section-body">${analysis.related_work || ''}</div>
+                </div>
+                <div class="idea-section">
+                    <div class="idea-section-title">差异化建议</div>
+                    <div class="idea-section-body">${analysis.differentiation || ''}</div>
+                </div>
+                <div class="idea-section">
+                    <div class="idea-section-title">风险</div>
+                    <div class="idea-section-body">${analysis.risks || ''}</div>
+                </div>`;
         } catch {
             el.innerHTML = '';
             if (emptyEl) {

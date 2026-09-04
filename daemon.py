@@ -55,7 +55,13 @@ def main():
 
     sched_thread = threading.Thread(target=sched.start, daemon=True)
     sched_thread.start()
-    logger.info("调度器已启动: arXiv 每3小时, Crossref/DBLP/S2/作者 每24小时")
+    import os
+    night_start = os.environ.get("NIGHT_START", "2")
+    stagger = os.environ.get("STAGGER_MINUTES", "30")
+    if os.environ.get("RUN_ON_START", "") in ("1", "true", "yes"):
+        logger.info(f"调度器已启动: 全部任务立即执行一次，此后每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行")
+    else:
+        logger.info(f"调度器已启动: 自动任务每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行（手动触发随时可用）")
 
     logger.info(f"服务启动，端口 {args.port}")
     app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)

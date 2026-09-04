@@ -6,7 +6,7 @@
 
 ```bash
 pip install -r requirements.txt
-cp ai/.env.example ai/.env  # 配置 DeepSeek API key
+cp ai/.env.example ai/.env  # 配置 GLM API key（https://open.bigmodel.cn）
 python3 daemon.py --port 8080
 # http://localhost:8080
 ```
@@ -16,27 +16,29 @@ python3 daemon.py --port 8080
 ## 系统架构
 
 ```
-arXiv (3h) ──┐
-Crossref (24h) ──┤── BaseCrawlerJob.run()
-DBLP (24h)    ──┤      ↓
-OpenAlex (24h)─┤   crawl_iter() → append_paper(enhance=True)
-S2 Author (24h)─┘      ↓
-                   quick_filter → enhance_single() → DeepSeek
+arXiv (02:00, 串联分析链) ──┐
+Crossref (02:30) ──┤── BaseCrawlerJob.run()
+DBLP (03:00)    ──┤      ↓
+OpenAlex (03:30)─┤   crawl_iter() → append_paper(enhance=True)
+S2 Author (04:00)─┘      ↓
+                   quick_filter → enhance_single() → GLM
                         ↓
                   data/papers.db (SQLite WAL)
                         ↓
                  run_digest_job() → digests/YYYY-MM-DD.md
 ```
 
+自动任务每天凌晨 2 点起、每 30 分钟错峰一个（`NIGHT_START`/`STAGGER_MINUTES` 可调，`RUN_ON_START=1` 启动即跑一轮）；UI/API 手动触发不受时间限制。所有 OpenAlex 请求经共享节流客户端（全局最小间隔 + 429 退避，`OPENALEX_EMAIL` 进 polite pool）。
+
 ## 数据源
 
 | 源 | 爬虫 | 调度 | 说明 |
 |:---|:-----|:-----|:-----|
-| arXiv | `crawler/arxiv_crawler.py` | 3h | 按 category 订阅 |
-| Crossref | `crawler/crossref_crawler.py` | 24h | 期刊订阅（Nature 等），仅保留 research |
-| DBLP | `crawler/dblp_crawler.py` | 24h | 55 个 CCF 会议（AI/数据/图形/理论/SE/网络/安全/体系/HCI） |
-| OpenAlex | `crawler/openalex_crawler.py` | 24h | LLM扩展关键词+语义搜索，替代S2 |
-| Author | `crawler/author_crawler.py` | 24h | S2 Author API + ORCID 辅助查找 |
+| arXiv | `crawler/arxiv_crawler.py` | 每日 02:00 | 按 category 订阅，后续串联增强/知识卡片/全文分析/digest |
+| Crossref | `crawler/crossref_crawler.py` | 每日 02:30 | 期刊订阅（Nature 等），仅保留 research |
+| DBLP | `crawler/dblp_crawler.py` | 每日 03:00 | 55 个 CCF 会议（AI/数据/图形/理论/SE/网络/安全/体系/HCI） |
+| OpenAlex | `crawler/openalex_crawler.py` | 每日 03:30 | LLM扩展关键词+语义搜索，替代S2 |
+| Author | `crawler/author_crawler.py` | 每日 04:00 | S2 Author API + ORCID 辅助查找 |
 
 ## 存储层
 
@@ -81,10 +83,10 @@ AI: { tldr, motivation, method, result, conclusion,
 
 ## AI 关键词扩展
 
-OpenAlex 搜索前，LLM 自动将 seed 关键词扩展为 15-25 个查询词：
-- 缩写变体：NeRF → neural radiance fields
-- 子方向：diffusion models → score-based generative models
-- 缓存机制：seed 不变时复用上次结果
+OpenAlex 搜索前，LLM 两阶段扩展关键词（目标 40-90 条查询）：
+1. **方向挖掘**：穷举（中文）研究方向描述中的每个研究概念——问题设定/方法论/理论工具/机制/评估性质/应用域，译为标准英文检索术语；liked 主题纳入挖掘，disliked 主题排除
+2. **查询扩展**：为种子+概念生成变体——缩写/全称（NeRF ↔ neural radiance fields）、子方向（diffusion models → score-based generative models）、新式表述（MARL → LLM-based multi-agent coordination）
+- 缓存：direction/种子/反馈不变时复用上次结果；LLM 失败时回退到种子关键词
 
 ## API 端点
 
@@ -92,7 +94,8 @@ OpenAlex 搜索前，LLM 自动将 seed 关键词扩展为 15-25 个查询词：
 |:-----|:-----|:-----|
 | `/api/papers` | GET | 论文列表，SQLite 索引查询 |
 | `/api/subscriptions` | GET/PUT | 订阅管理（期刊/会议/作者/搜索关键词） |
-| `/api/profile` | GET/PUT | 研究方向配置 |
+| `/api/profile` | GET/PUT | 研究方向配置（PUT 合并保存，保留 liked/disliked 等反馈字段） |
+| `/api/extract-keywords` | POST | 从研究方向 LLM 两阶段提取搜索关键词（direction 必填） |
 | `/api/author/search` | GET | S2 Author 搜索（query=姓名或ORCID） |
 | `/api/trigger/<job>` | POST | 手动触发（arxiv/crossref/dblp/s2/author） |
 | `/api/trigger/enhance` | POST | 批量补 AI 增强 |
@@ -106,7 +109,7 @@ OpenAlex 搜索前，LLM 自动将 seed 关键词扩展为 15-25 个查询词：
 ## 配置
 
 ```bash
-ai/.env                    # DeepSeek API key
+ai/.env                    # GLM API key + base URL + 模型名
 research_profile.json      # 研究方向 + 关键词（LLM 自动扩展）
 subscriptions.json         # 订阅配置（期刊/会议/作者/搜索关键词）
 data/papers.db             # SQLite 数据库（自动创建+迁移）
@@ -127,7 +130,7 @@ data/papers.db             # SQLite 数据库（自动创建+迁移）
 │   ├── dblp_crawler.py    # DBLP 会议爬取 (55 venues)
 │   ├── openalex_crawler.py # OpenAlex 语义搜索（替代S2）
 │   ├── author_crawler.py  # S2 Author API + ORCID 辅助查找
-│   ├── enhance.py         # AI 增强 (DeepSeek)
+│   ├── enhance.py         # AI 增强 (GLM)
 │   ├── models.py          # Paper dataclass
 │   └── subs_store.py      # 订阅持久化（含 Author dataclass）
 ├── ai/

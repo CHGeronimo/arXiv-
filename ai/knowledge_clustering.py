@@ -1,31 +1,206 @@
-"""Cluster papers by extracted method keywords using topic-based grouping.
+"""Cluster papers using LLM-based semantic grouping.
 
-Strategy: identify high-frequency keywords as cluster seeds, then assign
-each paper to its best-matching seed topic. Papers with no strong match
-form a "misc" cluster.
+Two-phase approach:
+1. Extract high-level research themes from all paper keywords via LLM.
+2. Assign each paper to its best-matching theme based on keyword overlap,
+   allowing multi-cluster membership.
 """
 
 import json
 import logging
-from collections import Counter
+import os
+from collections import Counter, defaultdict
 
 from db import get_conn
 
 logger = logging.getLogger(__name__)
 
 MIN_CLUSTER_SIZE = 3
-SEED_MIN_FREQ = 2
 MAX_CLUSTERS = 30
 
 
-def compute_clusters() -> list[dict]:
-    """Build clusters from knowledge_cards keywords.
+def _extract_themes(all_keywords: list[str], kw_counter: Counter) -> list[str]:
+    """Use LLM to identify high-level research themes from keywords."""
+    # Get top keywords by frequency as input
+    top_kws = kw_counter.most_common(120)
+    kw_list = [kw for kw, _ in top_kws]
 
-    Two-phase approach:
-    1. Identify high-frequency keywords as cluster seeds (top-N by frequency).
-    2. Assign each paper to its best-matching seed based on keyword overlap,
-       preferring the most specific (lowest-frequency) seed when ties exist.
+    try:
+        from .llm import build_chat
+        llm = build_chat(
+            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            thinking=False, temperature=0.1, timeout=60,
+        )
+        prompt = (
+            "You are a CS research taxonomy expert. Given a list of research keywords extracted from papers, "
+            "identify 15-25 high-level research themes that cover ALL areas represented. "
+            "IMPORTANT: Themes must be DISTINCT — do NOT create themes that are subsets of others. "
+            "For example, 'multi-agent RL' and 'game theory' are separate themes; "
+            "'multi-agent RL' and 'MARL' are NOT separate. "
+            "Each theme should be a short phrase (2-5 words). "
+            "Include BOTH applied and theoretical themes. "
+            "Return ONLY a JSON array of strings, no explanation.\n\n"
+            + json.dumps(kw_list, ensure_ascii=False)
+        )
+        resp = llm.invoke(prompt)
+        content = resp.content.strip()
+        # Extract JSON from possible markdown wrapper
+        import re
+        json_match = re.search(r'\[.*\]', content, re.DOTALL)
+        if json_match:
+            themes = json.loads(json_match.group())
+        else:
+            themes = json.loads(content)
+        if isinstance(themes, list) and len(themes) >= 5:
+            return [t.strip() for t in themes if isinstance(t, str) and t.strip()]
+    except Exception as e:
+        logger.warning(f"LLM theme extraction failed: {e}, falling back to frequency seeds")
+
+    # Fallback: use top frequency keywords as seeds
+    return [kw for kw, _ in kw_counter.most_common(MAX_CLUSTERS) if kw_counter[kw] >= 2]
+
+
+def _assign_papers_to_themes_llm(
+    paper_kw: dict[str, list[str]],
+    themes: list[str],
+    batch_size: int = 200,
+) -> dict[str, list[str]]:
+    """Assign papers to themes using LLM for semantic matching."""
+    try:
+        from .llm import build_chat
+        llm = build_chat(
+            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            thinking=False, temperature=0.05, timeout=120,
+        )
+
+        theme_list_str = json.dumps(themes, ensure_ascii=False)
+        all_assignments: dict[str, list[str]] = {}
+        pids = list(paper_kw.keys())
+
+        for i in range(0, len(pids), batch_size):
+            batch = pids[i:i + batch_size]
+            paper_data = {pid: paper_kw[pid][:8] for pid in batch}  # limit keywords per paper
+            prompt = (
+                "You are a CS research taxonomy expert. Given a list of research themes and papers (with keywords), "
+                "assign each paper to 1-2 most relevant themes. If no theme fits well, assign '其他'.\n\n"
+                f"Themes: {theme_list_str}\n\n"
+                f"Papers: {json.dumps(paper_data, ensure_ascii=False)}\n\n"
+                "Return ONLY a JSON object mapping paper_id to an array of theme strings. No explanation."
+            )
+            resp = llm.invoke(prompt)
+            content = resp.content.strip()
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                batch_result = json.loads(json_match.group())
+                for pid in batch:
+                    assigned = batch_result.get(pid, [])
+                    if isinstance(assigned, list) and assigned:
+                        # Validate themes exist
+                        valid = [t for t in assigned if t in themes or t == "其他"]
+                        all_assignments[pid] = valid if valid else ["其他"]
+                    else:
+                        all_assignments[pid] = ["其他"]
+            else:
+                for pid in batch:
+                    all_assignments[pid] = ["其他"]
+
+        return all_assignments
+
+    except Exception as e:
+        logger.warning(f"LLM assignment failed: {e}, falling back to keyword matching")
+        return _assign_papers_to_themes_kw(paper_kw, themes)
+
+
+def _assign_papers_to_themes_kw(
+    paper_kw: dict[str, list[str]],
+    themes: list[str],
+    kw_counter: Counter,
+) -> dict[str, list[str]]:
+    """Assign each paper to its best-matching theme based on keyword overlap.
+
+    Specificity rule: if a paper matches both a broad theme (e.g. '强化学习')
+    and a more specific one (e.g. '多智能体强化学习'), only keep the specific one.
     """
+    theme_kw_map: dict[str, set[str]] = {}
+    for theme in themes:
+        terms = set(theme.lower().replace("-", " ").replace(",", " ").split())
+        theme_kw_map[theme] = terms
+
+    # Pre-compute theme specificity: longer/more-specific themes first
+    theme_specificity: dict[str, int] = {}
+    for i, t1 in enumerate(themes):
+        # A theme is "broad" if another theme's name contains it as substring
+        is_broad = any(
+            t1.lower() != t2.lower() and t1.lower() in t2.lower()
+            for t2 in themes
+        )
+        theme_specificity[t1] = 0 if is_broad else 1
+
+    theme_assignments: dict[str, list[str]] = defaultdict(list)
+
+    for pid, kws in paper_kw.items():
+        scores: dict[str, int] = {}
+        for theme in themes:
+            score = 0
+            for kw in kws:
+                kw_lower = kw.lower()
+                theme_lower = theme.lower()
+                if kw_lower in theme_lower or theme_lower in kw_lower:
+                    score += 2
+                kw_terms = set(kw_lower.replace("-", " ").replace(",", " ").split())
+                overlap = kw_terms & theme_kw_map[theme]
+                if overlap:
+                    score += len(overlap)
+            scores[theme] = score
+
+        # Rank by score (desc), then specificity (specific first)
+        ranked = sorted(
+            scores.items(),
+            key=lambda x: (-x[1], -theme_specificity[x[0]]),
+        )
+
+        # Collect candidates with score > 0
+        candidates = [(theme, score) for theme, score in ranked if score > 0]
+
+        # Specificity filter: if a specific theme is selected, drop broad parents
+        assigned = []
+        for theme, score in candidates:
+            if len(assigned) >= 2:
+                break
+            # Check if this theme is a broad parent of an already-assigned theme
+            is_parent = any(
+                theme.lower() != a.lower() and theme.lower() in a.lower()
+                for a in assigned
+            )
+            if is_parent:
+                continue
+            assigned.append(theme)
+
+        # If no match, try broader matching
+        if not assigned and kws:
+            for theme in themes:
+                theme_lower = theme.lower()
+                for kw in kws:
+                    kw_lower = kw.lower()
+                    kw_words = {w for w in kw_lower.split() if len(w) > 2}
+                    theme_words = {w for w in theme_lower.split() if len(w) > 2}
+                    if kw_words & theme_words:
+                        assigned.append(theme)
+                        break
+                if len(assigned) >= 2:
+                    break
+
+        if not assigned:
+            assigned = ["其他"]
+
+        theme_assignments[pid] = assigned
+
+    return dict(theme_assignments)
+
+
+def compute_clusters() -> list[dict]:
+    """Build clusters using LLM-based theme extraction + multi-label assignment."""
     conn = get_conn()
     rows = conn.execute("SELECT paper_id, keywords FROM knowledge_cards").fetchall()
 
@@ -39,36 +214,23 @@ def compute_clusters() -> list[dict]:
     if not paper_kw:
         return []
 
-    # Select seed keywords: top-N by frequency, minimum SEED_MIN_FREQ occurrences
-    candidates = [(kw, cnt) for kw, cnt in kw_counter.items() if cnt >= SEED_MIN_FREQ]
-    candidates.sort(key=lambda x: -x[1])
-    # Skip overly broad top-2 seeds that swallow everything
-    seeds = [kw for kw, _ in candidates[2:2 + MAX_CLUSTERS]]
-    seed_set = set(seeds)
+    # Phase 1: Extract themes
+    themes = _extract_themes(list(kw_counter.keys()), kw_counter)
+    themes = themes[:MAX_CLUSTERS]
+    logger.info(f"Extracted {len(themes)} themes: {themes[:10]}...")
 
-    # Assign each paper to its best-matching seed
-    cluster_map: dict[str, list[str]] = {}
-    assigned: set[str] = set()
-    misc: list[str] = []
+    # Phase 2: Assign papers (LLM-first, keyword fallback)
+    assignments = _assign_papers_to_themes_llm(paper_kw, themes)
 
-    for pid, kws in paper_kw.items():
-        best_seed = None
-        best_overlap = 0
-        kw_set = set(kws)
-        for seed in seeds:
-            overlap = len(kw_set & {seed})
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_seed = seed
-        if best_seed and best_overlap > 0:
-            cluster_map.setdefault(best_seed, []).append(pid)
-            assigned.add(pid)
-        else:
-            misc.append(pid)
+    # Build clusters from assignments
+    cluster_papers: dict[str, list[str]] = defaultdict(list)
+    for pid, theme_list in assignments.items():
+        for theme in theme_list:
+            cluster_papers[theme].append(pid)
 
     # Build final clusters
     clusters: list[dict] = []
-    for seed, pids in cluster_map.items():
+    for theme, pids in cluster_papers.items():
         if len(pids) < MIN_CLUSTER_SIZE:
             continue
         all_kw: set[str] = set()
@@ -76,7 +238,7 @@ def compute_clusters() -> list[dict]:
             all_kw.update(paper_kw.get(pid, []))
         top_kw = sorted(all_kw, key=lambda k: -kw_counter[k])[:5]
         clusters.append({
-            "cluster_name": ", ".join(top_kw[:3]),
+            "cluster_name": theme,
             "method_keywords": json.dumps(top_kw, ensure_ascii=False),
             "paper_ids": json.dumps(pids, ensure_ascii=False),
             "problem_domains": "[]",
@@ -84,19 +246,6 @@ def compute_clusters() -> list[dict]:
 
     # Sort by size descending
     clusters.sort(key=lambda c: -len(json.loads(c["paper_ids"])))
-
-    # Add misc cluster
-    if misc and len(misc) >= MIN_CLUSTER_SIZE:
-        misc_kw: set[str] = set()
-        for pid in misc:
-            misc_kw.update(paper_kw.get(pid, []))
-        top_kw = sorted(misc_kw, key=lambda k: -kw_counter[k])[:5]
-        clusters.append({
-            "cluster_name": "其他 · " + ", ".join(top_kw[:2]),
-            "method_keywords": json.dumps(top_kw, ensure_ascii=False),
-            "paper_ids": json.dumps(misc, ensure_ascii=False),
-            "problem_domains": "[]",
-        })
 
     return clusters
 

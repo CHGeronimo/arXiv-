@@ -10,12 +10,12 @@ from typing import List, Dict
 import dotenv
 
 import langchain_core.exceptions
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import (
     ChatPromptTemplate,
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
+from .llm import build_chat
 from .structure import Structure
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def load_research_profile() -> dict:
 
 def build_chain(model_name: str):
     """Build the AI enhancement LangChain pipeline with structured JSON output."""
-    llm = ChatOpenAI(model=model_name).with_structured_output(Structure, method="json_mode")
+    llm = build_chat(model_name, thinking=True).with_structured_output(Structure, method="json_mode")
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system),
         HumanMessagePromptTemplate.from_template(template=template)
@@ -132,7 +132,7 @@ def main():
     parser.add_argument("--max_workers", type=int, default=1, help="parallel workers")
     args = parser.parse_args()
 
-    model_name = os.environ.get("MODEL_NAME", 'deepseek-v4-flash')
+    model_name = os.environ.get("MODEL_NAME", 'glm-5.3-flash')
     language = os.environ.get("LANGUAGE", 'Chinese')
     target_file = args.data.replace('.jsonl', f'_AI_enhanced_{language}.jsonl')
 

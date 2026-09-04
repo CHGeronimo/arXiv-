@@ -17,7 +17,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ai.digest import generate_digest
 from ai.enhance import enhance_single, load_research_profile
@@ -456,7 +456,7 @@ def run_digest_job():
 
 
 # ---------------------------------------------------------------------------
-# Scheduler (unchanged logic, same timers)
+# Scheduler
 # ---------------------------------------------------------------------------
 
 JOB_FUNCS = {
@@ -469,23 +469,35 @@ JOB_FUNCS = {
 
 
 class Scheduler:
-    """Periodic job scheduler using threading.Timer.
+    """Nightly job scheduler.
 
-    Runs arxiv every 3 hours, other sources every 24 hours.
-    After each arxiv run, triggers retro-enhance and digest generation.
+    Automatic runs happen only in the early-morning window starting at
+    NIGHT_START (default 02:00), with jobs spread STAGGER_MINUTES apart
+    (default 30) so the long arxiv analysis chain and the OpenAlex-heavy
+    DBLP/S2 crawls never collide. Manual triggers via /api/trigger/* bypass
+    the scheduler entirely and run immediately at any time (their OpenAlex
+    calls are still globally throttled by crawler.openalex_client).
+
+    Set RUN_ON_START=1 to run the full pipeline once immediately on daemon
+    start (old behavior).
     """
 
     def __init__(self):
         self._timers: list[threading.Timer] = []
         self._running = False
+        self._night_start = int(os.environ.get("NIGHT_START", "2"))
+        self._stagger_minutes = float(os.environ.get("STAGGER_MINUTES", "30"))
+        self._run_on_start = os.environ.get("RUN_ON_START", "") in ("1", "true", "yes")
 
     def start(self):
         self._running = True
-        self._run_and_reschedule("arxiv", interval_hours=3)
-        self._run_and_reschedule("crossref", interval_hours=24)
-        self._run_and_reschedule("dblp", interval_hours=24)
-        self._run_and_reschedule("s2", interval_hours=24)
-        self._run_and_reschedule("author", interval_hours=24)
+        if self._run_on_start:
+            logger.info("[调度器] RUN_ON_START=1，启动时立即执行全部任务（此后仍按凌晨计划）")
+            for job_name in JOB_FUNCS:
+                self._run_and_schedule_next(job_name)
+        else:
+            for job_name in JOB_FUNCS:
+                self._schedule_next(job_name)
 
     def stop(self):
         self._running = False
@@ -493,14 +505,38 @@ class Scheduler:
             t.cancel()
         logger.info("[调度器] 已停止")
 
-    def _run_and_reschedule(self, job_name: str, interval_hours: int):
-        """Execute a job and schedule its next run. After arxiv, also runs retro-enhance and digest."""
+    def _next_run_at(self, job_name: str) -> datetime:
+        """Next nightly run time: NIGHT_START + job_index × STAGGER_MINUTES,
+        today if still ahead, otherwise tomorrow."""
+        now = datetime.now()
+        order = list(JOB_FUNCS)
+        offset = order.index(job_name) * self._stagger_minutes
+        base = now.replace(hour=self._night_start, minute=0, second=0, microsecond=0)
+        target = base + timedelta(minutes=offset)
+        if target <= now:
+            target += timedelta(days=1)
+        return target
+
+    def _schedule_next(self, job_name: str):
+        if not self._running:
+            return
+        target = self._next_run_at(job_name)
+        delay = max(1.0, (target - datetime.now()).total_seconds())
+        t = threading.Timer(delay, self._run_and_schedule_next, args=[job_name])
+        t.daemon = True
+        t.start()
+        self._timers.append(t)
+        logger.info(f"[调度器] {job_name} 计划于 {target:%Y-%m-%d %H:%M} 自动运行（手动触发不受限，随时可跑）")
+
+    def _run_and_schedule_next(self, job_name: str):
+        """Execute a job (with arxiv's chained analysis pipeline), then
+        schedule tomorrow night's run."""
         if not self._running:
             return
         try:
             JOB_FUNCS[job_name]()
         except Exception as e:
-            logger.error(f"定时任务 {job_name} 执行错误: {e}")
+            logger.error(f"夜间任务 {job_name} 执行错误: {e}")
 
         if job_name == "arxiv":
             try:
@@ -522,12 +558,4 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"摘要生成执行错误: {e}")
 
-        if self._running:
-            t = threading.Timer(
-                interval_hours * 3600,
-                self._run_and_reschedule,
-                args=[job_name, interval_hours],
-            )
-            t.daemon = True
-            t.start()
-            self._timers.append(t)
+        self._schedule_next(job_name)

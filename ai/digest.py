@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import dotenv
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+
+from .llm import build_chat
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,8 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
             "relevance_score": row[7],
         })
 
-    model_name = os.environ.get("MODEL_NAME", "deepseek-v4-flash")
-    llm = ChatOpenAI(model=model_name, temperature=0.3)
+    model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+    llm = build_chat(model_name, thinking=True, temperature=0.3)
     prompt = ChatPromptTemplate.from_template(DIGEST_PROMPT)
     chain = prompt | llm
 

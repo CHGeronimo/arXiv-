@@ -8,6 +8,7 @@ from typing import Generator, List, Set
 import httpx
 
 from crawler.models import Paper
+from crawler.openalex_client import openalex_get
 from crawler.subs_store import Journal
 
 logger = logging.getLogger(__name__)
@@ -140,23 +141,18 @@ class CrossrefCrawler:
         doi_to_paper = {p.doi: p for p in papers if p.doi}
 
         for doi in dois:
-            try:
-                url = f"https://api.openalex.org/works/doi:{doi}"
-                resp = httpx.get(url, timeout=10)
-                if resp.status_code != 200:
-                    continue
-                data = resp.json()
-                inv_index = data.get("abstract_inverted_index")
-                if inv_index:
-                    words = sorted(
-                        [(pos, w) for w, positions in inv_index.items() for pos in positions]
-                    )
-                    abstract = " ".join(w for _, w in words)
-                    paper = doi_to_paper.get(doi)
-                    if paper:
-                        paper.summary = abstract
-            except Exception:
+            data = openalex_get(f"https://api.openalex.org/works/doi:{doi}")
+            if not data:
                 continue
+            inv_index = data.get("abstract_inverted_index")
+            if inv_index:
+                words = sorted(
+                    [(pos, w) for w, positions in inv_index.items() for pos in positions]
+                )
+                abstract = " ".join(w for _, w in words)
+                paper = doi_to_paper.get(doi)
+                if paper:
+                    paper.summary = abstract
 
     def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_dois: Set[str] = set()

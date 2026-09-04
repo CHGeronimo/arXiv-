@@ -1,6 +1,8 @@
 """crawler/dblp_crawler.py — Conference paper fetching via OpenAlex (replaces DBLP API).
 
 OpenAlex provides stable venue-based search without DBLP's 500/429 errors.
+Requests go through the shared throttled client (openalex_client) so this
+crawler stays polite even when other OpenAlex crawlers run concurrently.
 """
 from __future__ import annotations
 
@@ -9,9 +11,8 @@ import time
 from datetime import datetime, timezone
 from typing import Generator, List, Set
 
-import httpx
-
 from crawler.models import Paper
+from crawler.openalex_client import openalex_get
 from crawler.subs_store import Conference
 
 logger = logging.getLogger(__name__)
@@ -73,31 +74,18 @@ class DblpCrawler:
             "per_page": 100,
             "sort": "relevance_score:desc",
             "select": "id,doi,title,abstract_inverted_index,authorships,primary_location,publication_year,cited_by_count,concepts",
-            "mailto": "openalex@arxivsci-daily.local",
         }
-        for attempt in range(3):
-            try:
-                resp = httpx.get(OPENALEX_BASE, params=params, timeout=30)
-                resp.raise_for_status()
-                data = resp.json()
-                results = data.get("results") or []
-                # Post-filter: only keep papers whose venue matches
-                matched = []
-                for item in results:
-                    loc = item.get("primary_location") or {}
-                    source = loc.get("source") or {}
-                    source_name = (source.get("display_name") or "").lower()
-                    if openalex_venue.lower() in source_name or source_name in openalex_venue.lower():
-                        matched.append(item)
-                return matched
-            except Exception as e:
-                wait = (attempt + 1) * 3
-                logger.warning(f"OpenAlex 会议搜索第 {attempt+1}/3 次尝试失败: {e}，{wait}s 后重试")
-                if attempt == 2:
-                    logger.error(f"OpenAlex 搜索 {venue} {year} 在 3 次重试后失败")
-                else:
-                    time.sleep(wait)
-        return []
+        data = openalex_get(OPENALEX_BASE, params) or {}
+        results = data.get("results") or []
+        # Post-filter: only keep papers whose venue matches
+        matched = []
+        for item in results:
+            loc = item.get("primary_location") or {}
+            source = loc.get("source") or {}
+            source_name = (source.get("display_name") or "").lower()
+            if openalex_venue.lower() in source_name or source_name in openalex_venue.lower():
+                matched.append(item)
+        return matched
 
     def _decode_abstract(self, inv_index: dict | None) -> str:
         if not inv_index:
@@ -178,7 +166,7 @@ class DblpCrawler:
                     yield paper
                 logger.info(f"从 {conf.venue} {year} 获取到 {len(batch)} 篇新论文")
 
-            time.sleep(0.5)
+            time.sleep(0.2)
 
     def crawl(self) -> List[Paper]:
         return list(self.crawl_iter())

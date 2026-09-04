@@ -645,6 +645,7 @@ function removeKeyword(kw) {
 }
 
 let _profileKeywords = [];
+let _chipKeywords = [];   // chips 数据源：profile 关键词 ∪ 已保存的提取结果
 let _enabledKeywords = null; // null = all enabled, Set = specific set
 
 async function loadProfileKeywords() {
@@ -655,9 +656,13 @@ async function loadProfileKeywords() {
             _profileKeywords = profile.keywords || [];
             const dirInput = document.getElementById('inline-profile-direction');
             if (dirInput) dirInput.value = profile.direction || '';
+            // Chips = profile keywords + previously extracted/saved search keywords
+            const chipBase = [..._profileKeywords];
+            const saved = subscriptions.search?.keywords || [];
+            for (const kw of saved) if (!chipBase.includes(kw)) chipBase.push(kw);
+            _chipKeywords = chipBase;
             // Restore enabled set from saved search keywords
-            const saved = subscriptions.search?.keywords;
-            if (saved && saved.length > 0) {
+            if (saved.length > 0) {
                 _enabledKeywords = new Set(saved);
             } else {
                 _enabledKeywords = new Set(_profileKeywords);
@@ -666,10 +671,44 @@ async function loadProfileKeywords() {
     } catch {}
 }
 
+async function autoExtractKeywords() {
+    const direction = document.getElementById('inline-profile-direction')?.value?.trim() || '';
+    if (!direction) { if (showToast) showToast('请先填写研究方向描述'); return; }
+    const btn = document.getElementById('btn-extract-keywords');
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 提取中...'; }
+    try {
+        const resp = await fetch('/api/extract-keywords', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ direction, seed_keywords: _profileKeywords }),
+        });
+        const data = await resp.json();
+        const kws = data.keywords || [];
+        if (!resp.ok || !kws.length) {
+            const msg = (data.error || '提取失败，请稍后重试').slice(0, 120);
+            if (showToast) showToast(msg, 5000);
+            return;
+        }
+        _chipKeywords = kws;
+        _enabledKeywords = new Set(kws);
+        // 提取结果属于"跟随研究方向"模式
+        const cb = document.getElementById('use-profile-keywords');
+        if (cb) cb.checked = true;
+        document.getElementById('custom-keywords-section').style.display = 'none';
+        renderKeywordChips();
+        if (showToast) showToast(`已提取 ${kws.length} 个关键词，点击可取消不需要的`);
+    } catch {
+        if (showToast) showToast('提取失败，请检查网络');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
+}
+
 async function saveProfileInline() {
     const direction = document.getElementById('inline-profile-direction')?.value || '';
     const useProfile = document.getElementById('use-profile-keywords').checked;
-    const keywords = useProfile ? [...(_enabledKeywords || _profileKeywords)] : (subscriptions.search?.keywords || []);
+    const keywords = useProfile ? [...(_enabledKeywords || _chipKeywords)] : (subscriptions.search?.keywords || []);
     const quality_criteria = '';
     try {
         await fetch('/api/profile', {
@@ -697,10 +736,10 @@ async function saveProfileInline() {
 }
 
 function toggleProfileKeyword(kw) {
-    if (!_enabledKeywords) _enabledKeywords = new Set(_profileKeywords);
+    if (!_enabledKeywords) _enabledKeywords = new Set(_chipKeywords);
     if (_enabledKeywords.has(kw)) _enabledKeywords.delete(kw);
     else _enabledKeywords.add(kw);
-    const enabled = _profileKeywords.filter(k => _enabledKeywords.has(k));
+    const enabled = _chipKeywords.filter(k => _enabledKeywords.has(k));
     subscriptions.search = { keywords: enabled, useProfile: true };
     saveSubscriptions(subscriptions, 's2');
     renderKeywordChips();
@@ -712,18 +751,25 @@ function renderKeywordChips() {
     const useProfile = subscriptions.search?.useProfile !== false;
 
     if (useProfile) {
-        if (!_profileKeywords.length) {
-            container.innerHTML = '<span style="color:var(--text-3);font-size:0.82rem">请在下方描述研究方向并保存</span>';
+        if (!_chipKeywords.length) {
+            container.innerHTML = '<span style="color:var(--text-3);font-size:0.82rem">填写研究方向后点击"🤖 从方向提取"，或直接保存</span>';
+            const hint = document.getElementById('keyword-chips-hint');
+            if (hint) hint.textContent = '';
             return;
         }
-        container.innerHTML = _profileKeywords.map(kw => {
+        container.innerHTML = _chipKeywords.map(kw => {
             const enabled = !_enabledKeywords || _enabledKeywords.has(kw);
             return `<span class="badge badge--secondary ${enabled ? 'selected' : ''}" data-toggle-kw="${kw}" style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:4px 10px;font-size:0.82rem;${enabled ? '' : 'opacity:0.4'}">${kw}</span>`;
         }).join('');
+        const enabledCount = _chipKeywords.filter(k => !_enabledKeywords || _enabledKeywords.has(k)).length;
+        const hint = document.getElementById('keyword-chips-hint');
+        if (hint) hint.textContent = `已启用 ${enabledCount}/${_chipKeywords.length} · 点击关键词切换启用状态 · "🤖 从方向提取"可重新穷举扩展`;
         return;
     }
 
     const keywords = subscriptions.search?.keywords || [];
+    const hint = document.getElementById('keyword-chips-hint');
+    if (hint) hint.textContent = keywords.length ? `自定义关键词 ${keywords.length} 个` : '';
     if (!keywords.length) {
         container.innerHTML = '<span style="color:var(--text-3);font-size:0.82rem">输入关键词后点击添加</span>';
         return;
@@ -740,8 +786,8 @@ async function saveSearchKeywords() {
     const useProfile = document.getElementById('use-profile-keywords').checked;
     if (useProfile) {
         // Save the currently enabled subset, not an empty array
-        const enabled = _profileKeywords.filter(k => _enabledKeywords?.has(k));
-        subscriptions.search = { keywords: enabled.length ? enabled : [..._profileKeywords], useProfile: true };
+        const enabled = _chipKeywords.filter(k => _enabledKeywords?.has(k));
+        subscriptions.search = { keywords: enabled.length ? enabled : [..._chipKeywords], useProfile: true };
     }
     // Custom keywords are saved via addKeywords/removeKeyword, no separate save needed
     await saveSubscriptions(subscriptions, 's2');
@@ -915,6 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Keyword chip events
     document.getElementById('btn-add-keyword')?.addEventListener('click', addKeywords);
     document.getElementById('use-profile-keywords')?.addEventListener('change', toggleCustomKeywords);
+    document.getElementById('btn-extract-keywords')?.addEventListener('click', autoExtractKeywords);
     document.getElementById('custom-keywords')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addKeywords(); }
     });

@@ -10,3 +10,5 @@ logs/
 .claude/
 .understand-anything/
 digests/
+# 同步工具冲突副本
+*SFConflict*
