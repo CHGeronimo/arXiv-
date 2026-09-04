@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>arxivSCI-daily</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- 本地化字体（离线可用，不再依赖 Google Fonts CDN） -->
+    <link rel="stylesheet" href="css/fonts.css">
 
     <!-- Design System CSS -->
     <link rel="stylesheet" href="css/tokens.css">
@@ -15,7 +13,7 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/utilities.css">
     <link rel="stylesheet" href="css/subscriptions.css">
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="vendor/d3.v7.min.js"></script>
 </head>
 <body>
     <header>
@@ -55,7 +53,7 @@
             <button id="sidebar-clear">清除全部</button>
         </div>
         <div class="sidebar-search">
-            <input id="sidebar-search-input" type="text" placeholder="搜索... title: abstract: author:">
+            <input id="sidebar-search-input" type="text" placeholder="搜索标题/TLDR/作者... 支持 title: author: 前缀">
         </div>
         <div class="sidebar-date">
             <input id="sidebar-date-filter" type="date" title="按日期筛选">

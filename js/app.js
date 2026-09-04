@@ -259,7 +259,12 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
     });
 
-    // L1/L2/L3 page navigation
+    // L1/L2/L3 页面导航（hash 路由：#/graph #/trend #/idea 可刷新、可收藏、可后退）
+    const PAGE_LOADERS = {
+        graph: { id: 'graph-page', load: () => loadGraph() },
+        trend: { id: 'trend-page', load: () => loadTrendRadar() },
+        idea: { id: 'idea-page', load: null },
+    };
     function showPage(pageId) {
         document.getElementById('paper-container').style.display = 'none';
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
@@ -270,21 +275,25 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
         document.getElementById('paper-container').style.display = '';
     }
-    document.getElementById('btn-graph')?.addEventListener('click', () => {
-        showPage('graph-page');
-        loadGraph();
-    });
-    document.getElementById('btn-trend')?.addEventListener('click', () => {
-        showPage('trend-page');
-        loadTrendRadar();
-    });
-    document.getElementById('btn-idea')?.addEventListener('click', () => {
-        showPage('idea-page');
-    });
+    function applyHash() {
+        const key = location.hash.replace(/^#\/?/, '');
+        const page = PAGE_LOADERS[key];
+        if (page) {
+            showPage(page.id);
+            page.load?.();
+        } else {
+            hidePages();
+        }
+    }
+    window.addEventListener('hashchange', applyHash);
+    document.getElementById('btn-graph')?.addEventListener('click', () => { location.hash = '#/graph'; });
+    document.getElementById('btn-trend')?.addEventListener('click', () => { location.hash = '#/trend'; });
+    document.getElementById('btn-idea')?.addEventListener('click', () => { location.hash = '#/idea'; });
     document.querySelectorAll('.btn-back-papers').forEach(btn => {
-        btn.addEventListener('click', hidePages);
+        btn.addEventListener('click', () => { location.hash = '#/'; });
     });
-    document.querySelector('.header-left h1')?.addEventListener('click', hidePages);
+    document.querySelector('.header-left h1')?.addEventListener('click', () => { location.hash = '#/'; });
+    applyHash();  // 刷新/直接打开 #/graph 时恢复对应页面
 
     // Knowledge graph
     document.getElementById('btn-refresh-graph')?.addEventListener('click', loadGraph);

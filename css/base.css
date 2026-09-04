@@ -69,7 +69,8 @@ header {
   background: color-mix(in srgb, var(--surface-0) 85%, transparent);
   border-bottom: 1px solid var(--border);
   padding: 0 var(--sp-4);
-  height: 48px;
+  /* min-height 而非固定 height：窄屏按钮换行时第二行不被裁掉 */
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;

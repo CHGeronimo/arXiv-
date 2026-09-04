@@ -77,10 +77,16 @@ export function renderPapers() {
         const userRating = fb.rating || '';
         const userRel = fb.relevance || 0;
         const userNov = fb.novelty || 0;
+        const showFb = !!(userRating || userRel || userNov);  // 投过票才展开滑杆
+        const qualScore = ai.quality_score || 0;
+        const scoreChipCls = (n) => n >= 8 ? 'score--hi' : n >= 6 ? 'score--mid' : 'score--lo';
+        const scoreChips = hasAi && (relScore || qualScore)
+            ? `<span class="score-chip ${scoreChipCls(relScore)}" title="相关性 ${relScore}/10">R${relScore}</span><span class="score-chip ${scoreChipCls(qualScore)}" title="质量 ${qualScore}/10">Q${qualScore}</span>`
+            : '';
         return `
             <div class="paper-card ${isRead ? 'is-read' : ''}" data-idx="${idx}" data-rec="${rec === 'reference' && relScore < 7 ? 'ref-low' : rec}">
                 <div class="paper-header">
-                    ${sourceBadge}${venueBadge}${ccfBadge}${accBadge}${aiBadge}${recBadge}${typeTag}
+                    ${sourceBadge}${venueBadge}${ccfBadge}${accBadge}${aiBadge}${recBadge}${scoreChips}${typeTag}
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
                 </div>
@@ -95,7 +101,7 @@ export function renderPapers() {
                         <span class="paper-meta-date">${paper.published_date || ''} ${citeBadge}</span>
                     </div>
                 </div>
-                <div class="card-feedback-detail" data-feedback-detail="${escAttr(paper.id)}">
+                <div class="card-feedback-detail ${showFb ? 'visible' : ''}" data-feedback-detail="${escAttr(paper.id)}">
                     <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
                     <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
                 </div>

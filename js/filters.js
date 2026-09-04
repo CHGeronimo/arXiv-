@@ -189,7 +189,9 @@ export function applyFiltersAndSort() {
 
     const sq = document.getElementById('sidebar-search-input')?.value?.trim().toLowerCase() || '';
     if (sq) {
-        const prefixFields = { 'title:': 'title', 'abstract:': 'summary', 'author:': 'authors' };
+        // 列表为轻字段模式（无摘要全文），abstract: 前缀已移除；
+        // 普通搜索覆盖 标题(中英) + TLDR + 作者
+        const prefixFields = { 'title:': 'title', 'author:': 'authors' };
         const terms = sq.split(/\s+/);
         result = result.filter(p => {
             return terms.every(term => {
@@ -198,12 +200,12 @@ export function applyFiltersAndSort() {
                         const q = term.slice(prefix.length);
                         if (!q) return true;
                         if (field === 'authors') return (p.authors || []).some(a => a.toLowerCase().includes(q));
-                        const val = ((p.AI || {})[field === 'summary' ? 'summary_zh' : 'title_zh'] || p[field] || '').toLowerCase();
+                        const val = ((p.AI || {}).title_zh || p.title || '').toLowerCase();
                         return val.includes(q);
                     }
                 }
-                const allText = ((p.AI || {}).title_zh || p.title_zh || p.title || '') + ' ' +
-                    ((p.AI || {}).summary_zh || p.summary_zh || p.summary || '') + ' ' +
+                const allText = ((p.AI || {}).title_zh || p.title || '') + ' ' +
+                    ((p.AI || {}).tldr || '') + ' ' +
                     (p.authors || []).join(' ');
                 return allText.toLowerCase().includes(term);
             });
