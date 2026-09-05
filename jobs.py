@@ -165,6 +165,12 @@ class BaseCrawlerJob(ABC):
             self._post_run(subs, fetched_info)
             total_rejected = fetched - written
             msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
+            try:
+                from crawler.openalex_client import quota_paused
+                if quota_paused():
+                    msg += " ⚠️OpenAlex日配额熔断中，相关源今日0收益，明天自动恢复"
+            except Exception:
+                pass
             logger.info(f"[{self.name}] ✔ 完成: {msg}")
             _set_job_status(self.name, "done", msg)
         except Exception as e:

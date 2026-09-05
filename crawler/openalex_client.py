@@ -33,6 +33,11 @@ _QUOTA_PAUSE_THRESHOLD = 600.0  # 秒；超过即视为日级熔断
 _BACKOFF_CAP = 60.0
 
 
+def quota_paused() -> bool:
+    """True while the daily-quota circuit breaker is active."""
+    return time.monotonic() < _quota_pause_until
+
+
 def _mailto() -> str:
     return os.environ.get("OPENALEX_EMAIL", "openalex@arxivsci-daily.local")
 
