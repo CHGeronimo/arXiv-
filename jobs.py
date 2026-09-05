@@ -96,6 +96,7 @@ class BaseCrawlerJob(ABC):
         1. Collect all papers from crawler (sequential — arXiv API rate-limited)
         2. Process with AI in parallel using ThreadPoolExecutor
         """
+        _set_job_status(self.name, "running")
         logger.info(f"[{self.name}] ▶ 开始")
         try:
             subs = _load_subs()
@@ -619,9 +620,24 @@ class Scheduler:
 
     def _run_and_schedule_next(self, job_name: str):
         """Execute a job (with arxiv's chained analysis pipeline), then
-        schedule tomorrow night's run."""
+        schedule tomorrow night's run.
+
+        互斥保护：若上一夜间任务仍在运行（爬虫卡在重试等情况），
+        推迟 15 分钟而不是并发叠加——昨晚 DBLP/S2/引文三任务叠着打
+        OpenAlex 直接触发了日级限流。手动触发不受此限制。
+        """
         if not self._running:
             return
+        busy = [n for n, s in _job_status.items()
+                if n != job_name and s.get("status") == "running"]
+        if busy:
+            logger.info(f"[调度器] {busy} 仍在运行，{job_name} 推迟 15 分钟再试（避免并发挤兑 OpenAlex）")
+            t = threading.Timer(15 * 60, self._run_and_schedule_next, args=[job_name])
+            t.daemon = True
+            t.start()
+            self._timers.append(t)
+            return
+
         try:
             JOB_FUNCS[job_name]()
         except Exception as e:

@@ -50,6 +50,36 @@ with patch.object(oc.httpx, "get", fake_get_429):
 assert result == {"ok": True} and len(attempts) == 3, (result, len(attempts))
 print("[2] 429 尊重 Retry-After、退避后重试成功 ✓")
 
+# 2b) 日级熔断：Retry-After 85590s → 不睡 24h，立即放弃 + 全局暂停窗口
+oc._quota_pause_until = 0.0
+sleeps = []
+def fake_get_daily(url, params=None, timeout=None):
+    class R:
+        status_code = 429
+        headers = {"Retry-After": "85590"}
+        def json(self): return {}
+    return R()
+with patch.object(oc.time, "sleep", side_effect=lambda s: sleeps.append(s)), \
+     patch.object(oc.httpx, "get", fake_get_daily):
+    r = oc.openalex_get("https://api.openalex.org/works")
+    assert r is None, "日级熔断应立即放弃"
+    assert not any(s > 600 for s in sleeps), f"不允许长睡眠: {sleeps}"
+    assert oc._quota_pause_until > oc.time.monotonic(), "应设置全局熔断窗口"
+    # 熔断窗口内的后续请求直接放弃，不再发 HTTP
+    n_http = []
+    def counting_get(url, params=None, timeout=None):
+        n_http.append(1)
+        class R2:
+            status_code = 200
+            headers = {}
+            def json(self): return {}
+        return R2()
+    with patch.object(oc.httpx, "get", counting_get):
+        assert oc.openalex_get("https://api.openalex.org/works") is None
+    assert not n_http, "熔断窗口内不应发请求"
+oc._quota_pause_until = 0.0
+print("[2b] 日级熔断：立即放弃+全局暂停，绝不 sleep 24h ✓")
+
 # 3) 确定性 4xx 不重试
 n = []
 def fake_get_404(url, params=None, timeout=None):

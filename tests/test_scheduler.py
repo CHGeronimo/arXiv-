@@ -87,4 +87,25 @@ src = inspect.getsource(api.trigger_job)
 assert "threading.Thread" in src and "Scheduler" not in src
 print("[5] /api/trigger/* 手动触发随时可用 ✓")
 
+# 6) 夜间互斥：上一任务 running 时，本任务推迟而不执行
+s5 = jobs.Scheduler()
+s5.start()
+s5._timers.clear()
+jobs._job_status.clear()
+jobs._job_status["dblp"] = {"status": "running", "message": "", "updated": ""}
+n_before6 = len(ran)
+s5._run_and_schedule_next("s2")
+time.sleep(0.3)
+assert "s2" not in ran[n_before6:], "dblp 运行中时 s2 不应执行"
+assert len(s5._timers) == 1, "应安排推迟重试定时器"
+s5.stop()
+# running 清除后可正常执行
+jobs._job_status.clear()
+s6 = jobs.Scheduler(); s6.start(); s6._timers.clear()
+n6 = len(ran)
+s6._run_and_schedule_next("s2")
+assert "s2" in ran[n6:]
+s6.stop()
+print("[6] 夜间互斥：任务运行中推迟 15 分钟，完成后正常执行 ✓")
+
 print("\n调度器测试全部通过 ✅")

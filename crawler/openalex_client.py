@@ -26,6 +26,11 @@ MAX_RETRIES = 4
 
 _lock = threading.Lock()
 _last_request = 0.0
+# 日配额熔断窗口：Retry-After 超过阈值视为"今天别再打了"，
+# 窗口内所有请求直接返回 None，让任务快速收尾而不是空转重试
+_quota_pause_until = 0.0
+_QUOTA_PAUSE_THRESHOLD = 600.0  # 秒；超过即视为日级熔断
+_BACKOFF_CAP = 60.0
 
 
 def _mailto() -> str:
@@ -45,9 +50,15 @@ def _throttle() -> None:
 def openalex_get(url: str, params: dict | None = None, timeout: float = 30) -> dict | None:
     """Rate-limited GET returning parsed JSON, or None after exhausting retries.
 
-    429 → Retry-After-aware backoff (5/10/20/40s fallback); 5xx → short
-    retries; other 4xx → give up immediately.
+    429 → Retry-After-aware backoff (capped) / 5xx → short retries / other 4xx →
+    give up. Retry-After or backoff exceeding _QUOTA_PAUSE_THRESHOLD means the
+    daily quota is burnt: pause ALL OpenAlex traffic for that window instead of
+    sleeping inside one request, so crawl jobs finish immediately.
     """
+    global _quota_pause_until
+    if time.monotonic() < _quota_pause_until:
+        return None  # 日配额熔断窗口内，快速放弃
+
     params = dict(params or {})
     params.setdefault("mailto", _mailto())
 
@@ -57,12 +68,22 @@ def openalex_get(url: str, params: dict | None = None, timeout: float = 30) -> d
             resp = httpx.get(url, params=params, timeout=timeout)
         except Exception as e:
             logger.warning(f"OpenAlex 请求失败（第 {attempt}/{MAX_RETRIES} 次）: {e}")
-            time.sleep(3)
+            time.sleep(min(3 * attempt, _BACKOFF_CAP))
             continue
 
         if resp.status_code == 429:
             retry_after = resp.headers.get("Retry-After", "")
-            backoff = int(retry_after) if retry_after.isdigit() else min(60, 5 * 2 ** (attempt - 1))
+            backoff = int(retry_after) if retry_after.isdigit() else min(5 * 2 ** (attempt - 1), _BACKOFF_CAP)
+            if backoff > _QUOTA_PAUSE_THRESHOLD:
+                # 日级配额熔断（Retry-After 可能高达 86400s）：
+                # 全局暂停并放弃本请求，绝不 sleep 一整天
+                _quota_pause_until = time.monotonic() + min(backoff, 6 * 3600)
+                logger.warning(
+                    f"OpenAlex 日配额熔断（Retry-After={backoff}s），全局暂停 OpenAlex 请求 "
+                    f"{min(backoff, 6*3600)//60} 分钟，本轮任务提前收尾"
+                )
+                return None
+            backoff = min(backoff, _BACKOFF_CAP)
             logger.warning(f"OpenAlex 429 限流，{backoff}s 后重试（第 {attempt}/{MAX_RETRIES} 次）")
             time.sleep(backoff)
             continue
