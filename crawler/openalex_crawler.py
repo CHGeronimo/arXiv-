@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Generator, List, Set
 
 from crawler.models import Paper
@@ -19,10 +20,13 @@ class OpenAlexCrawler:
     Replaces S2Crawler for broader coverage. OpenAlex has no rate limit
     for small requests, making it more reliable for daily crawls.
     """
-    def __init__(self, keywords: List[str], max_per_keyword: int = 10, year_from: int = 2024):
+    def __init__(self, keywords: List[str], max_per_keyword: int = 10, year_from: int = 2024,
+                 rotate_days: int = 0):
         self.keywords = keywords
         self.max_per_keyword = max_per_keyword
         self.year_from = year_from
+        # OpenAlex 按请求计费——关键词按天轮换控制每日请求量
+        self.rotate_days = rotate_days
 
     def _search(self, keyword: str) -> List[dict]:
         params = {
@@ -107,7 +111,14 @@ class OpenAlexCrawler:
     def crawl_iter(self) -> Generator[Paper, None, None]:
         seen_ids: Set[str] = set()
 
-        for keyword in self.keywords:
+        keywords = self.keywords
+        if self.rotate_days > 1:
+            day_of_year = datetime.now(timezone.utc).timetuple().tm_yday
+            keywords = [k for i, k in enumerate(self.keywords)
+                        if (day_of_year + i) % self.rotate_days == 0]
+            logger.info(f"关键词轮换: 今日 {len(keywords)}/{len(self.keywords)} 个（每 {self.rotate_days} 天全量一轮）")
+
+        for keyword in keywords:
             logger.info(f"OpenAlex 搜索: '{keyword}'")
             items = self._search(keyword)
 

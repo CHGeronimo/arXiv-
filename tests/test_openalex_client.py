@@ -50,35 +50,52 @@ with patch.object(oc.httpx, "get", fake_get_429):
 assert result == {"ok": True} and len(attempts) == 3, (result, len(attempts))
 print("[2] 429 尊重 Retry-After、退避后重试成功 ✓")
 
-# 2b) 日级熔断：Retry-After 85590s → 不睡 24h，立即放弃 + 全局暂停窗口
+# 2b) 超大 Retry-After 是脏信号：封顶 60s 退避继续重试，绝不长睡眠/长熔断
 oc._quota_pause_until = 0.0
+oc._daily_429_streak = 0
 sleeps = []
-def fake_get_daily(url, params=None, timeout=None):
+seq = []
+def fake_get_dirty(url, params=None, timeout=None):
+    seq.append(1)
+    class R:
+        def __init__(self, code, ra=None):
+            self.status_code = code
+            self.headers = {"Retry-After": ra} if ra else {}
+        def json(self): return {"ok": True}
+    if len(seq) == 1:
+        return R(429, "85590")   # 脏的日级 Retry-After
+    return R(200)
+with patch.object(oc.time, "sleep", side_effect=lambda s: sleeps.append(s)), \
+     patch.object(oc.httpx, "get", fake_get_dirty):
+    r = oc.openalex_get("https://api.openalex.org/works")
+assert r == {"ok": True}, "脏 Retry-After 后应重试成功"
+assert all(s <= 60 for s in sleeps), f"退避必须封顶60s: {sleeps}"
+assert oc._daily_429_streak == 0, "成功后 streak 应清零"
+print("[2b] 脏 Retry-After(85590s)：封顶60s退避后重试成功，绝不长熔断 ✓")
+
+# 2c) 真日配额耗尽：响应体带 budget 结构 → 立即全局暂停至重置（有判据，非盲信header）
+oc._quota_pause_until = 0.0
+oc._daily_429_streak = 0
+sleeps2 = []
+http_calls = []
+def fake_get_budget(url, params=None, timeout=None):
+    http_calls.append(1)
     class R:
         status_code = 429
-        headers = {"Retry-After": "85590"}
+        headers = {"Retry-After": "81733"}
+        text = '{"error":"Rate limit exceeded","message":"Insufficient budget. This request costs $0.001 but you only have $0.0001 remaining. Resets at midnight UTC.","dailyRemainingUsd":0.0001}'
         def json(self): return {}
     return R()
-with patch.object(oc.time, "sleep", side_effect=lambda s: sleeps.append(s)), \
-     patch.object(oc.httpx, "get", fake_get_daily):
+with patch.object(oc.time, "sleep", side_effect=lambda s: sleeps2.append(s)), \
+     patch.object(oc.httpx, "get", fake_get_budget):
     r = oc.openalex_get("https://api.openalex.org/works")
-    assert r is None, "日级熔断应立即放弃"
-    assert not any(s > 600 for s in sleeps), f"不允许长睡眠: {sleeps}"
-    assert oc._quota_pause_until > oc.time.monotonic(), "应设置全局熔断窗口"
-    # 熔断窗口内的后续请求直接放弃，不再发 HTTP
-    n_http = []
-    def counting_get(url, params=None, timeout=None):
-        n_http.append(1)
-        class R2:
-            status_code = 200
-            headers = {}
-            def json(self): return {}
-        return R2()
-    with patch.object(oc.httpx, "get", counting_get):
-        assert oc.openalex_get("https://api.openalex.org/works") is None
-    assert not n_http, "熔断窗口内不应发请求"
+    assert r is None, "真配额耗尽应立即放弃"
+    assert len(http_calls) == 1, f"应只发一次请求即停: {len(http_calls)}"
+    assert all(s <= oc.MIN_INTERVAL + 0.01 for s in sleeps2), f"只允许节流sleep，不应退避: {sleeps2}"
+    pause_left = oc._quota_pause_until - oc.time.monotonic()
+    assert 0 < pause_left <= 24 * 3600 + 5, f"暂停应至UTC重置: {pause_left}"
 oc._quota_pause_until = 0.0
-print("[2b] 日级熔断：立即放弃+全局暂停，绝不 sleep 24h ✓")
+print("[2c] 真配额耗尽（body判据）：一次请求即停，暂停至重置 ✓")
 
 # 3) 确定性 4xx 不重试
 n = []

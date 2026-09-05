@@ -168,7 +168,7 @@ class BaseCrawlerJob(ABC):
             try:
                 from crawler.openalex_client import quota_paused
                 if quota_paused():
-                    msg += " ⚠️OpenAlex日配额熔断中，相关源今日0收益，明天自动恢复"
+                    msg += " ⚠️OpenAlex限流暂停中(≤10分钟)，稍后手动重试"
             except Exception:
                 pass
             logger.info(f"[{self.name}] ✔ 完成: {msg}")
@@ -291,7 +291,10 @@ class DblpJob(BaseCrawlerJob):
     def _create_crawler(self, subs: Subscriptions):
         if not subs.conferences:
             return None
-        return DblpCrawler(conferences=subs.conferences)
+        return DblpCrawler(
+            conferences=subs.conferences,
+            rotate_days=int(os.environ.get("DBLP_ROTATE_DAYS", "7")),
+        )
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no conferences"
@@ -350,7 +353,10 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"关键词扩展失败，使用原始关键词: {e}")
             keywords = seed_keywords
-        return OpenAlexCrawler(keywords=keywords, max_per_keyword=20)
+        return OpenAlexCrawler(
+            keywords=keywords, max_per_keyword=20,
+            rotate_days=int(os.environ.get("S2_ROTATE_DAYS", "3")),
+        )
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no keywords"

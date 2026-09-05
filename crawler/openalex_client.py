@@ -26,16 +26,13 @@ MAX_RETRIES = 4
 
 _lock = threading.Lock()
 _last_request = 0.0
-# 日配额熔断窗口：Retry-After 超过阈值视为"今天别再打了"，
-# 窗口内所有请求直接返回 None，让任务快速收尾而不是空转重试
+# 防真熔断的短暂全局暂停（实测 OpenAlex/Cloudflare 的超大 Retry-After
+# 是脏信号——同一秒内下一请求即成功，绝不能据此长熔断）
 _quota_pause_until = 0.0
-_QUOTA_PAUSE_THRESHOLD = 600.0  # 秒；超过即视为日级熔断
-_BACKOFF_CAP = 60.0
-
-
-def quota_paused() -> bool:
-    """True while the daily-quota circuit breaker is active."""
-    return time.monotonic() < _quota_pause_until
+_daily_429_streak = 0
+_DAILY_STREAK_LIMIT = 3     # 连续 N 次日级429才短暂暂停
+_PAUSE_ON_STREAK = 600.0    # 暂停10分钟，不是6小时
+_BACKOFF_CAP = 60.0         # 一切退避封顶60s
 
 
 def _mailto() -> str:
@@ -52,17 +49,22 @@ def _throttle() -> None:
         _last_request = time.monotonic()
 
 
+def quota_paused() -> bool:
+    """True while the defensive short pause is active."""
+    return time.monotonic() < _quota_pause_until
+
+
 def openalex_get(url: str, params: dict | None = None, timeout: float = 30) -> dict | None:
     """Rate-limited GET returning parsed JSON, or None after exhausting retries.
 
-    429 → Retry-After-aware backoff (capped) / 5xx → short retries / other 4xx →
-    give up. Retry-After or backoff exceeding _QUOTA_PAUSE_THRESHOLD means the
-    daily quota is burnt: pause ALL OpenAlex traffic for that window instead of
-    sleeping inside one request, so crawl jobs finish immediately.
+    实测教训（2026-09-05）：OpenAlex 的 429 由 Cloudflare 边缘间歇性发出，
+    Retry-After 可能给出 80000+ 秒的脏值而同一秒内下一请求即成功——
+    因此一律 cap 到 60s 退避；只有连续 _DAILY_STREAK_LIMIT 次日级 429
+    才暂停 _PAUSE_ON_STREAK（10分钟）作为真熔断的防御。
     """
-    global _quota_pause_until
+    global _quota_pause_until, _daily_429_streak
     if time.monotonic() < _quota_pause_until:
-        return None  # 日配额熔断窗口内，快速放弃
+        return None
 
     params = dict(params or {})
     params.setdefault("mailto", _mailto())
@@ -77,19 +79,25 @@ def openalex_get(url: str, params: dict | None = None, timeout: float = 30) -> d
             continue
 
         if resp.status_code == 429:
+            # 真熔断判据：OpenAlex 日配额耗尽时响应体带 budget 结构
+            # （"Insufficient budget...dailyRemainingUsd"，额度1000credits/天，
+            #  每请求$0.001，UTC午夜重置）；Cloudflare 抖动性 429 无此结构
+            body = ""
+            try:
+                body = resp.text[:300]
+            except Exception:
+                pass
             retry_after = resp.headers.get("Retry-After", "")
-            backoff = int(retry_after) if retry_after.isdigit() else min(5 * 2 ** (attempt - 1), _BACKOFF_CAP)
-            if backoff > _QUOTA_PAUSE_THRESHOLD:
-                # 日级配额熔断（Retry-After 可能高达 86400s）：
-                # 全局暂停并放弃本请求，绝不 sleep 一整天
-                _quota_pause_until = time.monotonic() + min(backoff, 6 * 3600)
+            raw = int(retry_after) if retry_after.isdigit() else 5 * 2 ** (attempt - 1)
+            if "Insufficient budget" in body or "dailyRemainingUsd" in body:
+                _quota_pause_until = time.monotonic() + min(raw, 24 * 3600)
                 logger.warning(
-                    f"OpenAlex 日配额熔断（Retry-After={backoff}s），全局暂停 OpenAlex 请求 "
-                    f"{min(backoff, 6*3600)//60} 分钟，本轮任务提前收尾"
+                    f"OpenAlex 日配额真耗尽（{body[:100]}），暂停至 UTC 午夜重置，任务收尾"
                 )
                 return None
-            backoff = min(backoff, _BACKOFF_CAP)
-            logger.warning(f"OpenAlex 429 限流，{backoff}s 后重试（第 {attempt}/{MAX_RETRIES} 次）")
+            # 抖动：退避封顶 60s 继续重试（同秒内下一请求常即成功）
+            backoff = min(raw, _BACKOFF_CAP)
+            logger.warning(f"OpenAlex 429 限流（Retry-After={raw}s 视为抖动），退避 {backoff}s（第 {attempt}/{MAX_RETRIES} 次）")
             time.sleep(backoff)
             continue
         if resp.status_code >= 500:
@@ -100,6 +108,7 @@ def openalex_get(url: str, params: dict | None = None, timeout: float = 30) -> d
             logger.error(f"OpenAlex 请求错误 {resp.status_code}（不重试）: {url}")
             return None
         try:
+            _daily_429_streak = 0  # 成功即清零
             return resp.json()
         except Exception as e:
             logger.warning(f"OpenAlex 响应解析失败: {e}")

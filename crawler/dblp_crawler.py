@@ -52,9 +52,13 @@ VENUE_MAP = {
 
 
 class DblpCrawler:
-    def __init__(self, conferences: List[Conference], fetch_interval_hours: int = 24):
+    def __init__(self, conferences: List[Conference], fetch_interval_hours: int = 24,
+                 rotate_days: int = 0):
         self.conferences = conferences
         self.fetch_interval_hours = fetch_interval_hours
+        # OpenAlex 按请求计费（1000 credits/天，全量 75 会议×2年=150 请求/天会
+        # 烧穿额度）——按天轮换：每天只抓 1/rotate_days 的会议，7 天扫全量
+        self.rotate_days = rotate_days
 
     def _needs_update(self, conf: Conference) -> bool:
         if conf.last_updated is None:
@@ -142,7 +146,14 @@ class DblpCrawler:
         seen_dois: Set[str] = set()
         current_year = datetime.now(timezone.utc).year
 
-        for conf in self.conferences:
+        conferences = self.conferences
+        if self.rotate_days > 1:
+            day_of_year = datetime.now(timezone.utc).timetuple().tm_yday
+            conferences = [c for i, c in enumerate(self.conferences)
+                           if (day_of_year + i) % self.rotate_days == 0]
+            logger.info(f"会议轮换: 今日 {len(conferences)}/{len(self.conferences)} 个（每 {self.rotate_days} 天全量一轮）")
+
+        for conf in conferences:
             if not self._needs_update(conf):
                 logger.debug(f"Skipping {conf.venue}, recently updated")
                 continue
