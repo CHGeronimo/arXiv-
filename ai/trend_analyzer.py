@@ -26,7 +26,10 @@ Identify:
 3. Controversies or conflicting findings
 4. Research opportunities visible from these papers
 
-Respond with valid JSON matching the TrendReport schema."""
+Respond with valid JSON with EXACTLY these four keys:
+"new_methods", "solved_problems", "controversies", "opportunities".
+Each key MUST be a non-empty array of 2-5 items; each item is a short string
+or {{"name": "...", "description": "..."}}. Do not return empty arrays."""
 
 _CHAIN = None
 _RAW_CHAIN = None
@@ -80,6 +83,7 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
             "research_direction": profile.get("direction", ""),
         })
         raw_text = raw_resp.content if hasattr(raw_resp, 'content') else str(raw_resp)
+        logger.info(f"[trend] LLM 原始响应 {len(raw_text)} 字符: {raw_text[:200]}")
         data = json.loads(raw_text)
     except Exception as e:
         logger.error(f"趋势报告 LLM 调用失败: {e}")

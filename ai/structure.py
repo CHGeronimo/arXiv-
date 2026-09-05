@@ -42,19 +42,33 @@ class TrendReport(BaseModel):
     def from_lists(cls, data: dict) -> "TrendReport":
         """Handle LLM returning list fields by joining them into strings.
 
-        Items may be plain strings or {name, description} objects."""
+        Items may be plain strings or objects; LLM 对不同小节会用不同键名
+        （name/opportunity/direction/gap...），白名单之外的键取值拼接，
+        格式化后为空的条目直接丢弃（否则渲染成一排空 bullet）。"""
+        _TITLE_KEYS = ("name", "title", "topic", "method", "opportunity",
+                       "direction", "problem", "gap", "area")
+        _DESC_KEYS = ("description", "detail", "explanation", "note", "why", "how")
+
         def _fmt(item) -> str:
             if isinstance(item, dict):
-                name = item.get("name") or item.get("title") or ""
-                desc = item.get("description") or item.get("detail") or ""
-                return f"{name}: {desc}".strip(": ")
+                title = next((str(item[k]) for k in _TITLE_KEYS if item.get(k)), "")
+                desc = next((str(item[k]) for k in _DESC_KEYS if item.get(k)), "")
+                if title and desc:
+                    return f"{title}: {desc}"
+                if title or desc:
+                    return title or desc
+                # 键名都不认识：拼接所有非空值
+                vals = [str(v) for v in item.values() if v not in (None, "")]
+                return ": ".join(vals)
             return str(item)
 
         fields = {}
         for field_name in ("new_methods", "solved_problems", "controversies", "opportunities"):
             val = data.get(field_name, "")
             if isinstance(val, list):
-                fields[field_name] = "\n".join(f"- {_fmt(item)}" for item in val)
+                lines = [f"- {_fmt(item)}" for item in val]
+                lines = [l for l in lines if l.strip() != "-"]
+                fields[field_name] = "\n".join(lines)
             else:
                 fields[field_name] = str(val) if val else ""
         return cls(**fields)
