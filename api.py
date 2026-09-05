@@ -312,6 +312,14 @@ def trigger_enhance():
     return jsonify({"status": "triggered", "job": "enhance"})
 
 
+@app.route("/api/trigger/digest", methods=["POST"])
+def trigger_digest():
+    """Regenerate today's digest on demand (normally nightly after arxiv)."""
+    from ai.digest import generate_digest
+    threading.Thread(target=generate_digest, daemon=True).start()
+    return jsonify({"status": "triggered", "job": "digest"})
+
+
 @app.route("/api/jobs", methods=["GET"])
 def get_jobs():
     return jsonify(get_job_status())

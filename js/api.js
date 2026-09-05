@@ -71,6 +71,27 @@ export async function triggerCrawl(job, { loadPapers }) {
         } catch { showToast('启动失败'); }
         return;
     }
+    if (job === 'digest') {
+        try {
+            const resp = await fetch('/api/trigger/digest', { method: 'POST' });
+            showToast(resp.ok ? '今日简报生成中，稍后到 📰 查看' : '启动失败');
+        } catch { showToast('启动失败'); }
+        return;
+    }
+    if (job === 'clustering') {
+        try {
+            const resp = await fetch('/api/trigger/clustering', { method: 'POST' });
+            showToast(resp.ok ? '聚类已启动，完成后到 🕸️ 刷新图谱' : '启动失败');
+        } catch { showToast('启动失败'); }
+        return;
+    }
+    if (job === 'fulltext') {
+        try {
+            const resp = await fetch('/api/trigger/fulltext-analyze', { method: 'POST' });
+            showToast(resp.ok ? '全文分析已启动（补 must-read/recommended 论文）' : '启动失败');
+        } catch { showToast('启动失败'); }
+        return;
+    }
     const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2', 'citations'] : [job];
     for (const j of jobs) {
         const el = document.getElementById(`crawl-${j}`);
