@@ -29,7 +29,8 @@ Identify:
 Respond with valid JSON with EXACTLY these four keys:
 "new_methods", "solved_problems", "controversies", "opportunities".
 Each key MUST be a non-empty array of 2-5 items; each item is a short string
-or {{"name": "...", "description": "..."}}. Do not return empty arrays."""
+or {{"name": "...", "description": "..."}}. Do not return empty arrays.
+用简体中文撰写所有内容（方法名/博弈术语等标准术语保留英文）。"""
 
 _CHAIN = None
 _RAW_CHAIN = None
