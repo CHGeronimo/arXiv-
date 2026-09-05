@@ -47,19 +47,21 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
 
     conn = get_conn()
-    # Cover from week_start to today (not just the previous week)
+    # 按入库时间取本周论文（published_date 是投稿日：会议/引文论文都是老日期，
+    # 按它筛会把本周新发现的大量论文漏掉——与 digest 的修复同类）
     today_str = datetime.now().strftime("%Y-%m-%d")
 
+    logger.info(f"[trend] ▶ 生成周报 {week_start}")
     rows = conn.execute("""
         SELECT p.title, a.tldr, a.method, a.result
         FROM papers p JOIN ai_results a ON p.id = a.paper_id
-        WHERE p.published_date >= ? AND p.published_date <= ?
+        WHERE p.created_at >= ?
         AND a.recommendation != 'ignore'
         ORDER BY a.relevance_score DESC LIMIT 50
-    """, (week_start, today_str)).fetchall()
+    """, (f"{week_start} 00:00:00",)).fetchall()
 
     if not rows:
-        logger.info(f"趋势报告周 {week_start} 无论文")
+        logger.info(f"[trend] ⊘ 周起始 {week_start} 无论文入库")
         return None
 
     summaries = "\n".join(f"- {r['title']}: {r['tldr']}" for r in rows[:30])
@@ -98,10 +100,11 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         "opportunities": report.opportunities,
         "paper_count": len(rows),
     }
-    conn = get_conn()
     conn.execute(
-        "INSERT OR REPLACE INTO trend_reports (week_start, new_methods, solved_problems, controversies, opportunities, paper_count) VALUES (?,?,?,?,?,?)",
-        tuple(result.values()),
+        "INSERT OR REPLACE INTO trend_reports (week_start, new_methods, solved_problems, controversies, opportunities, paper_count, generated_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+        (result["week_start"], result["new_methods"], result["solved_problems"],
+         result["controversies"], result["opportunities"], result["paper_count"]),
     )
     conn.commit()
+    logger.info(f"[trend] ✔ 周报完成: {result['week_start']} ({result['paper_count']} 篇)")
     return result

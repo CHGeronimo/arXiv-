@@ -324,21 +324,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Trend radar
     document.getElementById('btn-generate-trend')?.addEventListener('click', async () => {
-        await fetch('/api/trigger/trend', { method: 'POST' });
-        showToast('趋势报告生成中，完成后自动刷新...');
-        let retries = 0;
-        const pollTrend = setInterval(async () => {
-            retries++;
+        const btn = document.getElementById('btn-generate-trend');
+        const orig = btn?.innerHTML;
+        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 生成中...'; }
+        const contentEl = document.getElementById('trend-content');
+        const emptyEl = document.getElementById('trend-empty');
+        if (emptyEl) { emptyEl.style.display = ''; emptyEl.innerHTML = '<div class="spinner"></div><p style="margin-top:12px">AI 正在分析本周论文（思考模式约 1-2 分钟）...</p>'; }
+        if (contentEl) contentEl.innerHTML = '';
+        try {
+            await fetch('/api/trigger/trend', { method: 'POST' });
+        } catch {
+            showToast('触发失败，请稍后重试');
+            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            return;
+        }
+        // 轮询任务状态（而非报告存在性——旧报告一直存在，按存在性轮询会误判完成）
+        let tries = 0;
+        const poll = setInterval(async () => {
+            tries++;
             try {
-                const resp = await fetch('/api/trend-radar');
+                const resp = await fetch('/api/jobs');
                 if (!resp.ok) return;
-                const { report } = await resp.json();
-                if (report || retries > 12) {
-                    clearInterval(pollTrend);
-                    loadTrendRadar();
+                const status = await resp.json();
+                const t = status.trend;
+                if (!t || t.status === 'running') {
+                    if (tries > 60) { clearInterval(poll); finish('超时，请稍后刷新查看'); }
+                    return;
                 }
-            } catch { clearInterval(pollTrend); }
-        }, 10000);
+                clearInterval(poll);
+                finish(t.status === 'error' ? `生成失败: ${t.message || ''}` : (t.message || '生成完成'), t.status !== 'error');
+            } catch { /* 网络抖动继续轮询 */ }
+        }, 3000);
+        function finish(msg, ok = true) {
+            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            showToast(msg, 4000);
+            loadTrendRadar();
+        }
     });
 
     // Idea check

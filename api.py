@@ -684,8 +684,20 @@ def list_trend_weeks():
 
 @app.route("/api/trigger/trend", methods=["POST"])
 def trigger_trend():
-    from ai.trend_analyzer import generate_trend_report
-    threading.Thread(target=generate_trend_report, daemon=True).start()
+    def _run_trend():
+        from jobs import _set_job_status
+        _set_job_status("trend", "running")
+        try:
+            from ai.trend_analyzer import generate_trend_report
+            result = generate_trend_report()
+            if result:
+                _set_job_status("trend", "done", f"{result['paper_count']} 篇论文分析完成")
+            else:
+                _set_job_status("trend", "done", "本周无论文入库，未生成报告")
+        except Exception as e:
+            logging.getLogger(__name__).error(f"趋势报告生成失败: {e}", exc_info=True)
+            _set_job_status("trend", "error", str(e)[:120])
+    threading.Thread(target=_run_trend, daemon=True).start()
     return jsonify({"status": "triggered"})
 
 
