@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = await resp.json();
                 const t = status.trend;
                 if (!t || t.status === 'running') {
-                    if (tries > 60) { clearInterval(poll); finish('超时，请稍后刷新查看'); }
+                    if (tries > 110) { clearInterval(poll); finish('超时，请稍后刷新查看'); }
                     return;
                 }
                 clearInterval(poll);

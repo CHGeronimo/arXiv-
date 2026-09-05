@@ -36,7 +36,9 @@ def _get_raw_chain():
     global _RAW_CHAIN
     if _RAW_CHAIN is None:
         model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
-        llm = build_chat(model_name, thinking=True, model_kwargs={"response_format": {"type": "json_object"}})
+        # 思考模式 + 50篇论文长prompt：默认120s超时不够（实测 Request timed out）
+        llm = build_chat(model_name, thinking=True, timeout=300,
+                         model_kwargs={"response_format": {"type": "json_object"}})
         _RAW_CHAIN = ChatPromptTemplate.from_template(_TREND_PROMPT) | llm
     return _RAW_CHAIN
 
@@ -64,7 +66,10 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         logger.info(f"[trend] ⊘ 周起始 {week_start} 无论文入库")
         return None
 
-    summaries = "\n".join(f"- {r['title']}: {r['tldr']}" for r in rows[:30])
+    # 20 篇足够覆盖一周动态；过长 prompt 会把思考模式的响应时间拖过超时
+    summaries = "\n".join(
+        f"- {r['title']}: {(r['tldr'] or '')[:120]}" for r in rows[:20]
+    )
 
     from .enhance import load_research_profile
     profile = load_research_profile()

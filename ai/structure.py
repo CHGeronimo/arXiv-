@@ -40,12 +40,21 @@ class TrendReport(BaseModel):
 
     @classmethod
     def from_lists(cls, data: dict) -> "TrendReport":
-        """Handle LLM returning list fields by joining them into strings."""
+        """Handle LLM returning list fields by joining them into strings.
+
+        Items may be plain strings or {name, description} objects."""
+        def _fmt(item) -> str:
+            if isinstance(item, dict):
+                name = item.get("name") or item.get("title") or ""
+                desc = item.get("description") or item.get("detail") or ""
+                return f"{name}: {desc}".strip(": ")
+            return str(item)
+
         fields = {}
         for field_name in ("new_methods", "solved_problems", "controversies", "opportunities"):
             val = data.get(field_name, "")
             if isinstance(val, list):
-                fields[field_name] = "\n".join(f"- {item}" for item in val)
+                fields[field_name] = "\n".join(f"- {_fmt(item)}" for item in val)
             else:
                 fields[field_name] = str(val) if val else ""
         return cls(**fields)
