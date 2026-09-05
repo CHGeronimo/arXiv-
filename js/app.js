@@ -153,9 +153,22 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
 
     // Crawl trigger
+    // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
+    document.querySelectorAll('[data-dropdown]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dd = btn.closest('.dropdown');
+            const wasOpen = dd.classList.contains('open');
+            document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+            if (!wasOpen) dd.classList.add('open');
+        });
+    });
     document.getElementById('panel-crawl').addEventListener('click', (e) => {
         const item = e.target.closest('[data-crawl]');
-        if (item) triggerCrawl(item.dataset.crawl, { loadPapers });
+        if (item) {
+            triggerCrawl(item.dataset.crawl, { loadPapers });
+            item.closest('.dropdown')?.classList.remove('open');
+        }
     });
 
     // Paper modal
@@ -248,10 +261,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const active = document.activeElement;
         const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
         if (e.key === 'Escape') {
-            // Close all modals uniformly
+            // Close all modals and dropdowns uniformly
             document.querySelectorAll('.modal.active, .subscription-modal.active').forEach(m => {
                 m.classList.remove('active');
             });
+            document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
             document.body.style.overflow = '';
             return;
         }
@@ -418,9 +432,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch { showToast('导出失败'); }
     });
 
-    // Close dropdowns on outside click (no-op for sidebar)
+    // Close dropdowns on outside click
     document.addEventListener('click', (e) => {
-        // Sidebar doesn't need outside click handling
+        if (!e.target.closest('.dropdown')) {
+            document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+        }
     });
 
     // Data management
