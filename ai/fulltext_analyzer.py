@@ -74,9 +74,18 @@ def analyze_fulltext(paper: dict, profile: dict | None = None) -> Optional[dict]
     for name, text in sections.items():
         sections_text += f"### {name.title()}\n{text}\n\n"
 
-    # Truncate to ~8000 chars to control token cost
-    if len(sections_text) > 8000:
-        sections_text = sections_text[:8000]
+    # 预算放开：正文覆盖 ~15% → 大部分正文（flash 上下文充裕，成本几乎无感）
+    if len(sections_text) > 30000:
+        sections_text = sections_text[:30000]
+
+    # 诚实标注：抓取不完整（过短或缺方法/实验节）时明示降级，不冒充全文分析
+    low_confidence = len(sections_text) < 2000 or not (
+        "method" in sections or "experiments" in sections
+    )
+    if low_confidence:
+        logger.warning(
+            f"正文获取不完整（节={list(sections.keys())}, {len(sections_text)}字符），降级为摘要级分析: {arxiv_id}"
+        )
 
     if profile is None:
         profile = load_research_profile()
@@ -97,7 +106,11 @@ def analyze_fulltext(paper: dict, profile: dict | None = None) -> Optional[dict]
 
     return {
         "paper_id": arxiv_id,
-        "method_implementation": result.method_implementation,
+        # 降级时在首字段明示，避免摘要级分析冒充全文分析
+        "method_implementation": (
+            ("⚠️ 正文获取不完整，以下为基于摘要的降级分析\n\n" + result.method_implementation)
+            if low_confidence else result.method_implementation
+        ),
         "experimental_design": result.experimental_design,
         "key_results_detail": result.key_results_detail,
         "limitations": result.limitations,

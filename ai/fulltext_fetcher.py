@@ -96,12 +96,13 @@ def extract_sections(html: str) -> dict[str, str]:
     if current_section and current_text:
         sections.setdefault(current_section, []).append(" ".join(current_text))
 
-    # Merge lists into single strings, truncate to ~4000 chars per section
+    # Merge lists into single strings, truncate to ~8000 chars per section
+    # （GLM-5.3-flash 上下文充裕，旧 4000 上限丢掉太多方法/实验细节）
     result = {}
     for name, texts in sections.items():
         combined = " ".join(texts)
-        if len(combined) > 4000:
-            combined = combined[:4000]
+        if len(combined) > 8000:
+            combined = combined[:8000]
         if combined:
             result[name] = combined
 
