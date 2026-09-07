@@ -658,8 +658,12 @@ def _run_clustering_job():
 
 @app.route("/api/trend-radar", methods=["GET"])
 def get_latest_trend():
+    scope = request.args.get("scope", "weekly")
     conn = get_conn()
-    row = conn.execute("SELECT * FROM trend_reports ORDER BY week_start DESC LIMIT 1").fetchone()
+    row = conn.execute(
+        "SELECT * FROM trend_reports WHERE period_type = ? ORDER BY week_start DESC LIMIT 1",
+        (scope,),
+    ).fetchone()
     if not row:
         return jsonify({"report": None})
     return jsonify({"report": dict(row)})
@@ -676,29 +680,36 @@ def get_trend_by_week(week: str):
 
 @app.route("/api/trend-radars", methods=["GET"])
 def list_trend_weeks():
-    """Available trend report weeks (history browser)."""
+    """Available trend report periods, split by type (history browsers)."""
     conn = get_conn()
-    weeks = [r[0] for r in conn.execute("SELECT week_start FROM trend_reports ORDER BY week_start DESC")]
-    return jsonify({"weeks": weeks})
+    weeks = [r[0] for r in conn.execute(
+        "SELECT week_start FROM trend_reports WHERE period_type = 'weekly' ORDER BY week_start DESC")]
+    months = [r[0] for r in conn.execute(
+        "SELECT week_start FROM trend_reports WHERE period_type = 'monthly' ORDER BY week_start DESC")]
+    return jsonify({"weeks": weeks, "months": months})
 
 
 @app.route("/api/trigger/trend", methods=["POST"])
 def trigger_trend():
+    scope = (request.get_json(silent=True) or {}).get("scope", "weekly")
+    if scope not in ("weekly", "monthly"):
+        scope = "weekly"
+
     def _run_trend():
         from jobs import _set_job_status
         _set_job_status("trend", "running")
         try:
-            from ai.trend_analyzer import generate_trend_report
-            result = generate_trend_report()
+            from ai.trend_analyzer import generate_trend_report_period
+            result = generate_trend_report_period(scope)
             if result:
-                _set_job_status("trend", "done", f"{result['paper_count']} 篇论文分析完成")
+                _set_job_status("trend", "done", f"{'周' if scope == 'weekly' else '月'}报 {result['week_start']}: {result['paper_count']} 篇论文分析完成")
             else:
-                _set_job_status("trend", "done", "本周无论文入库，未生成报告")
+                _set_job_status("trend", "done", f"本期({'周' if scope == 'weekly' else '月'})无论文入库，未生成报告")
         except Exception as e:
             logging.getLogger(__name__).error(f"趋势报告生成失败: {e}", exc_info=True)
             _set_job_status("trend", "error", str(e)[:120])
     threading.Thread(target=_run_trend, daemon=True).start()
-    return jsonify({"status": "triggered"})
+    return jsonify({"status": "triggered", "scope": scope})
 
 
 # ── Logs ───────────────────────────────────────────────────────────

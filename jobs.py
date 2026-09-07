@@ -461,6 +461,38 @@ def run_citations_job():
     JOBS["citations"].run()
 
 
+def run_trend_auto(today=None):
+    """Trend auto-沉淀：每周一自动生成本周周报；每月 1 日自动生成上月完整月报。
+
+    其余日子秒退（no-op）。today 参数仅为可测试性。"""
+    from datetime import date as _date
+    today = today or _date.today()
+    if today.weekday() != 0 and today.day != 1:
+        return
+    from ai.trend_analyzer import generate_trend_report_period
+    _set_job_status("trend_auto", "running")
+    done = []
+    try:
+        if today.weekday() == 0:
+            r = generate_trend_report_period("weekly")
+            if r:
+                done.append(f"周报{r['week_start']}({r['paper_count']}篇)")
+            else:
+                done.append("周报: 本周无论文")
+        if today.day == 1:
+            prev_month = (today.replace(day=1) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m")
+            r = generate_trend_report_period("monthly", prev_month)
+            if r:
+                done.append(f"月报{r['week_start']}({r['paper_count']}篇)")
+            else:
+                done.append(f"月报{prev_month}: 无论文")
+        _set_job_status("trend_auto", "done", ", ".join(done) or "无需生成")
+        logger.info(f"[trend_auto] ✔ {', '.join(done)}")
+    except Exception as e:
+        logger.error(f"[trend_auto] ✖ 失败: {e}", exc_info=True)
+        _set_job_status("trend_auto", "error", str(e)[:120])
+
+
 # ---------------------------------------------------------------------------
 # Retro-enhance (SQLite-based)
 # ---------------------------------------------------------------------------
@@ -567,6 +599,7 @@ JOB_FUNCS = {
     "s2": run_s2_job,
     "author": run_author_job,
     "citations": run_citations_job,
+    "trend_auto": run_trend_auto,
 }
 
 

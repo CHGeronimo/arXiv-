@@ -201,6 +201,9 @@ def init_db() -> None:
     ignored_cols = {r[1] for r in conn.execute("PRAGMA table_info(ignored_papers)")}
     if "reason_detail" not in ignored_cols:
         conn.execute("ALTER TABLE ignored_papers ADD COLUMN reason_detail TEXT")
+    trend_cols = {r[1] for r in conn.execute("PRAGMA table_info(trend_reports)")}
+    if "period_type" not in trend_cols:
+        conn.execute("ALTER TABLE trend_reports ADD COLUMN period_type TEXT DEFAULT 'weekly'")
 
     logger.info("数据库架构已初始化")
 

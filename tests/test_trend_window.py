@@ -17,7 +17,8 @@ mem.row_factory = sqlite3.Row
 mem.execute("CREATE TABLE papers (id TEXT, title TEXT, published_date TEXT, created_at TEXT)")
 mem.execute("CREATE TABLE ai_results (paper_id TEXT, tldr TEXT, method TEXT, result TEXT, recommendation TEXT, relevance_score INT)")
 mem.execute("""CREATE TABLE trend_reports (week_start TEXT PRIMARY KEY, new_methods TEXT,
-    solved_problems TEXT, controversies TEXT, opportunities TEXT, paper_count INT, generated_at TEXT)""")
+    solved_problems TEXT, controversies TEXT, opportunities TEXT, paper_count INT,
+    period_type TEXT, generated_at TEXT)""")
 this_week = datetime.now().strftime("%Y-%m-%d")
 mem.execute("INSERT INTO papers VALUES ('new-cite','Citation Paper','2024-01-01',?)", (f"{this_week} 03:00:00",))  # 引文/会议论文典型：老投稿日+本周入库
 mem.execute("INSERT INTO ai_results VALUES ('new-cite','t','m','r','recommended',9)")
@@ -56,7 +57,8 @@ print("[2] 无论文入库时返回 None ✓")
 
 # [3] trigger 端点写入 job 状态（前端轮询 /api/jobs 判断完成）
 from jobs import get_job_status  # noqa: E402
-with patch("ai.trend_analyzer.generate_trend_report", return_value={"paper_count": 5, "week_start": "x"}) as gen:
+with patch("ai.trend_analyzer.generate_trend_report_period",
+           return_value={"paper_count": 5, "week_start": "x", "period_type": "weekly"}) as gen:
     import threading, time
     c = api.app.test_client()
     r = c.post("/api/trigger/trend")

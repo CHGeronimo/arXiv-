@@ -13,9 +13,9 @@ from .structure import TrendReport
 
 logger = logging.getLogger(__name__)
 
-_TREND_PROMPT = """Analyze this week's AI research papers and identify trends.
+_TREND_PROMPT = """Analyze {period_label} AI research papers and identify trends.
 
-## Papers from the past 7 days ({count} papers):
+## Papers from {period_label} ({count} papers, {scale_hint}):
 {paper_summaries}
 
 ## User's Research Direction: {research_direction}
@@ -48,31 +48,54 @@ def _get_raw_chain():
 
 
 def generate_trend_report(week_start: str | None = None) -> dict | None:
-    if week_start is None:
-        today = datetime.now()
-        week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+    """Back-compat wrapper: weekly report."""
+    return generate_trend_report_period("weekly", week_start)
+
+
+def generate_trend_report_period(period_type: str = "weekly", period_key: str | None = None) -> dict | None:
+    """Generate a weekly or monthly trend report.
+
+    weekly:  period_key = 周一日期 'YYYY-MM-DD'（默认本周），窗口=该日起入库
+    monthly: period_key = 'YYYY-MM'（默认本月），窗口=该月1日起入库
+    结果存 trend_reports（week_start=period_key, period_type 标记），历史自动沉淀。
+    """
+    if period_type not in ("weekly", "monthly"):
+        return None
+    today = datetime.now()
+    if period_type == "weekly":
+        if period_key is None:
+            period_key = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+        window_start = period_key
+        period_label = f"本周（{period_key} 起）"
+        scale_hint = "these papers from the current week"
+        prompt_limit = 20
+    else:
+        if period_key is None:
+            period_key = today.strftime("%Y-%m")
+        window_start = period_key + "-01"
+        period_label = f"本月（{period_key}）"
+        scale_hint = ("these papers from the whole month — identify month-scale "
+                      "patterns, dominant research shifts and emerging directions, "
+                      "not weekly noise")
+        prompt_limit = 40
 
     conn = get_conn()
-    # 按入库时间取本周论文（published_date 是投稿日：会议/引文论文都是老日期，
-    # 按它筛会把本周新发现的大量论文漏掉——与 digest 的修复同类）
-    today_str = datetime.now().strftime("%Y-%m-%d")
-
-    logger.info(f"[trend] ▶ 生成周报 {week_start}")
+    # 按入库时间取窗口内论文（published_date 是投稿日：会议/引文论文都是老日期）
+    logger.info(f"[trend] ▶ 生成{'周' if period_type == 'weekly' else '月'}报 {period_key}")
     rows = conn.execute("""
         SELECT p.title, a.tldr, a.method, a.result
         FROM papers p JOIN ai_results a ON p.id = a.paper_id
         WHERE p.created_at >= ?
         AND a.recommendation != 'ignore'
-        ORDER BY a.relevance_score DESC LIMIT 50
-    """, (f"{week_start} 00:00:00",)).fetchall()
+        ORDER BY a.relevance_score DESC LIMIT 100
+    """, (f"{window_start} 00:00:00",)).fetchall()
 
     if not rows:
-        logger.info(f"[trend] ⊘ 周起始 {week_start} 无论文入库")
+        logger.info(f"[trend] ⊘ {period_key} 无论文入库")
         return None
 
-    # 20 篇足够覆盖一周动态；过长 prompt 会把思考模式的响应时间拖过超时
     summaries = "\n".join(
-        f"- {r['title']}: {(r['tldr'] or '')[:120]}" for r in rows[:20]
+        f"- {r['title']}: {(r['tldr'] or '')[:120]}" for r in rows[:prompt_limit]
     )
 
     from .enhance import load_research_profile
@@ -82,6 +105,7 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
         raw_resp = _get_raw_chain().invoke({
             "count": len(rows), "paper_summaries": summaries,
             "research_direction": profile.get("direction", ""),
+            "period_label": period_label, "scale_hint": scale_hint,
         })
         raw_text = raw_resp.content if hasattr(raw_resp, 'content') else str(raw_resp)
         logger.info(f"[trend] LLM 原始响应 {len(raw_text)} 字符: {raw_text[:200]}")
@@ -103,18 +127,19 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
     report = TrendReport.from_lists(data)
 
     result = {
-        "week_start": week_start,
+        "week_start": period_key,
         "new_methods": report.new_methods,
         "solved_problems": report.solved_problems,
         "controversies": report.controversies,
         "opportunities": report.opportunities,
         "paper_count": len(rows),
+        "period_type": period_type,
     }
     conn.execute(
-        "INSERT OR REPLACE INTO trend_reports (week_start, new_methods, solved_problems, controversies, opportunities, paper_count, generated_at) VALUES (?,?,?,?,?,?,datetime('now'))",
+        "INSERT OR REPLACE INTO trend_reports (week_start, new_methods, solved_problems, controversies, opportunities, paper_count, period_type, generated_at) VALUES (?,?,?,?,?,?,?,datetime('now'))",
         (result["week_start"], result["new_methods"], result["solved_problems"],
-         result["controversies"], result["opportunities"], result["paper_count"]),
+         result["controversies"], result["opportunities"], result["paper_count"], period_type),
     )
     conn.commit()
-    logger.info(f"[trend] ✔ 周报完成: {result['week_start']} ({result['paper_count']} 篇)")
+    logger.info(f"[trend] ✔ {'周' if period_type == 'weekly' else '月'}报完成: {result['week_start']} ({result['paper_count']} 篇)")
     return result

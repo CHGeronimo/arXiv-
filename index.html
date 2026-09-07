@@ -131,8 +131,13 @@
         <h2 class="page-header">趋势雷达</h2>
         <p class="page-subtitle">AI 自动分析本周论文动态，识别新方法、进展、争议与机会</p>
         <div class="page-toolbar page-toolbar--top">
+            <div style="display:flex;gap:4px">
+                <button class="ccf-tier-filter active" id="trend-scope-weekly" style="padding:4px 12px">周报</button>
+                <button class="ccf-tier-filter" id="trend-scope-monthly" style="padding:4px 12px">月报</button>
+            </div>
             <select id="trend-week-select" style="display:none;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-0);color:var(--text-0);font-size:0.85rem"></select>
-            <button id="btn-generate-trend" class="btn btn--secondary">生成报告</button>
+            <select id="trend-month-select" style="display:none;padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-0);color:var(--text-0);font-size:0.85rem"></select>
+            <button id="btn-generate-trend" class="btn btn--secondary">生成周报</button>
             <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="trend-empty" class="page-empty-state">
