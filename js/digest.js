@@ -12,13 +12,34 @@ function _inline(t) {
 }
 
 /** Render the markdown subset the digest LLM produces: headers, bold/italic,
- * links, bullet/numbered lists, hr, paragraphs. No external lib (offline). */
+ * links, bullet/numbered lists, hr, GFM tables, paragraphs. No external lib. */
 export function renderMarkdown(src) {
     const lines = _esc(src).split('\n');
     let html = '';
     let inList = false;
-    for (const raw of lines) {
-        const line = raw.trim();
+
+    const isTableRow = (l) => /^\|.*\|$/.test(l);
+    const isSepRow = (l) => /^\|[\s:\-|]+\|$/.test(l) && l.includes('-');
+    const parseRow = (l) => l.replace(/^\||\|$/g, '').split('|').map(c => _inline(c.trim()));
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // GFM 表格：表头行 + 分隔行 + 数据行
+        if (isTableRow(line) && i + 1 < lines.length && isSepRow(lines[i + 1].trim())) {
+            const head = parseRow(line);
+            let j = i + 2;
+            const bodyRows = [];
+            while (j < lines.length && isTableRow(lines[j].trim())) {
+                bodyRows.push(parseRow(lines[j].trim()));
+                j++;
+            }
+            html += `<table class="digest-table"><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead>` +
+                `<tbody>${bodyRows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+            i = j - 1;
+            continue;
+        }
+
         const bullet = line.match(/^[-*]\s+(.*)/);
         const num = line.match(/^\d+[.)]\s+(.*)/);
         if (bullet || num) {

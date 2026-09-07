@@ -846,6 +846,22 @@
 .digest-content li { margin: 0.25em 0; }
 .digest-content hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
 .digest-content a { color: var(--accent-primary); }
+/* 简报中的 GFM 表格（Top3 必读等） */
+.digest-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+  font-size: 0.85rem;
+  display: block;
+  overflow-x: auto;
+}
+.digest-table th, .digest-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.digest-table th { background: var(--surface-2); color: var(--text-2); font-weight: 600; white-space: nowrap; }
 
 .feedback-note-row { margin-top: 4px; }
 .feedback-note {
