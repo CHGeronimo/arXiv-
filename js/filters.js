@@ -178,13 +178,22 @@ export function applyFiltersAndSort() {
             const recKey = isRefLow ? 'ref-low' : rec;
             const at = p.article_type || inferType(p);
 
-            // Build all applicable type tags for this paper
+            // 语义修正：推荐级别(must-read/recommended/...)是单值维度——
+            // 多选应为"任一命中"（旧交集语义下勾两个级别=永远空集，晨读预设
+            // 正是 must-read+recommended 组合）；'unread' 等修饰条件仍取交集
+            const REC_LEVELS = ['must-read', 'recommended', 'reference', 'ref-low', 'ignore'];
+            const AT_LEVELS = ['research', 'news'];
+            const recSel = [...activeFilters.type].filter(f => REC_LEVELS.includes(f));
+            const atSel = [...activeFilters.type].filter(f => AT_LEVELS.includes(f));
+            const modSel = [...activeFilters.type].filter(f => !REC_LEVELS.includes(f) && !AT_LEVELS.includes(f));
+
             const tags = new Set([at, recKey]);
             if (!_readPapers.has(p.id)) tags.add('unread');
 
-            // Intersection: paper must match ALL selected type filters
-            for (const f of activeFilters.type) {
-                if (!tags.has(f)) return false;
+            if (recSel.length && !recSel.includes(recKey)) return false;
+            if (atSel.length && !atSel.includes(at)) return false;
+            for (const m of modSel) {
+                if (!tags.has(m)) return false;
             }
             return true;
         });

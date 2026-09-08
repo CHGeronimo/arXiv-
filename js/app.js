@@ -20,7 +20,8 @@ const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm
 const THEME_ICONS = { dark: '🌙', light: '☀️', academic: '📖', warm: '🔥', auto: '🖥️' };
 
 function _initTheme() {
-    document.documentElement.setAttribute('data-theme', currentTheme);
+    // 经 setCurrentTheme 走一遍：auto 档刷新后能正确解析为实际主题
+    setCurrentTheme(currentTheme);
     const btn = document.getElementById('btn-theme');
     if (btn) btn.textContent = THEME_ICONS[currentTheme] || '🌙';
 }

@@ -32,11 +32,14 @@ function _resolvedTheme(t) {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
+let _autoListenerBound = false;
+
 export function setCurrentTheme(t) {
     currentTheme = t;
     localStorage.setItem('theme', t);
     document.documentElement.setAttribute('data-theme', _resolvedTheme(t));
-    if (t === 'auto' && window.matchMedia) {
+    if (t === 'auto' && window.matchMedia && !_autoListenerBound) {
+        _autoListenerBound = true;  // 只注册一次，避免累积泄漏
         try {
             window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
                 if (currentTheme === 'auto')
