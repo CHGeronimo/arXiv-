@@ -1,10 +1,11 @@
-import os
+import json
 import logging
+import os
+import re
 
 from langchain_core.prompts import ChatPromptTemplate
 
 from .llm import build_chat
-from .structure import QuickFilter
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,10 @@ Abstract:
 
 def build_quick_filter(model_name: str | None = None):
     model = model_name or os.environ.get("QUICK_FILTER_MODEL", "glm-5.3-flash")
-    llm = build_chat(model, thinking=False).with_structured_output(QuickFilter, method="json_mode")
+    # 不用 with_structured_output：GLM 偶尔包 {"answer": "..."} 信封导致
+    # pydantic 严格校验失败（实测 4% 论文因此跳过预筛直进昂贵增强）——
+    # 自己解析 + 解包容错更稳
+    llm = build_chat(model, thinking=False)
     prompt = ChatPromptTemplate.from_messages([
         ("system", QUICK_SYSTEM),
         ("human", QUICK_TEMPLATE),
@@ -45,7 +49,7 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> tuple[bool, str]:
     On failure, defaults to (True, "") (conservative: let full enhancement decide).
     """
     try:
-        result: QuickFilter = chain.invoke({
+        resp = chain.invoke({
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
             "liked_topics": ", ".join(profile.get("liked_topics", [])[-100:]),
@@ -53,7 +57,23 @@ def quick_filter_paper(paper: dict, chain, profile: dict) -> tuple[bool, str]:
             "title": paper.get("title", ""),
             "content": paper.get("summary", "")[:1000],
         })
-        return result.is_relevant, (result.relevance_reason or "").strip()
+        content = (resp.content or "").strip()
+        m = re.search(r'\{.*\}', content, re.DOTALL)
+        if m:
+            content = m.group()
+        data = json.loads(content)
+        # GLM 信封形态：{"answer": "{\"is_relevant\": ...}"} → 解包内层
+        if isinstance(data.get("answer"), str):
+            try:
+                inner = json.loads(data["answer"])
+                if isinstance(inner, dict):
+                    data = inner
+            except json.JSONDecodeError:
+                pass
+        if "is_relevant" not in data:
+            logger.warning(f"快速过滤响应缺 is_relevant，默认保留: {content[:80]}")
+            return True, ""
+        return bool(data.get("is_relevant")), str(data.get("relevance_reason", "")).strip()
     except Exception as e:
         logger.warning(f"快速过滤失败 {paper.get('id','?')}: {e}，默认保留")
         return True, ""
