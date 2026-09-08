@@ -112,7 +112,9 @@ def extract_sections(html: str) -> dict[str, str]:
 def fetch_and_extract(arxiv_id: str) -> Optional[dict[str, str]]:
     """Fetch arXiv HTML and extract structured sections.
 
-    Returns section dict or None if fetch/parse fails.
+    Returns section dict or None if fetch/parse fails. ar5iv 对刚发布的论文
+    尚未渲染时会返回平台占位页（仅数百字符的 arXivLabs 说明文字）——
+    总字数过少视为抓取失败，返回 None 让该论文下轮重试。
     """
     html = fetch_arxiv_html(arxiv_id)
     if html is None:
@@ -120,6 +122,13 @@ def fetch_and_extract(arxiv_id: str) -> Optional[dict[str, str]]:
     sections = extract_sections(html)
     if not sections:
         logger.warning(f"未能从 {arxiv_id} 提取任何章节")
+        return None
+    total_chars = sum(len(v) for v in sections.values())
+    if total_chars < 2000:
+        logger.warning(
+            f"{arxiv_id} ar5iv 未渲染或返回占位页（{len(sections)} 节共 {total_chars} 字符），"
+            f"跳过正文分析，待下轮重试"
+        )
         return None
     logger.debug(f"Extracted {len(sections)} sections for {arxiv_id}: {list(sections.keys())}")
     return sections

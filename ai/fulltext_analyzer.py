@@ -41,12 +41,62 @@ _FULLTEXT_PROMPT = """你是一位专业的学术论文分析助手，正在对�
 
 _CHAIN = None
 
+# 字段别名（LLM 偶尔用驼峰或简写键名）
+_FIELD_ALIASES = {
+    "method_implementation": ["method_implementation", "MethodImplementation", "method"],
+    "experimental_design": ["experimental_design", "ExperimentalDesign", "experiments"],
+    "key_results_detail": ["key_results_detail", "KeyResults", "key_results"],
+    "limitations": ["limitations", "Limitations"],
+    "reproducibility": ["reproducibility", "Reproducibility"],
+    "relevance_to_profile": ["relevance_to_profile", "RelevanceToProfile", "relevance"],
+}
+
+
+def _flatten_value(v) -> str:
+    """LLM 常返回嵌套 dict/list（实测内容质量很高但结构不符 schema）——
+    递归拍平成 '键: 值' 行式文本而不是丢弃整个分析。"""
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, list):
+        parts = [_flatten_value(x) for x in v]
+        return "\n".join(f"- {p}" for p in parts if p)
+    if isinstance(v, dict):
+        parts = [(k, _flatten_value(x)) for k, x in v.items()]
+        return "\n".join(f"{k}: {val}" for k, val in parts if val)
+    return str(v)
+
+
+def _parse_analysis(raw_text: str) -> FulltextAnalysis:
+    import json as _json
+    import re as _re
+    m = _re.search(r'\{.*\}', raw_text, _re.DOTALL)
+    if m:
+        raw_text = m.group()
+    data = _json.loads(raw_text)
+    # GLM 信封：{"analysis_note": "...", ...} 之外的包裹层不常见，但 answer 信封同款处理
+    if isinstance(data.get("answer"), str):
+        try:
+            inner = _json.loads(data["answer"])
+            if isinstance(inner, dict):
+                data = inner
+        except _json.JSONDecodeError:
+            pass
+    fields = {}
+    for canon, aliases in _FIELD_ALIASES.items():
+        val = next((data[a] for a in aliases if a in data), "")
+        fields[canon] = _flatten_value(val)
+    return FulltextAnalysis(**fields)
+
 
 def _get_chain():
     global _CHAIN
     if _CHAIN is None:
         model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
-        llm = build_chat(model_name, thinking=True).with_structured_output(FulltextAnalysis, method="json_mode")
+        # 不用 with_structured_output：GLM 思考模式常返回嵌套 dict 值
+        # （实测六字段全是对象，pydantic 严格校验丢弃整个高质量分析）——自行解析拍平
+        llm = build_chat(model_name, thinking=True)
         _CHAIN = ChatPromptTemplate.from_template(_FULLTEXT_PROMPT) | llm
     return _CHAIN
 
@@ -93,13 +143,14 @@ def analyze_fulltext(paper: dict, profile: dict | None = None) -> Optional[dict]
     chain = _get_chain()
 
     try:
-        result: FulltextAnalysis = chain.invoke({
+        resp = chain.invoke({
             "title": paper.get("title", ""),
             "abstract": paper.get("summary", ""),
             "sections_text": sections_text,
             "research_direction": profile.get("direction", ""),
             "keywords": ", ".join(profile.get("keywords", [])),
         })
+        result = _parse_analysis(resp.content if hasattr(resp, "content") else str(resp))
     except Exception as e:
         logger.error(f"正文分析失败 {arxiv_id}: {e}")
         return None
