@@ -787,7 +787,8 @@
 .score--mid { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, transparent); }
 .score--lo { color: var(--text-3); }
 
-/* 卡片推荐理由（知识卡片的 relation_to_profile） */
+/* 卡片推荐理由（知识卡片的 relation_to_profile）：3行截断带省略号，
+   悬停 title 看全文 */
 .card-relation {
   font-size: 0.75rem;
   color: var(--text-3);
@@ -795,7 +796,7 @@
   padding-left: 8px;
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 
