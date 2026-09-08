@@ -2,22 +2,22 @@
 
 import {
     setAllPapers, setRefreshTimer, setSortOrder, setCurrentPage,
-    refreshTimer, toggleBookmark, showToast, syncServerFlags,
+    refreshTimer, toggleBookmark, showToast, syncServerFlags, restoreUIState,
     filteredPapers, currentPage, setCurrentTheme, currentTheme, setSidebarOpen, sidebarOpen,
-    setFeedbackData, feedbackData,
+    setFeedbackData, feedbackData, activeFilters, setDateWithinDays, dateWithinDays,
 } from './state.js';
 import { fetchPapers, quickFollowAuthor, triggerCrawl, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
 import { escAttr } from './state.js';
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
-import { openPaperDetail, closePaperModal } from './modal.js';
+import { openPaperDetail, closePaperModal, navigateModal } from './modal.js';
 import { loadGraph } from './graph.js';
 import { loadTrendRadar } from './trend.js';import { initDigestPage } from './digest.js';
 import { toggleCompare, openCompare, closeCompare, clearCompare } from './compare.js';
 
 // Theme
-const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色' };
-const THEME_ICONS = { dark: '🌙', light: '☀️', academic: '📖', warm: '🔥' };
+const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色', auto: '自动' };
+const THEME_ICONS = { dark: '🌙', light: '☀️', academic: '📖', warm: '🔥', auto: '🖥️' };
 
 function _initTheme() {
     document.documentElement.setAttribute('data-theme', currentTheme);
@@ -25,7 +25,7 @@ function _initTheme() {
     if (btn) btn.textContent = THEME_ICONS[currentTheme] || '🌙';
 }
 function cycleTheme() {
-    const themes = ['dark', 'light', 'academic', 'warm'];
+    const themes = ['dark', 'light', 'academic', 'warm', 'auto'];
     const idx = themes.indexOf(currentTheme);
     const next = themes[(idx + 1) % themes.length];
     setCurrentTheme(next);
@@ -50,6 +50,14 @@ async function loadPapers() {
     }
     buildFilterOptions();
     renderPapers();
+}
+
+function _renderSkeleton() {
+    const wrap = document.getElementById('skeleton-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = Array.from({ length: 8 }).map(() =>
+        `<div class="skeleton-card"><div class="sk-line" style="width:60%"></div><div class="sk-line" style="width:90%"></div><div class="sk-line" style="width:80%"></div><div class="sk-line" style="width:40%"></div></div>`
+    ).join('');
 }
 
 async function fetchFeedback() {
@@ -86,6 +94,8 @@ function startAutoRefresh() {
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
+    restoreUIState();  // F5 恢复筛选/排序/搜索/页码（须在首次渲染前）
+    _renderSkeleton();
     loadPapers();
     fetchFeedback();
     syncServerFlags();  // 合并服务端收藏/已读到本地状态
@@ -206,7 +216,51 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('journal-search-input')?.addEventListener('input', (e) => window.handleJournalSearch?.());
 
-    // Paper container delegation
+    // 预设与日期快捷（晨读/必读/收藏 + 今天/3/7/30天）
+    const applyPreset = (name) => {
+        for (const key of Object.keys(activeFilters)) activeFilters[key].clear();
+        setDateWithinDays(0);
+        const di = document.getElementById('sidebar-date-filter'); if (di) di.value = '';
+        const si = document.getElementById('sidebar-search-input'); if (si) si.value = '';
+        if (name === 'morning') {
+            activeFilters.today.add('yes');
+            activeFilters.type.add('must-read'); activeFilters.type.add('recommended');
+            setSortOrder('relevance');
+        } else if (name === 'mustread') {
+            activeFilters.type.add('must-read');
+            setSortOrder('relevance');
+        } else if (name === 'starred') {
+            activeFilters.bookmarked.add('yes');
+        }
+        setCurrentPage(1);
+        buildFilterOptions(); renderPapers();
+        showToast(`已应用预设：${{morning:'🌅 晨读', mustread:'🔭 全部必读', starred:'⭐ 收藏夹'}[name]}`);
+    };
+    document.querySelectorAll('.preset-btn').forEach(btn =>
+        btn.addEventListener('click', () => applyPreset(btn.dataset.preset)));
+    document.querySelectorAll('.within-btn').forEach(btn =>
+        btn.addEventListener('click', () => {
+            const d = parseInt(btn.dataset.within);
+            setDateWithinDays(dateWithinDays === d ? 0 : d);  // 再点一次取消
+            setCurrentPage(1);
+            buildFilterOptions(); renderPapers();
+        }));
+
+    // Paper container delegation (chips 单个移除 + 原有交互)
+    document.getElementById('paper-container').addEventListener('click', (e) => {
+        const chip = e.target.closest('.active-chip');
+        if (chip) {
+            const g = chip.dataset.chipGroup, v = chip.dataset.chipValue;
+            if (g === 'search') { const si = document.getElementById('sidebar-search-input'); if (si) si.value = ''; }
+            else if (g === 'date') { const di = document.getElementById('sidebar-date-filter'); if (di) di.value = ''; }
+            else if (g === 'within') setDateWithinDays(0);
+            else if (v !== undefined && activeFilters[g]) activeFilters[g].delete(v);
+            setCurrentPage(1);
+            buildFilterOptions(); renderPapers();
+            return;
+        }
+    });
+    // 原主交互委托（分页/收藏/删除/作者/对比/卡片打开）
     document.getElementById('paper-container').addEventListener('click', async (e) => {
         const pageBtn = e.target.closest('.page-btn[data-goto]');
         if (pageBtn) { e.stopPropagation(); setCurrentPage(parseInt(pageBtn.dataset.goto)); renderPapers(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -244,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const idx = parseInt(card.dataset.idx);
             // Live import to get current filteredPapers
             const { filteredPapers: fp } = await import('./state.js');
-            if (fp[idx]) openPaperDetail(fp[idx]);
+            if (fp[idx]) openPaperDetail(fp[idx], idx);
         }
     });
 
@@ -270,6 +324,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (typing) return;
+        // 弹窗打开时 J/K = 翻论文而非翻页
+        const modalOpen = document.getElementById('paper-modal')?.classList.contains('active');
+        if (modalOpen && (e.key === 'j' || e.key === 'k')) {
+            navigateModal(e.key === 'k' ? 1 : -1);
+            return;
+        }
         if (e.key === 'j') changePage(1);
         else if (e.key === 'k') changePage(-1);
         else if (e.key === 'f') {

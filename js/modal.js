@@ -1,10 +1,23 @@
 // js/modal.js — paper detail and profile modals
 
-import { markRead, escAttr, showToast, setAllPapers, getFeedbackForPaper } from './state.js';
+import { markRead, escAttr, showToast, setAllPapers, getFeedbackForPaper, filteredPapers, PAGE_SIZE, currentPage } from './state.js';
 import { exportBibtex, fetchKnowledgeCard, fetchFulltextAnalysis, fetchFullPaper, deletePaper } from './api.js';
 import { renderPapers } from './render.js';
 
-export async function openPaperDetail(paper) {
+let _navIdx = -1;
+
+export function navigateModal(delta) {
+    const fp = filteredPapers;
+    if (!fp || !fp.length) return;
+    const max = fp.length - 1;
+    const next = Math.max(0, Math.min(max, _navIdx + delta));
+    if (next === _navIdx) { showToast(delta > 0 ? '已是最后一篇' : '已是第一篇'); return; }
+    openPaperDetail(fp[next], next);
+}
+
+export async function openPaperDetail(paper, navIdx) {
+    if (navIdx !== undefined && navIdx !== null) _navIdx = navIdx;
+    else _navIdx = filteredPapers.findIndex(p => p.id === paper.id);
     const wasRead = markRead(paper.id);
     if (wasRead) renderPapers();
     // 列表是轻字段，打开详情时懒加载完整 AI 解读/摘要
@@ -57,6 +70,13 @@ export async function openPaperDetail(paper) {
     const hasFeedback = userRating || userRel || userNov;
 
     detail.innerHTML = `
+        <div style="position:sticky;top:-25px;z-index:5;display:flex;justify-content:space-between;align-items:center;background:var(--surface-1);padding:2px 0 8px;margin-bottom:4px">
+            <div style="display:flex;gap:6px;align-items:center">
+                <button class="btn btn--secondary" id="modal-prev" title="上一篇 (J)" style="font-size:0.9rem;padding:2px 12px">‹</button>
+                <span style="font-size:0.75rem;color:var(--text-3)">${_navIdx + 1} / ${filteredPapers.length}</span>
+                <button class="btn btn--secondary" id="modal-next" title="下一篇 (K)" style="font-size:0.9rem;padding:2px 12px">›</button>
+            </div>
+        </div>
         <div class="paper-header">${sourceBadge}${venueInfo}${ccfInfo}
             <span class="paper-cat">${paper.published_date || ''}</span>
         </div>
@@ -118,6 +138,8 @@ export async function openPaperDetail(paper) {
             </div>`;
     });
 
+    document.getElementById('modal-prev')?.addEventListener('click', () => navigateModal(-1));
+    document.getElementById('modal-next')?.addEventListener('click', () => navigateModal(1));
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 }

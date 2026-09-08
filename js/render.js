@@ -1,8 +1,8 @@
 // js/render.js — paper card rendering and pagination
 
 import {
-    filteredPapers, allPapers, activeFilters, sortOrder, currentPage, PAGE_SIZE,
-    _bookmarks, _readPapers, escAttr, inferType, showToast,
+    filteredPapers, allPapers, activeFilters, sortOrder, currentPage, PAGE_SIZE, dateWithinDays,
+    _bookmarks, _readPapers, escAttr, inferType, showToast, saveUIState,
     setCurrentPage, getFeedbackForPaper,
 } from './state.js';
 import { applyFiltersAndSort, updateFilterBadges } from './filters.js';
@@ -11,9 +11,14 @@ import { isSelected } from './compare.js';
 export function renderPapers() {
     const container = document.getElementById('paper-container');
     const result = applyFiltersAndSort();
+    saveUIState();  // 任何渲染都同步持久化 UI 状态（F5 可恢复）
+    // 同步日期快捷按钮的激活态
+    document.querySelectorAll('.within-btn').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.within) === dateWithinDays));
 
+    const chipsRow = _renderActiveChips(result.length);
     if (!result.length) {
-        container.innerHTML = '<div class="empty-state">暂无匹配论文。尝试调整筛选条件。</div>';
+        container.innerHTML = `${chipsRow}<div class="empty-state">暂无匹配论文。尝试调整筛选条件。</div>`;
         updatePaperCount();
         return;
     }
@@ -25,7 +30,7 @@ export function renderPapers() {
     const start = (page - 1) * PAGE_SIZE;
     const pagePapers = result.slice(start, start + PAGE_SIZE);
 
-    container.innerHTML = pagePapers.map((paper, i) => {
+    container.innerHTML = chipsRow + pagePapers.map((paper, i) => {
         const ai = paper.AI || {};
         const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
@@ -142,6 +147,32 @@ export function changePage(delta) {
     setCurrentPage(currentPage + delta);
     renderPapers();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── 已选条件 chips 行：激活的筛选一眼可见，可单个移除 ──
+const GROUP_LABELS = { source: '来源', venue: '会议', journal: '期刊', category: '领域', type: '推荐', bookmarked: '收藏', ccf: 'CCF', today: '时效', code: '代码' };
+
+function _renderActiveChips(shownCount) {
+    const chips = [];
+    const push = (group, value, label) =>
+        chips.push(`<span class="active-chip" data-chip-group="${escAttr(group)}" data-chip-value="${escAttr(value)}">${escAttr(label)} <b>×</b></span>`);
+    for (const [group, set] of Object.entries(activeFilters)) {
+        for (const v of set) {
+            if (group === 'bookmarked') push(group, 'yes', '⭐ 收藏');
+            else if (group === 'today') push(group, 'yes', '🌅 今日新到');
+            else if (group === 'code') push(group, 'yes', '🐙 有代码');
+            else push(group, v, `${GROUP_LABELS[group] || group}: ${v}`);
+        }
+    }
+    const sq = document.getElementById('sidebar-search-input')?.value?.trim();
+    if (sq) chips.push(`<span class="active-chip" data-chip-group="search">🔍 ${escAttr(sq)} <b>×</b></span>`);
+    const df = document.getElementById('sidebar-date-filter')?.value;
+    if (df) chips.push(`<span class="active-chip" data-chip-group="date">📅 ${escAttr(df)} <b>×</b></span>`);
+    if (dateWithinDays > 0) chips.push(`<span class="active-chip" data-chip-group="within">${dateWithinDays === 1 ? '今天' : `${dateWithinDays}天内`} <b>×</b></span>`);
+    if (!chips.length) return '';
+    return `<div class="active-chips" style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+        <span style="font-size:0.72rem;color:var(--text-3)">已选 ${chips.length} 项 · ${shownCount} 篇：</span>${chips.join('')}
+    </div>`;
 }
 
 export function updatePaperCount() {

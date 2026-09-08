@@ -15,6 +15,7 @@ export let activeFilters = {
 };
 export let searchQuery = '';
 export let dateFilter = '';
+export let dateWithinDays = 0;  // >0 = 最近N天入库快捷筛选（created_at 窗口）
 export let sortOrder = 'desc';
 export let refreshTimer = null;
 export let currentPage = 1;
@@ -23,10 +24,26 @@ export const PAGE_SIZE = 40;
 export let currentTheme = localStorage.getItem('theme') || 'dark';
 export let sidebarOpen = false;
 
+const THEMES = ['dark', 'light', 'academic', 'warm', 'auto'];
+export function cycleThemeList() { return THEMES; }
+
+function _resolvedTheme(t) {
+    if (t !== 'auto') return t;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 export function setCurrentTheme(t) {
     currentTheme = t;
     localStorage.setItem('theme', t);
-    document.documentElement.setAttribute('data-theme', t);
+    document.documentElement.setAttribute('data-theme', _resolvedTheme(t));
+    if (t === 'auto' && window.matchMedia) {
+        try {
+            window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+                if (currentTheme === 'auto')
+                    document.documentElement.setAttribute('data-theme', _resolvedTheme('auto'));
+            });
+        } catch {}
+    }
 }
 
 export function setSidebarOpen(v) {
@@ -80,9 +97,47 @@ export function setAllPapers(p) { allPapers = p; }
 export function setFilteredPapers(p) { filteredPapers = p; }
 export function setSearchQuery(q) { searchQuery = q; }
 export function setDateFilter(d) { dateFilter = d; }
+export function setDateWithinDays(d) { dateWithinDays = d; }
 export function setSortOrder(s) { sortOrder = s; }
 export function setCurrentPage(p) { currentPage = p; }
 export function setRefreshTimer(t) { refreshTimer = t; }
+
+// ── UI 状态持久化（F5 恢复筛选/排序/搜索/页码）──
+export function saveUIState() {
+    try {
+        const st = {
+            filters: Object.fromEntries(Object.entries(activeFilters).map(([k, s]) => [k, [...s]])),
+            sort: sortOrder,
+            page: currentPage,
+            search: document.getElementById('sidebar-search-input')?.value || '',
+            date: document.getElementById('sidebar-date-filter')?.value || '',
+            within: dateWithinDays,
+        };
+        localStorage.setItem('uiState', JSON.stringify(st));
+    } catch {}
+}
+
+export function restoreUIState() {
+    try {
+        const st = JSON.parse(localStorage.getItem('uiState') || 'null');
+        if (!st) return false;
+        for (const [k, arr] of Object.entries(st.filters || {})) {
+            if (activeFilters[k]) activeFilters[k] = new Set(arr);
+        }
+        sortOrder = st.sort || 'desc';
+        currentPage = st.page || 1;
+        dateWithinDays = st.within || 0;
+        const si = document.getElementById('sidebar-search-input');
+        if (si && st.search) si.value = st.search;
+        const di = document.getElementById('sidebar-date-filter');
+        if (di && st.date) di.value = st.date;
+        return true;
+    } catch { return false; }
+}
+
+export function clearUIState() {
+    try { localStorage.removeItem('uiState'); } catch {}
+}
 
 export function saveBookmarks() {
     localStorage.setItem('bookmarks', JSON.stringify([..._bookmarks]));

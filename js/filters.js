@@ -1,7 +1,7 @@
 // js/filters.js — filter and sort logic
 
 import {
-    allPapers, filteredPapers, activeFilters, searchQuery, dateFilter, sortOrder,
+    allPapers, filteredPapers, activeFilters, searchQuery, dateFilter, dateWithinDays, sortOrder,
     currentPage, _bookmarks, _readPapers, escAttr, inferType,
     setFilteredPapers, setCurrentPage,
 } from './state.js';
@@ -199,6 +199,11 @@ export function applyFiltersAndSort() {
     }
     if (activeFilters.code.size > 0)
         result = result.filter(p => !!p.code_url);
+    if (dateWithinDays > 0) {
+        // 快捷日期段（今天/3天/7天/30天）：按入库时间
+        const cutoff = new Date(Date.now() - dateWithinDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
+        result = result.filter(p => (p.created_at || '') >= cutoff);
+    }
 
     const sq = document.getElementById('sidebar-search-input')?.value?.trim().toLowerCase() || '';
     if (sq) {
