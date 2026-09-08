@@ -19,7 +19,7 @@ from db import get_conn, queue_write, sync_write
 from jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
     run_s2_job, run_author_job, run_citations_job,
-    run_retro_enhance, run_digest_job,
+    run_retro_enhance, run_digest_job, _subs_lock,
 )
 
 
@@ -178,43 +178,46 @@ def put_subscriptions():
     data = request.get_json()
     if not data:
         return jsonify({"error": "empty body"}), 400
-    try:
-        cats = data.get("arxiv", {}).get("categories", [])
-        journals_data = data.get("crossref", {}).get("journals", [])
-        conferences_data = data.get("conferences", [])
-        search_keywords = data.get("search", {}).get("keywords", [])
-        use_profile = data.get("search", {}).get("useProfile", True)
-        authors_data = data.get("authors", [])
-        journals = [
-            Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
-            for j in journals_data
-        ]
-        conferences = [
-            Conference(venue=c["venue"], last_updated=c.get("lastUpdated"))
-            for c in conferences_data
-        ]
-        authors = [
-            Author(
-                name=a["name"],
-                author_id=a.get("authorId", a.get("author_id", "")),
-                affiliation=a.get("affiliation", ""),
-                paper_count=a.get("paperCount", a.get("paper_count", 0)),
-                last_updated=a.get("lastUpdated"),
+    # 持有与夜间任务相同的锁：否则任务 _post_run 在锁内"读旧→写新"期间，
+    # 本接口的直接覆写会被其旧快照回滚（用户订阅修改丢失）
+    with _subs_lock:
+        try:
+            cats = data.get("arxiv", {}).get("categories", [])
+            journals_data = data.get("crossref", {}).get("journals", [])
+            conferences_data = data.get("conferences", [])
+            search_keywords = data.get("search", {}).get("keywords", [])
+            use_profile = data.get("search", {}).get("useProfile", True)
+            authors_data = data.get("authors", [])
+            journals = [
+                Journal(issn=j["issn"], name=j["name"], last_updated=j.get("lastUpdated"))
+                for j in journals_data
+            ]
+            conferences = [
+                Conference(venue=c["venue"], last_updated=c.get("lastUpdated"))
+                for c in conferences_data
+            ]
+            authors = [
+                Author(
+                    name=a["name"],
+                    author_id=a.get("authorId", a.get("author_id", "")),
+                    affiliation=a.get("affiliation", ""),
+                    paper_count=a.get("paperCount", a.get("paper_count", 0)),
+                    last_updated=a.get("lastUpdated"),
+                )
+                for a in authors_data
+            ]
+            subs = Subscriptions(
+                arxiv_categories=cats,
+                crossref_journals=journals,
+                conferences=conferences,
+                search_keywords=search_keywords,
+                use_profile_keywords=use_profile,
+                authors=authors,
             )
-            for a in authors_data
-        ]
-        subs = Subscriptions(
-            arxiv_categories=cats,
-            crossref_journals=journals,
-            conferences=conferences,
-            search_keywords=search_keywords,
-            use_profile_keywords=use_profile,
-            authors=authors,
-        )
-        _save_subs(subs)
-        return jsonify(subs.to_dict())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+            _save_subs(subs)
+            return jsonify(subs.to_dict())
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
 
 
 # ── Profile ───────────────────────────────────────────────────────

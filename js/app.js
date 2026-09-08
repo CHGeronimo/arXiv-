@@ -7,6 +7,7 @@ import {
     setFeedbackData, feedbackData,
 } from './state.js';
 import { fetchPapers, quickFollowAuthor, triggerCrawl, exportBibtex, deletePaper as apiDeletePaper } from './api.js';
+import { escAttr } from './state.js';
 import { buildFilterOptions, toggleFilter, clearAllFilters } from './filters.js';
 import { renderPapers, changePage } from './render.js';
 import { openPaperDetail, closePaperModal } from './modal.js';
@@ -454,8 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Ignored papers viewer
-    const ignoredModal = document.getElementById('ignored-modal');
-    document.getElementById('btn-view-ignored')?.addEventListener('click', () => {
+    const ignoredModal = document.getElementById('ignored-modal');    document.getElementById('btn-view-ignored')?.addEventListener('click', () => {
         ignoredModal.classList.add('active');
         loadIgnored();
     });
@@ -473,9 +473,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const listEl = document.getElementById('ignored-list');
         listEl.innerHTML = data.ignored.map(p =>
             `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:0.82rem">
-                <span style="color:var(--text-3)">${p.paper_id}</span>
+                <span style="color:var(--text-3)">${escAttr(p.paper_id)}</span>
                 <span style="float:right;color:var(--accent-primary);font-size:0.75rem">${p.reason}</span>
-                ${p.reason_detail ? `<span style="display:block;color:var(--text-2);font-size:0.76rem;margin-top:2px">${p.reason_detail}</span>` : ''}
+                ${p.reason_detail ? `<span style="display:block;color:var(--text-2);font-size:0.76rem;margin-top:2px">${escAttr(p.reason_detail)}</span>` : ''}
                 <span style="display:block;color:var(--text-3);font-size:0.72rem">${p.ignored_at || ''}</span>
             </div>`
         ).join('') || '<p style="color:var(--text-3);text-align:center;padding:20px">无被过滤论文</p>';

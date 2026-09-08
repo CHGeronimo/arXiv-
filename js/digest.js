@@ -8,7 +8,11 @@ function _inline(t) {
     return t
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+        // 链接协议白名单：LLM 输出不可信，javascript: 等伪协议只保留文字
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, text, href) =>
+            /^https?:\/\//i.test(href) || href.startsWith('#')
+                ? `<a href="${href}" target="_blank" rel="noopener">${text}</a>`
+                : text);
 }
 
 /** Render the markdown subset the digest LLM produces: headers, bold/italic,
