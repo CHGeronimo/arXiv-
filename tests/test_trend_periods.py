@@ -75,19 +75,19 @@ with patch("ai.trend_analyzer.generate_trend_report_period",
     assert gen.called and gen.call_args[0][0] == "monthly"
 print("[3] trigger scope=monthly ✓")
 
-# ── [4] 自动沉淀：周一→周报；1日→上月月报；平时 no-op ──
+# ── [4] 滚动刷新：每晚刷当期周/月报；1日额外归档上月（带上界防跨期污染）──
 from jobs import run_trend_auto, get_job_status  # noqa: E402
 calls = []
-with patch("ai.trend_analyzer.generate_trend_report_period",
-           side_effect=lambda pt, key=None: calls.append((pt, key)) or {"week_start": key or "x", "paper_count": 1}):
-    run_trend_auto(today=date(2026, 9, 7))    # 周一
-    assert calls == [("weekly", None)], calls
+def _rec(pt, key=None, window_end=None):
+    calls.append((pt, key, window_end))
+    return {"week_start": key or "x", "paper_count": 1}
+with patch("ai.trend_analyzer.generate_trend_report_period", side_effect=_rec):
+    run_trend_auto(today=date(2026, 9, 5))    # 周六：滚动刷当期
+    assert calls == [("weekly", None, None), ("monthly", None, None)], calls
     calls.clear()
-    run_trend_auto(today=date(2026, 9, 1))    # 周二+1日 → 只月报(上月2026-08)
-    assert calls == [("monthly", "2026-08")], calls
-    calls.clear()
-    run_trend_auto(today=date(2026, 9, 5))    # 周六 → no-op 秒退
-    assert calls == []
-print("[4] trend_auto：周一/月初/平时 三分支 ✓")
+    run_trend_auto(today=date(2026, 9, 1))    # 1日：滚动 + 归档上月带上界
+    assert calls[:2] == [("weekly", None, None), ("monthly", None, None)]
+    assert calls[2] == ("monthly", "2026-08", "2026-09-01"), calls[2]
+print("[4] trend_auto 滚动刷新 + 月初归档窗口上界 ✓")
 
 print("\n周月双周期趋势测试通过 ✅")

@@ -258,7 +258,10 @@ class CrossrefJob(BaseCrawlerJob):
     def _create_crawler(self, subs: Subscriptions):
         if not subs.crossref_journals:
             return None
-        return CrossrefCrawler(journals=subs.crossref_journals)
+        conn = get_conn()
+        known = {r["id"] for r in conn.execute("SELECT id FROM papers")}
+        known |= {r["paper_id"] for r in conn.execute("SELECT paper_id FROM ignored_papers")}
+        return CrossrefCrawler(journals=subs.crossref_journals, known_ids=known)
 
     def _skip_reason(self, subs: Subscriptions) -> str:
         return "no journals"
@@ -462,31 +465,26 @@ def run_citations_job():
 
 
 def run_trend_auto(today=None):
-    """Trend auto-沉淀：每周一自动生成本周周报；每月 1 日自动生成上月完整月报。
-
-    其余日子秒退（no-op）。today 参数仅为可测试性。"""
-    from datetime import date as _date
+    """Trend 滚动更新：每晚刷新当期周报+月报（趋势页永远新鲜，
+    周期切换时的最后一次刷新自然成为历史存档）；
+    每月 1 日额外归档上月完整月报（带上界，防跨期污染）。
+    today 参数仅为可测试性。"""
+    from datetime import date as _date, timedelta as _td
     today = today or _date.today()
-    if today.weekday() != 0 and today.day != 1:
-        return
     from ai.trend_analyzer import generate_trend_report_period
     _set_job_status("trend_auto", "running")
     done = []
     try:
-        if today.weekday() == 0:
-            r = generate_trend_report_period("weekly")
-            if r:
-                done.append(f"周报{r['week_start']}({r['paper_count']}篇)")
-            else:
-                done.append("周报: 本周无论文")
+        r = generate_trend_report_period("weekly")
+        done.append(f"周报{r['week_start'][:10]}({r['paper_count']}篇)" if r else "周报: 本周无论文")
+        r = generate_trend_report_period("monthly")
+        done.append(f"月报{r['week_start']}({r['paper_count']}篇)" if r else "月报: 本月无论文")
         if today.day == 1:
-            prev_month = (today.replace(day=1) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m")
-            r = generate_trend_report_period("monthly", prev_month)
-            if r:
-                done.append(f"月报{r['week_start']}({r['paper_count']}篇)")
-            else:
-                done.append(f"月报{prev_month}: 无论文")
-        _set_job_status("trend_auto", "done", ", ".join(done) or "无需生成")
+            prev_month_key = (today.replace(day=1) - _td(days=1)).strftime("%Y-%m")
+            month_start = today.strftime("%Y-%m-%d")
+            r = generate_trend_report_period("monthly", prev_month_key, window_end=month_start)
+            done.append(f"归档{r['week_start']}({r['paper_count']}篇)" if r else f"归档{prev_month_key}: 无论文")
+        _set_job_status("trend_auto", "done", ", ".join(done))
         logger.info(f"[trend_auto] ✔ {', '.join(done)}")
     except Exception as e:
         logger.error(f"[trend_auto] ✖ 失败: {e}", exc_info=True)

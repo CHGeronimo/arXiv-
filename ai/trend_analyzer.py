@@ -52,11 +52,13 @@ def generate_trend_report(week_start: str | None = None) -> dict | None:
     return generate_trend_report_period("weekly", week_start)
 
 
-def generate_trend_report_period(period_type: str = "weekly", period_key: str | None = None) -> dict | None:
+def generate_trend_report_period(period_type: str = "weekly", period_key: str | None = None,
+                                  window_end: str | None = None) -> dict | None:
     """Generate a weekly or monthly trend report.
 
     weekly:  period_key = 周一日期 'YYYY-MM-DD'（默认本周），窗口=该日起入库
     monthly: period_key = 'YYYY-MM'（默认本月），窗口=该月1日起入库
+    window_end: 可选上界（'YYYY-MM-DD'），存档场景防止跨期污染。
     结果存 trend_reports（week_start=period_key, period_type 标记），历史自动沉淀。
     """
     if period_type not in ("weekly", "monthly"):
@@ -82,13 +84,18 @@ def generate_trend_report_period(period_type: str = "weekly", period_key: str | 
     conn = get_conn()
     # 按入库时间取窗口内论文（published_date 是投稿日：会议/引文论文都是老日期）
     logger.info(f"[trend] ▶ 生成{'周' if period_type == 'weekly' else '月'}报 {period_key}")
-    rows = conn.execute("""
+    where = "WHERE p.created_at >= ?"
+    params: list = [f"{window_start} 00:00:00"]
+    if window_end:
+        where += " AND p.created_at < ?"
+        params.append(f"{window_end} 00:00:00")
+    rows = conn.execute(f"""
         SELECT p.title, a.tldr, a.method, a.result
         FROM papers p JOIN ai_results a ON p.id = a.paper_id
-        WHERE p.created_at >= ?
+        {where}
         AND a.recommendation != 'ignore'
         ORDER BY a.relevance_score DESC LIMIT 100
-    """, (f"{window_start} 00:00:00",)).fetchall()
+    """, params).fetchall()
 
     if not rows:
         logger.info(f"[trend] ⊘ {period_key} 无论文入库")

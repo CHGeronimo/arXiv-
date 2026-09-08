@@ -321,6 +321,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Knowledge graph
     document.getElementById('btn-refresh-graph')?.addEventListener('click', loadGraph);
+    // 空状态一键引导：提取知识卡片（完成后自动聚类）再刷新图谱
+    document.getElementById('btn-graph-bootstrap')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-graph-bootstrap');
+        btn.disabled = true; btn.textContent = '⏳ 提取中（数分钟，完成后自动聚类）...';
+        try {
+            await fetch('/api/trigger/knowledge-extract', { method: 'POST' });
+            showToast('知识卡片提取已启动，完成后自动聚类，届时回来刷新图谱');
+        } catch { showToast('启动失败'); }
+        btn.disabled = false; btn.textContent = '⚡ 立即提取知识卡片并聚类';
+    });
+
+    // 版本可观测：daemon 代码 vs 磁盘代码，旧版本提示重启
+    fetch('/api/stats').then(r => r.json()).then(s => {
+        const el = document.getElementById('daemon-version');
+        if (!el) return;
+        if (s.code_stale) {
+            el.innerHTML = `🔄 daemon=${s.daemon_version} < 磁盘=${s.disk_version}：<b style="color:var(--warning)">代码已更新，重启 daemon 生效</b>`;
+        } else {
+            el.textContent = `✓ 版本 ${s.daemon_version}（最新）`;
+        }
+    }).catch(() => {});
 
     // Trend radar 页面的生成/周期切换由 trend.js 自行绑定（generateTrend）
 

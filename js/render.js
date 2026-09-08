@@ -158,4 +158,7 @@ export function updatePaperCount() {
     const shown = filteredPapers.length;
     const hasFilter = sq || df || Object.values(activeFilters).some(s => s.size > 0);
     el.textContent = hasFilter ? `${shown}/${active} 篇` : `${active} 篇`;
+    // 动态标题：后台标签页一眼可见新必读
+    const mustRead = allPapers.filter(p => (p.AI || {}).recommendation === 'must-read').length;
+    document.title = `${mustRead ? `(${mustRead}🔥) ` : ''}arxivSCI-daily`;
 }

@@ -61,6 +61,19 @@ SUBS_PATH = "subscriptions.json"
 CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
 
 
+def _git_hash() -> str:
+    import subprocess
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=5).stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+_DAEMON_VERSION = _git_hash()
+_disk_version_cache: dict = {"hash": "", "checked": 0.0}
+
+
 def _load_subs() -> Subscriptions:
     return Subscriptions.load(SUBS_PATH)
 
@@ -152,17 +165,29 @@ def get_paper(paper_id: str):
 
 @app.route("/api/stats")
 def get_stats():
+    import time as _time
     conn = get_conn()
     total = conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
     source_counts: dict[str, int] = {}
     for row in conn.execute("SELECT source, COUNT(*) as cnt FROM papers GROUP BY source"):
         source_counts[row[0]] = row[1]
+    must_read = conn.execute(
+        "SELECT COUNT(*) FROM ai_results WHERE recommendation='must-read'").fetchone()[0]
+    # 磁盘代码 hash 60s 缓存（stats 被 15s 轮询，不能每次都起子进程）
+    now = _time.monotonic()
+    if now - _disk_version_cache["checked"] > 60:
+        _disk_version_cache["hash"] = _git_hash()
+        _disk_version_cache["checked"] = now
     subs = _load_subs()
     return jsonify({
         "total_papers": total,
         "by_source": source_counts,
         "arxiv_categories": subs.arxiv_categories,
         "crossref_journals": len(subs.crossref_journals),
+        "must_read": must_read,
+        "daemon_version": _DAEMON_VERSION,
+        "disk_version": _disk_version_cache["hash"],
+        "code_stale": _disk_version_cache["hash"] != _DAEMON_VERSION,
     })
 
 

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>arxivSCI-daily</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
     <!-- 本地化字体（离线可用，不再依赖 Google Fonts CDN） -->
     <link rel="stylesheet" href="css/fonts.css">
 
@@ -68,6 +69,7 @@
         <div class="sidebar-data-mgmt">
             <div class="filter-group-header" id="toggle-data-mgmt">数据管理 <span class="group-arrow">▼</span></div>
             <div class="filter-group-body" id="data-mgmt-body" style="display:none">
+                <div id="daemon-version" style="font-size:0.72rem;color:var(--text-3);margin-bottom:8px;padding:4px 8px;background:var(--surface-0);border-radius:4px"></div>
                 <button class="btn btn--secondary" id="btn-export-bibtex" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">📤 导出当前筛选 BibTeX</button>
                 <button class="btn btn--secondary" id="btn-purge-skip" style="width:100%;margin-bottom:6px;font-size:0.78rem;padding:4px 8px">删除所有 skip 论文</button>
                 <div style="display:flex;gap:4px;margin-bottom:6px">
@@ -111,6 +113,7 @@
         <div id="graph-empty" class="page-empty-state">
             <p>暂无知识图谱数据</p>
             <p class="hint">先触发知识卡片提取和聚类，然后刷新图谱</p>
+            <button id="btn-graph-bootstrap" class="btn btn--secondary" style="margin-top:10px">⚡ 立即提取知识卡片并聚类</button>
         </div>
         <div class="graph-layout" style="display:none" id="graph-layout">
             <div class="graph-canvas-wrap">

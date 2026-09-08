@@ -18,9 +18,14 @@ MAILTO = "mailto=daily-arxiv@proton.me"
 
 
 class CrossrefCrawler:
-    def __init__(self, journals: List[Journal], fetch_interval_hours: int = 24):
+    def __init__(self, journals: List[Journal], fetch_interval_hours: int = 24,
+                 known_ids: Set[str] | None = None):
         self.journals = journals
         self.fetch_interval_hours = fetch_interval_hours
+        # 已入库/已忽略的论文 ID：爬取层直接跳过——否则每晚会为 ~6700 篇已知
+        # 论文下载元数据并逐 DOI 调 OpenAlex 回填摘要（实测 4671 请求/晚，
+        # 回填结果因论文已存在根本不写库，纯烧配额）
+        self.known_ids = known_ids or set()
 
     def _needs_update(self, journal: Journal) -> bool:
         if journal.last_updated is None:
@@ -173,6 +178,8 @@ class CrossrefCrawler:
                 dedup_key = paper.doi if paper.doi else paper.title.lower().strip()
                 if dedup_key in seen_dois:
                     continue
+                if paper.id in self.known_ids or dedup_key in self.known_ids:
+                    continue  # 已知论文：跳过回填与后续处理
                 seen_dois.add(dedup_key)
                 batch.append(paper)
 
