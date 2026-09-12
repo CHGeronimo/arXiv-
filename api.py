@@ -383,15 +383,21 @@ def list_digests():
 
 @app.route("/api/feedback", methods=["POST"])
 def save_feedback():
+    """字段级更新：每个 UI 动作只写自己的字段，其余 COALESCE 保留。
+
+    这样点赞/评语/滑杆三类 POST 的到达顺序无关紧要（此前评语请求携带
+    快照里的 rating，与点赞请求竞争会互相覆盖）。取消投票用
+    clear_rating=true 显式表达（rating 缺省/空 = 不修改）。"""
     data = request.json or {}
     paper_id = data.get("paper_id", "")
     if not paper_id:
         return jsonify({"error": "paper_id required"}), 400
 
-    rating = data.get("rating", "")
+    clear_rating = bool(data.get("clear_rating"))
+    rating = data.get("rating") or None
     relevance = data.get("relevance")
     novelty = data.get("novelty")
-    # note 三态：缺省=None(保留旧值,COALESCE)；空串=显式清除；非空=更新
+    # note 三态：缺省=None(保留)；空串=显式清除；非空=更新
     note = data.get("note")
     if note is not None:
         note = str(note).strip()[:200]
@@ -403,17 +409,23 @@ def save_feedback():
         """INSERT INTO feedback (paper_id, rating, relevance, novelty, note, updated_at)
            VALUES (?, ?, ?, ?, ?, datetime('now'))
            ON CONFLICT(paper_id) DO UPDATE SET
-             rating = excluded.rating,
+             rating = CASE WHEN ? THEN NULL ELSE COALESCE(?, rating) END,
              relevance = COALESCE(excluded.relevance, relevance),
              novelty = COALESCE(excluded.novelty, novelty),
              note = COALESCE(excluded.note, note),
              updated_at = datetime('now')""",
-        (paper_id, rating or None, relevance, novelty, note),
+        (paper_id, rating, relevance, novelty, note,
+         1 if clear_rating else 0, rating),
     )
-    if rating in ("like", "dislike"):
+    # 按写后生效的 rating 决定画像动作（与请求字段无关，彻底免竞态）
+    row = get_conn().execute(
+        "SELECT rating FROM feedback WHERE paper_id = ?", (paper_id,)
+    ).fetchone()
+    eff = row["rating"] if row else None
+    if eff in ("like", "dislike"):
         # LLM 主题提取可能耗时数秒，放后台线程避免阻塞点赞请求
-        threading.Thread(target=_update_profile_from_feedback, args=(paper_id, rating), daemon=True).start()
-    elif rating == "":
+        threading.Thread(target=_update_profile_from_feedback, args=(paper_id, eff), daemon=True).start()
+    elif eff is None:
         # 取消投票：清理该论文在 feedback_notes 中的评语条目
         threading.Thread(target=_remove_paper_note, args=(paper_id,), daemon=True).start()
     return jsonify({"status": "saved"})

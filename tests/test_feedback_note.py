@@ -51,6 +51,16 @@ try:
     assert row[0] in ("", None), f"清空失败: {row}"
     print("[1b] 空串清除评语 ✓")
 
+    # [1c] 字段级更新免竞态：评语请求不带 rating 不抹赞；clear_rating 显式取消
+    c.post("/api/feedback", json={"paper_id": TESTPID, "rating": "like"})
+    c.post("/api/feedback", json={"paper_id": TESTPID, "note": "只有评语"})  # 乱序到达
+    row = conn.execute("SELECT rating, note FROM feedback WHERE paper_id=?", (TESTPID,)).fetchone()
+    assert row == ("like", "只有评语"), f"字段级更新失败: {row}"
+    c.post("/api/feedback", json={"paper_id": TESTPID, "clear_rating": True})
+    row = conn.execute("SELECT rating FROM feedback WHERE paper_id=?", (TESTPID,)).fetchone()
+    assert row[0] is None, f"clear_rating 取消失败: {row}"
+    print("[1c] 字段级更新（评语不抹赞/乱序免竞态/clear_rating）✓")
+
     # [3] 评语进主题提取 prompt + 原文入 profile.feedback_notes（[1b]已清空，重设）
     conn.execute("UPDATE feedback SET note='方法太老，没有MARL实证' WHERE paper_id=?", (TESTPID,))
     conn.commit()

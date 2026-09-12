@@ -567,6 +567,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Feedback: like/dislike buttons (delegation from card and modal)
+    // 字段级更新：只写 rating（取消用 clear_rating），不携带其他字段快照——
+    // 携带快照会与并发的评语/滑杆请求互相覆盖（用户实测顺序不固定）
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-feedback-action]');
         if (!btn) return;
@@ -575,55 +577,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const action = btn.dataset.feedbackAction;
         const current = feedbackData[paperId] || {};
         const newRating = current.rating === action ? '' : action;
+        const body = newRating
+            ? { paper_id: paperId, rating: newRating }
+            : { paper_id: paperId, clear_rating: true };
 
         fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                paper_id: paperId,
-                rating: newRating,
-                relevance: current.relevance || null,
-                novelty: current.novelty || null,
-            }),
+            body: JSON.stringify(body),
         }).then(r => r.ok ? fetchFeedback() : Promise.resolve()).then(() => renderPapers());
     });
 
-    // Feedback: note input (delegation from card and modal; 'change' fires on blur with modified value)
+    // Feedback: note input (delegation; 'change' fires on blur with modified value)
+    // 只写 note 字段；保存后重渲染卡片让列表同步显示新评语
     document.addEventListener('change', (e) => {
         const noteInput = e.target;
         if (!noteInput.classList || !noteInput.classList.contains('feedback-note')) return;
         const paperId = noteInput.dataset.noteId;
-        const current = feedbackData[paperId] || {};
         fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 paper_id: paperId,
-                rating: current.rating || '',
-                relevance: current.relevance || null,
-                novelty: current.novelty || null,
                 note: noteInput.value.trim().slice(0, 200),
             }),
-        }).then(r => r.ok ? fetchFeedback() : null).then(() => showToast('评语已保存，将影响后续评分'));
+        }).then(r => r.ok ? fetchFeedback() : null).then(() => {
+            if (feedbackData[paperId]) renderPapers();
+            showToast('评语已保存，将影响后续评分');
+        });
     });
 
-    // Feedback: sliders (delegation from card and modal)
+    // Feedback: sliders (delegation from card and modal) — 只写自己的字段
     document.addEventListener('change', (e) => {
         if (!e.target.classList.contains('feedback-slider')) return;
         const paperId = e.target.dataset.sliderId;
         const type = e.target.dataset.sliderType;
         const value = parseInt(e.target.value);
-        const current = feedbackData[paperId] || {};
 
         fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                paper_id: paperId,
-                rating: current.rating || '',
-                relevance: type === 'relevance' ? value : (current.relevance || null),
-                novelty: type === 'novelty' ? value : (current.novelty || null),
-            }),
+            body: JSON.stringify({ paper_id: paperId, [type]: value }),
         }).then(r => r.ok ? fetchFeedback() : null).then(() => {
             const valSpan = e.target.nextElementSibling;
             if (valSpan) valSpan.textContent = value;

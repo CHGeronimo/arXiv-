@@ -86,7 +86,8 @@ export function renderPapers() {
         const userRating = fb.rating || '';
         const userRel = fb.relevance || 0;
         const userNov = fb.novelty || 0;
-        const showFb = !!(userRating || userRel || userNov);  // 投过票才展开滑杆
+        // 有评语也保持展开——否则评语保存后重渲染会折叠隐藏输入框
+        const showFb = !!(userRating || userRel || userNov || fb.note);
         const qualScore = ai.quality_score || 0;
         const scoreChipCls = (n) => n >= 8 ? 'score--hi' : n >= 6 ? 'score--mid' : 'score--lo';
         const scoreChips = hasAi && (relScore || qualScore)

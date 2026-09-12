@@ -27,13 +27,16 @@ conn.commit()
 
 try:
     # [1] 收藏/已读在多次 feedback POST 后存活（INSERT OR REPLACE 曾抹掉它们）
-    c.post("/api/bookmark", json={"paper_id": TESTPID, "on": True})
-    c.post("/api/read", json={"paper_id": TESTPID})
-    c.post("/api/feedback", json={"paper_id": TESTPID, "rating": "like"})
-    c.post("/api/feedback", json={"paper_id": TESTPID, "rating": "", "relevance": 4})
-    row = conn.execute("SELECT bookmarked, is_read, rating, relevance FROM feedback WHERE paper_id=?", (TESTPID,)).fetchone()
-    assert row == (1, 1, None, 4), f"收藏/已读被抹: {row}"
-    print("[1] feedback UPSERT 不再抹掉收藏/已读 ✓")
+    #     patch 掉画像后台线程保持封闭；rating:'' 在字段级语义下=不修改（设计变更）
+    with patch.object(api, "_update_profile_from_feedback", lambda *a: None), \
+         patch.object(api, "_remove_paper_note", lambda *a: None):
+        c.post("/api/bookmark", json={"paper_id": TESTPID, "on": True})
+        c.post("/api/read", json={"paper_id": TESTPID})
+        c.post("/api/feedback", json={"paper_id": TESTPID, "rating": "like"})
+        c.post("/api/feedback", json={"paper_id": TESTPID, "rating": "", "relevance": 4})
+        row = conn.execute("SELECT bookmarked, is_read, rating, relevance FROM feedback WHERE paper_id=?", (TESTPID,)).fetchone()
+        assert row == (1, 1, "like", 4), f"收藏/已读被抹 或 rating 被误清: {row}"
+    print("[1] feedback UPSERT 不抹收藏/已读；rating:'' 不误清投票 ✓")
 
     # [2] feedback 更新 profile 后必须刷新 AI 链缓存（闭环曾需重启才生效）
     class FakeResp:
