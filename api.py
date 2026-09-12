@@ -4,6 +4,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -914,7 +915,11 @@ Select categories that would contain papers relevant to this researcher."""
 
 
 def _deduplicate_topics(topics: list[str]) -> list[str]:
-    """Use LLM to semantically deduplicate a topic list, keeping the most general phrasing."""
+    """Use LLM to semantically deduplicate a topic list, keeping the most general phrasing.
+
+    中英文同义/近义/混合表述视为重复（实测同一论文提取两次会得到
+    '可执行不安全机会'与'executable unsafe opportunity'两种写法），
+    归并为简体中文规范表述。容错 markdown 围栏与附带文字。"""
     if len(topics) <= 3:
         return topics
     try:
@@ -924,12 +929,18 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
             thinking=False, temperature=0.1,
         )
         resp = llm.invoke(
-            "Given a list of research topic phrases, merge semantically duplicate or near-duplicate entries. "
-            "Keep the most general/canonical phrasing for each group. "
-            "Return ONLY a JSON array of strings, no explanation.\n\n"
+            "Merge semantically duplicate or near-duplicate research topics into one entry: "
+            "Chinese/English/mixed phrasings of the same concept are duplicates "
+            "(e.g. '间接提示注入取证' ≡ 'indirect prompt injection forensics' ≡ '间接 prompt injection 取证'). "
+            "Keep the concise Simplified-Chinese phrasing as canonical (standard technical terms stay in English). "
+            "Do NOT invent new topics. Return ONLY a JSON array of strings, no explanation.\n\n"
             + json.dumps(topics, ensure_ascii=False)
         )
-        merged = json.loads(resp.content)
+        content = (resp.content or "").strip()
+        m = re.search(r'\[.*\]', content, re.DOTALL)
+        if m:
+            content = m.group()
+        merged = json.loads(content)
         if isinstance(merged, list):
             return [t.strip() for t in merged if isinstance(t, str) and t.strip()]
     except Exception as e:
@@ -992,6 +1003,7 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
             resp = llm.invoke(
                 f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
+                f"用简体中文输出主题（标准技术术语保留英文），与用户画像语言一致。"
                 f"Return ONLY a JSON array of strings, no explanation.\n\n"
                 f"Method: {method[:500]}\nMotivation: {motivation[:300]}{score_hint}{note_hint}"
             )
