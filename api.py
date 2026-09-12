@@ -1047,6 +1047,11 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             profile["note_index"] = idx
             profile["feedback_notes"] = notes[-20:]
             _write_profile_atomic(profile)
+            logging.getLogger(__name__).info(
+                f"评语入画像: [{rating}] {note[:40]}{'…' if len(note) > 40 else ''} → "
+                f"feedback_notes({len(profile['feedback_notes'])}条){'（替换旧条目）' if old else ''}"
+                f"{'，含评分提示' if score_hint else ''}"
+            )
 
         try:
             from ai.llm import build_chat
