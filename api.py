@@ -963,7 +963,14 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
             content = m.group()
         merged = json.loads(content)
         if isinstance(merged, list):
-            return [t.strip() for t in merged if isinstance(t, str) and t.strip()]
+            # 防呆护栏：LLM 偶发返回空/畸缩列表（实测把 45 条 liked 清零），
+            # 空结果或缩到不足 1/3 视为失败，保留原列表
+            if not merged or len(merged) < max(1, len(topics) // 3):
+                logging.getLogger(__name__).warning(
+                    f"语义去重结果异常（{len(topics)}→{len(merged)}），保留原列表"
+                )
+                return topics
+            return [t.strip() for t in merged if isinstance(t, str) and t.strip()] or topics
     except Exception as e:
         logging.getLogger(__name__).warning(f"语义去重失败: {e}")
     return topics

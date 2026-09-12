@@ -46,7 +46,7 @@ try:
         def invoke(self, prompt): return FakeResp()
 
     resets = []
-    with patch("langchain_openai.ChatOpenAI", return_value=FakeLLM()), \
+    with patch("ai.llm.build_chat", return_value=FakeLLM()), \
          patch.object(api, "reset_ai_chain", side_effect=lambda: resets.append(1)):
         api._update_profile_from_feedback(TESTPID, "like")
     assert resets, "必须调用 reset_ai_chain"

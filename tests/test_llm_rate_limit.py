@@ -67,7 +67,8 @@ with patch.object(L.ChatOpenAI, "invoke", flaky_invoke), \
     chat3 = L.build_chat("glm-5.3-flash")
     out = chat3.invoke("hi")
 assert out.content == "recovered" and len(attempts) == 3
-assert sleeps[:2] == [3, 6], f"退避应为3/6s: {sleeps}"
+backoffs = [s for s in sleeps if s >= 3]  # 过滤掉节流的小间隔 sleep
+assert backoffs == [3, 6], f"退避应为3/6s: {sleeps}"
 # 非限流错误不重试
 calls = []
 def hard_error(self, inp, *a, **k):
