@@ -83,13 +83,16 @@ def _save_subs(subs: Subscriptions) -> None:
     subs.save(SUBS_PATH)
 
 
+_PROFILE_PATH = "research_profile.json"
+
+
 def _write_profile_atomic(profile: dict) -> None:
     """Atomic profile write (tmp+replace) — concurrent readers (tests, the
     running daemon) never see a torn file."""
-    tmp = "research_profile.json.tmp"
+    tmp = _PROFILE_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(profile, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, "research_profile.json")
+    os.replace(tmp, _PROFILE_PATH)
 
 
 # ── Static ────────────────────────────────────────────────────────
@@ -250,7 +253,7 @@ def put_subscriptions():
 
 @app.route("/api/profile", methods=["GET"])
 def get_profile():
-    profile_path = Path("research_profile.json")
+    profile_path = Path(_PROFILE_PATH)
     if profile_path.exists():
         return jsonify(json.loads(profile_path.read_text(encoding="utf-8")))
     return jsonify({"direction": "", "keywords": [], "quality_criteria": ""})
@@ -264,7 +267,7 @@ def put_profile():
     # Merge with existing profile: the UI forms only send direction/keywords/
     # quality_criteria, so blindly overwriting would wipe feedback-learned
     # fields (liked_topics / disliked_topics). Payload keys still win.
-    profile_path = Path("research_profile.json")
+    profile_path = Path(_PROFILE_PATH)
     merged: dict = {}
     if profile_path.exists():
         try:
@@ -296,7 +299,7 @@ def extract_keywords():
     seeds = data.get("seed_keywords") or []
     profile = {}
     try:
-        profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+        profile = json.loads(Path(_PROFILE_PATH).read_text(encoding="utf-8"))
     except Exception:
         pass
     if not seeds:
@@ -388,7 +391,10 @@ def save_feedback():
     rating = data.get("rating", "")
     relevance = data.get("relevance")
     novelty = data.get("novelty")
-    note = data.get("note", "")
+    # note 三态：缺省=None(保留旧值,COALESCE)；空串=显式清除；非空=更新
+    note = data.get("note")
+    if note is not None:
+        note = str(note).strip()[:200]
 
     if rating and rating not in ("like", "dislike"):
         return jsonify({"error": "invalid rating"}), 400
@@ -402,11 +408,14 @@ def save_feedback():
              novelty = COALESCE(excluded.novelty, novelty),
              note = COALESCE(excluded.note, note),
              updated_at = datetime('now')""",
-        (paper_id, rating or None, relevance, novelty, note or None),
+        (paper_id, rating or None, relevance, novelty, note),
     )
     if rating in ("like", "dislike"):
         # LLM 主题提取可能耗时数秒，放后台线程避免阻塞点赞请求
         threading.Thread(target=_update_profile_from_feedback, args=(paper_id, rating), daemon=True).start()
+    elif rating == "":
+        # 取消投票：清理该论文在 feedback_notes 中的评语条目
+        threading.Thread(target=_remove_paper_note, args=(paper_id,), daemon=True).start()
     return jsonify({"status": "saved"})
 
 
@@ -951,6 +960,21 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
 _profile_lock = threading.Lock()
 
 
+def _remove_paper_note(paper_id: str) -> None:
+    """取消投票时移除该论文在 feedback_notes 中的评语条目（note_index 反查）。"""
+    with _profile_lock:
+        try:
+            profile = json.loads(Path(_PROFILE_PATH).read_text(encoding="utf-8"))
+        except Exception:
+            return
+        idx = profile.get("note_index", {})
+        old = idx.pop(paper_id, None)
+        if old:
+            profile["feedback_notes"] = [n for n in profile.get("feedback_notes", []) if n != old]
+            profile["note_index"] = idx
+            _write_profile_atomic(profile)
+
+
 def _update_profile_from_feedback(paper_id: str, rating: str):
     """Extract topics from a liked/disliked paper and update research_profile.json.
 
@@ -985,18 +1009,25 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
         if not method.strip() and not motivation.strip():
             return
 
-        # 评语原文进入 profile.feedback_notes（最近20条），直通 AI 评分提示词
+        # 评语原文进入 profile.feedback_notes（最近20条），直通 AI 评分提示词。
+        # note_index 记录 paper→当前评语：改评语/换投票时替换旧条目而非堆积
         if note:
             try:
-                profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+                profile = json.loads(Path(_PROFILE_PATH).read_text(encoding="utf-8"))
             except Exception:
                 profile = {}
             notes = profile.get("feedback_notes", [])
+            idx = profile.get("note_index", {})
+            old = idx.get(paper_id)
+            if old and old in notes:
+                notes.remove(old)
             tagged = f"[{rating}] {note[:200]}"
             if tagged not in notes:
                 notes.append(tagged)
-                profile["feedback_notes"] = notes[-20:]
-                _write_profile_atomic(profile)
+            idx[paper_id] = tagged
+            profile["note_index"] = idx
+            profile["feedback_notes"] = notes[-20:]
+            _write_profile_atomic(profile)
 
         try:
             from ai.llm import build_chat
@@ -1019,7 +1050,7 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             return
 
         try:
-            profile = json.loads(Path("research_profile.json").read_text(encoding="utf-8"))
+            profile = json.loads(Path(_PROFILE_PATH).read_text(encoding="utf-8"))
         except Exception:
             return
 
