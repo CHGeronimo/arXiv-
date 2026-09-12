@@ -979,6 +979,30 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
 _profile_lock = threading.Lock()
 
 
+def _academicize_note(note: str, rating: str) -> str:
+    """将用户口语化评语改写为规范学术表述（保留原意与全部细节）。
+
+    原始评语保留在 feedback 表供 UI 显示；画像 feedback_notes 存学术化
+    版本供评分 prompt 使用——规范表述更利于评分模型解析与遵循。
+    失败时退回原文（不阻塞反馈闭环）。"""
+    try:
+        from ai.llm import build_chat
+        llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
+        resp = llm.invoke(
+            "将下面的用户论文评语改写为规范的学术表述。要求：保留原始含义、"
+            "倾向（认可/否定）与全部具体细节（方法名/机构/代码有无等）；"
+            "1-2 句简体中文，标准术语保留英文；不添加评语中不存在的信息；"
+            "只返回改写后的文本，不要任何解释或引号。\n\n"
+            f"背景：用户对该论文持{'认可' if rating == 'like' else '否定'}态度。\n评语：{note[:200]}"
+        )
+        out = (resp.content or "").strip().strip('"“”').split("\n")[0][:200]
+        if out:
+            return out
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"评语学术化失败，使用原文: {e}")
+    return note
+
+
 def _remove_paper_note(paper_id: str) -> None:
     """取消投票时移除该论文在 feedback_notes 中的评语条目（note_index 反查）。"""
     with _profile_lock:
@@ -1040,7 +1064,9 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             old = idx.get(paper_id)
             if old and old in notes:
                 notes.remove(old)
-            tagged = f"[{rating}] {note[:200]}"
+            # 学术化改写：原文留 UI，画像存规范版本（利于评分模型解析）
+            normalized = _academicize_note(note, rating)
+            tagged = f"[{rating}] {normalized}"
             if tagged not in notes:
                 notes.append(tagged)
             idx[paper_id] = tagged
@@ -1048,9 +1074,8 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             profile["feedback_notes"] = notes[-20:]
             _write_profile_atomic(profile)
             logging.getLogger(__name__).info(
-                f"评语入画像: [{rating}] {note[:40]}{'…' if len(note) > 40 else ''} → "
+                f"评语入画像: [{rating}] 原文「{note[:30]}{'…' if len(note) > 30 else ''}」→ 学术化「{normalized[:50]}{'…' if len(normalized) > 50 else ''}」 "
                 f"feedback_notes({len(profile['feedback_notes'])}条){'（替换旧条目）' if old else ''}"
-                f"{'，含评分提示' if score_hint else ''}"
             )
 
         try:

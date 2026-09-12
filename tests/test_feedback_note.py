@@ -61,14 +61,18 @@ try:
     assert row[0] is None, f"clear_rating 取消失败: {row}"
     print("[1c] 字段级更新（评语不抹赞/乱序免竞态/clear_rating）✓")
 
-    # [3] 评语进主题提取 prompt + 原文入 profile.feedback_notes（[1b]已清空，重设）
+    # [3] 评语进主题提取 prompt + 学术化后入 profile.feedback_notes（[1b]已清空，重设）
     conn.execute("UPDATE feedback SET note='方法太老，没有MARL实证' WHERE paper_id=?", (TESTPID,))
     conn.commit()
     class FakeResp:
         content = '["note topic A"]'
     class FakeLLM:
+        """双路径 mock：改写请求回显学术化前缀+原文，提取请求返回主题数组"""
         def __init__(self, *a, **k): pass
         def invoke(self, prompt):
+            if "改写" in prompt or "学术" in prompt:
+                raw = prompt.split("评语：", 1)[1][:60]
+                return type("R", (), {"content": f"规范化表述：{raw}"})()
             captured.append(prompt)
             return FakeResp()
     captured = []
@@ -87,8 +91,9 @@ try:
          patch.object(api, "reset_ai_chain"):
         api._update_profile_from_feedback(TESTPID, "like")
     assert any("方法太老" in p for p in captured), "评语必须进入提取 prompt"
-    assert any("方法太老" in n for n in _wait_note("方法太老")), "feedback_notes 应包含测试评语"
-    print("[2] 评语进提取 prompt + feedback_notes 持久化 ✓")
+    got = _wait_note("规范化表述：方法太老")
+    assert any(n.startswith("[like] 规范化表述：方法太老") for n in got), f"画像应存学术化版本: {got}"
+    print("[2] 评语进提取 prompt（原文）+ 学术化版本入 feedback_notes ✓")
 
     # [2b] 改评语 → feedback_notes 替换旧条目（note_index），不堆积
     conn.execute("UPDATE feedback SET note='新评语：希望多推实证' WHERE paper_id=?", (TESTPID,))
@@ -96,8 +101,8 @@ try:
     with patch("ai.llm.build_chat", return_value=FakeLLM()), \
          patch.object(api, "reset_ai_chain"):
         api._update_profile_from_feedback(TESTPID, "like")
-    notes_final = _wait_note("新评语")
-    assert any("新评语" in n for n in notes_final), notes_final
+    notes_final = _wait_note("规范化表述：新评语")
+    assert any("规范化表述：新评语" in n for n in notes_final), notes_final
     assert not any("方法太老" in n for n in notes_final), f"旧评语未替换: {notes_final}"
     print("[2b] 改评语 → 旧条目被替换（note_index）✓")
 
