@@ -53,8 +53,8 @@ local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
   model for deep reading; empty = follow the default
 - **Adaptive thinking flag**: the GLM-specific `thinking` parameter is only sent
   to bigmodel endpoints; DeepSeek and other OpenAI-compatible APIs skip it
-- **Global rate limiting**: concurrency semaphore + min interval + exponential
-  backoff on 429/1302
+- **Global rate limiting**: concurrency 6 + min interval + exponential
+  backoff on 429/1302 (measured: 4 fully clean / 6 ~11% absorbed by backoff / 8 degrades)
 
 ### 🔁 Feedback loop — it learns your direction
 
@@ -75,7 +75,7 @@ local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
 | Idea workbench | submit an idea → AI retrieves prior work and analyzes differentiation |
 | Daily digest | markdown briefing with GFM tables, a morning preset, and an in-page generate button (auto-loads when done) |
 
-Also: grouped sidebar filters + search + 7 sort orders, CCF catalog labels
+Also: grouped sidebar filters + search + 8 sort orders (including ⏱ ingested-time — newest arrivals on top), CCF catalog labels
 (130+ venues / 80+ journals), 4 themes, keyboard shortcuts (`j`/`k`, `f`, `/`, `?`),
 skeleton loading, and code-version observability (page vs disk).
 
