@@ -194,15 +194,20 @@
             <div id="settings-form"></div>
             <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                    <b style="font-size:0.85rem;color:var(--text-1)">🔑 GLM API Key</b>
-                    <span id="llm-key-status" style="font-size:0.72rem;color:var(--text-3);font-family:var(--font-mono)"></span>
+                    <b style="font-size:0.85rem;color:var(--text-1)">🔑 AI 供应商</b>
+                    <span id="llm-config-status" style="font-size:0.72rem;color:var(--text-3);font-family:var(--font-mono)"></span>
+                </div>
+                <select id="llm-provider-select" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.82rem;margin-bottom:6px"></select>
+                <div id="llm-custom-row" style="display:none;gap:6px;margin-bottom:6px">
+                    <input id="llm-custom-base" placeholder="Base URL（https://api.example.com/v1）" autocomplete="off" style="flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.78rem;font-family:var(--font-mono)">
+                    <input id="llm-custom-model" placeholder="模型名" autocomplete="off" style="width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.78rem;font-family:var(--font-mono)">
                 </div>
                 <div style="display:flex;gap:6px">
-                    <input type="password" id="llm-key-input" placeholder="粘贴新 Key（sk-… / 32位+）" autocomplete="off" style="flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.8rem;font-family:var(--font-mono)">
+                    <input type="password" id="llm-key-input" placeholder="粘贴该供应商的 Key" autocomplete="off" style="flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.8rem;font-family:var(--font-mono)">
                     <button id="btn-llm-key-eye" class="btn btn--secondary" style="font-size:0.78rem;padding:4px 10px" title="显示/隐藏">👁</button>
-                    <button id="btn-llm-key-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">验证并保存</button>
+                    <button id="btn-llm-key-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">验证并切换</button>
                 </div>
-                <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">先用新 Key 发一次最小测试请求，通过后写入 ai/.env 并即时生效（无需重启）；Base URL / 模型名仍直接改 ai/.env</p>
+                <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">验证通过后写入 ai/.env 并即时生效（无需重启）；各供应商的 Key 分别记忆，切回无需重填；切换会清掉按任务模型覆盖（如有）</p>
             </div>
             <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
             <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>

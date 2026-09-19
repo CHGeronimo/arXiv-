@@ -410,9 +410,23 @@ def put_settings():
     return jsonify({"settings": merged, "scheduled": get_scheduled_at()})
 
 
-# ── LLM API Key（前端修改：验证→写回 ai/.env→进程内即时生效）──────
+# ── LLM 供应商配置（前端选择 GLM/DeepSeek/自定义：验证→写回 ai/.env→即时生效）──
 
 _ENV_PATH = "ai/.env"
+
+_LLM_PROVIDERS = {
+    "glm_coding": {"label": "GLM Coding Plan（订阅）", "base_url": "https://open.bigmodel.cn/api/coding/paas/v4/", "model": "glm-5.3-flash"},
+    "glm_paas": {"label": "GLM 按量付费", "base_url": "https://open.bigmodel.cn/api/paas/v4/", "model": "glm-5.3-flash"},
+    "deepseek": {"label": "DeepSeek", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-chat"},
+    "custom": {"label": "自定义（OpenAI 兼容端点）", "base_url": "", "model": ""},
+}
+# 切换供应商时必须清掉的按任务模型覆盖——它们指向旧供应商的模型名，
+# 留着会让部分任务打到新端点时报 model not found
+_TASK_MODEL_VARS = ("QUICK_FILTER_MODEL", "KEYWORD_MODEL", "TOPIC_MODEL", "CLUSTER_MODEL")
+
+
+def _provider_key_var(pid: str) -> str:
+    return f"PROVIDER_KEY_{pid.upper()}"
 
 
 def _mask_key(key: str) -> str:
@@ -423,72 +437,189 @@ def _mask_key(key: str) -> str:
     return f"{key[:5]}****{key[-4:]}"
 
 
-def _read_env_key() -> str:
-    """进程内 env（PUT 时已同步）优先，回退读 ai/.env 文件。"""
-    k = os.environ.get("OPENAI_API_KEY", "").strip()
-    if k:
-        return k
+def _read_env_vars() -> dict:
+    out = {}
     try:
         for line in Path(_ENV_PATH).read_text(encoding="utf-8").splitlines():
-            if line.strip().startswith("OPENAI_API_KEY="):
-                return line.split("=", 1)[1].strip()
+            s = line.strip()
+            if s and not s.startswith("#") and "=" in s:
+                k, v = s.split("=", 1)
+                out[k.strip()] = v.strip()
     except OSError:
         pass
-    return ""
+    return out
 
 
-def _write_env_key(key: str) -> None:
-    """只替换 OPENAI_API_KEY 行，其余配置/注释原样保留；原子写。"""
+def _effective_env() -> dict:
+    """ai/.env 内容叠加进程 env（PUT 后的即时修改体现在这里）。"""
+    env = _read_env_vars()
+    env.update(dict(os.environ))
+    return env
+
+
+def _write_env_vars(updates: dict, removes: tuple = ()) -> None:
+    """按键更新/删除 ai/.env 行，其余配置与注释原样保留；原子写。"""
     path = Path(_ENV_PATH)
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    out, replaced = [], False
+    out, done = [], set()
     for line in lines:
-        if line.strip().startswith("OPENAI_API_KEY="):
-            out.append(f"OPENAI_API_KEY={key}")
-            replaced = True
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            out.append(line)
+            continue
+        key = s.split("=", 1)[0].strip()
+        if key in removes:
+            continue
+        if key in updates:
+            out.append(f"{key}={updates[key]}")
+            done.add(key)
         else:
             out.append(line)
-    if not replaced:
-        out.append(f"OPENAI_API_KEY={key}")
+    for k, v in updates.items():
+        if k not in done:
+            out.append(f"{k}={v}")
     tmp = str(path) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
     os.replace(tmp, path)
 
 
+def _active_provider_id(env: dict | None = None) -> str:
+    env = env or _effective_env()
+    pid = (env.get("LLM_PROVIDER") or "").strip()
+    if pid in _LLM_PROVIDERS:
+        return pid
+    base = (env.get("OPENAI_BASE_URL") or "").strip()
+    for k, v in _LLM_PROVIDERS.items():
+        if v["base_url"] and base == v["base_url"]:
+            return k
+    return "custom" if base else "glm_coding"
+
+
+@app.route("/api/llm-config", methods=["GET"])
+def get_llm_config():
+    env = _effective_env()
+    pid = _active_provider_id(env)
+    providers = []
+    for k, v in _LLM_PROVIDERS.items():
+        providers.append({
+            "id": k,
+            "label": v["label"],
+            # 当前供应商显示实际生效值（模型名可能被用户改过），其余显示预设
+            "base_url": env.get("OPENAI_BASE_URL", "") if k == pid else v["base_url"],
+            "model": env.get("MODEL_NAME", "") if k == pid else v["model"],
+            "key_set": bool(env.get(_provider_key_var(k), "")),
+        })
+    key = env.get("OPENAI_API_KEY", "")
+    return jsonify({
+        "provider": pid,
+        "base_url": env.get("OPENAI_BASE_URL", ""),
+        "model": env.get("MODEL_NAME", ""),
+        "key_configured": bool(key),
+        "key_masked": _mask_key(key),
+        "providers": providers,
+    })
+
+
+@app.route("/api/llm-config", methods=["PUT"])
+def put_llm_config():
+    data = request.get_json() or {}
+    pid = (data.get("provider") or "").strip()
+    if pid not in _LLM_PROVIDERS:
+        return jsonify({"error": "未知供应商"}), 400
+    preset = _LLM_PROVIDERS[pid]
+    env = _effective_env()
+    prev_pid = _active_provider_id(env)
+
+    if pid == "custom":
+        base_url = (data.get("base_url") or env.get("CUSTOM_BASE_URL", "")).strip()
+        model = (data.get("model") or env.get("CUSTOM_MODEL", "")).strip()
+        if not base_url.startswith(("http://", "https://")) or not model:
+            return jsonify({"error": "自定义供应商需填写 Base URL（http(s):// 开头）和模型名"}), 400
+    else:
+        base_url = (data.get("base_url") or "").strip() or preset["base_url"]
+        model = (data.get("model") or "").strip() or preset["model"]
+
+    # Key：本次提交 > 该供应商记忆 > （未切换时）当前生效 Key
+    key = (data.get("key") or "").strip()
+    if not key:
+        key = env.get(_provider_key_var(pid), "").strip()
+        if not key and pid == prev_pid:
+            key = env.get("OPENAI_API_KEY", "").strip()
+    if len(key) < 16:
+        return jsonify({"error": "缺少有效 API Key（请先粘贴该供应商的 Key）"}), 400
+
+    # 用目标供应商的 base/model/key 实测一次最小请求；失败不落盘
+    from ai.llm import build_chat
+    try:
+        chat = build_chat(model, thinking=False, timeout=20, api_key=key, base_url=base_url)
+        chat.invoke("ping")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"LLM 供应商验证失败 [{pid}]: {str(e)[:120]}")
+        return jsonify({"error": f"验证失败（未保存）: {str(e)[:160]}"}), 400
+
+    updates = {
+        "LLM_PROVIDER": pid,
+        "OPENAI_BASE_URL": base_url,
+        "MODEL_NAME": model,
+        "OPENAI_API_KEY": key,
+        _provider_key_var(pid): key,
+    }
+    removes, cleared = [], []
+    if pid == "custom":
+        updates["CUSTOM_BASE_URL"] = base_url
+        updates["CUSTOM_MODEL"] = model
+    if pid != prev_pid:
+        # 清掉指向旧供应商模型名的按任务覆盖
+        for v in _TASK_MODEL_VARS:
+            if env.get(v):
+                removes.append(v)
+                cleared.append(v)
+
+    try:
+        _write_env_vars(updates, tuple(removes))
+    except OSError as e:
+        return jsonify({"error": f"验证通过但写入 ai/.env 失败: {e}"}), 500
+    # 即时生效：pipeline 每次 build_chat 都重新解析 env，无需重启 daemon
+    for k, v in updates.items():
+        os.environ[k] = v
+    for v in removes:
+        os.environ.pop(v, None)
+    logging.getLogger(__name__).info(
+        f"LLM 供应商切换: {prev_pid} → {pid}（{model} @ {base_url}，Key {_mask_key(key)}）"
+    )
+    return jsonify({"ok": True, "provider": pid, "model": model, "base_url": base_url,
+                    "key_masked": _mask_key(key), "cleared_overrides": cleared})
+
+
 @app.route("/api/llm-key", methods=["GET"])
 def get_llm_key():
-    k = _read_env_key()
+    k = _effective_env().get("OPENAI_API_KEY", "")
     return jsonify({"configured": bool(k), "masked": _mask_key(k)})
 
 
 @app.route("/api/llm-key", methods=["PUT"])
 def put_llm_key():
+    """只更新当前供应商的 Key（供应商切换走 /api/llm-config）。"""
     data = request.get_json() or {}
     key = (data.get("key") or "").strip()
     if len(key) < 16:
-        return jsonify({"error": "Key 格式不对（GLM API Key 通常 30+ 位）"}), 400
-
-    # 用新 Key 实测一次最小请求（thinking 关闭，20s 超时）；失败不落盘
+        return jsonify({"error": "Key 格式不对（API Key 通常 30+ 位）"}), 400
+    env = _effective_env()
     from ai.llm import build_chat
     try:
-        chat = build_chat(
-            os.environ.get("MODEL_NAME", "glm-5.3-flash"),
-            thinking=False,
-            timeout=20,
-            api_key=key,
-        )
+        chat = build_chat(env.get("MODEL_NAME", "glm-5.3-flash"), thinking=False, timeout=20, api_key=key)
         chat.invoke("ping")
     except Exception as e:
         logging.getLogger(__name__).warning(f"LLM Key 验证失败: {str(e)[:120]}")
         return jsonify({"error": f"验证失败（未保存）: {str(e)[:160]}"}), 400
-
+    updates = {"OPENAI_API_KEY": key, _provider_key_var(_active_provider_id(env)): key}
     try:
-        _write_env_key(key)
+        _write_env_vars(updates)
     except OSError as e:
         return jsonify({"error": f"验证通过但写入 ai/.env 失败: {e}"}), 500
-    # 即时生效：pipeline 每次 build_chat 都重新解析 env，无需重启 daemon
-    os.environ["OPENAI_API_KEY"] = key
+    for k, v in updates.items():
+        os.environ[k] = v
     logging.getLogger(__name__).info(f"LLM API Key 已更新（{_mask_key(key)}）")
     return jsonify({"ok": True, "configured": True, "masked": _mask_key(key)})
 

@@ -185,19 +185,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="number" data-setting-key="${key}" value="${val}" min="${m.min}" max="${m.max}" style="width:72px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);text-align:center"></label>`;
             }).join('');
             _renderSchedule(scheduled);
-            _loadLlmKeyStatus();
+            _loadLlmConfig();
         } catch { form.innerHTML = '<p style="color:var(--text-3)">加载失败</p>'; }
     };
-    const _renderLlmKeyStatus = ({ configured, masked }) => {
-        const el = document.getElementById('llm-key-status');
+    const _renderLlmStatus = (cfg) => {
+        const el = document.getElementById('llm-config-status');
         if (!el) return;
-        el.textContent = configured ? `已配置 ${masked}` : '未配置';
-        el.style.color = configured ? 'var(--success)' : 'var(--warning)';
+        el.textContent = cfg.key_configured ? `${cfg.model} · ${cfg.key_masked}` : `${cfg.model} · 未配置 Key`;
+        el.style.color = cfg.key_configured ? 'var(--success)' : 'var(--warning)';
     };
-    const _loadLlmKeyStatus = async () => {
+    const _syncProviderForm = (cfg, selectedId) => {
+        const sel = document.getElementById('llm-provider-select');
+        const customRow = document.getElementById('llm-custom-row');
+        const keyInput = document.getElementById('llm-key-input');
+        const selId = selectedId || sel.value;
+        const p = (cfg.providers || []).find(x => x.id === selId);
+        customRow.style.display = selId === 'custom' ? 'flex' : 'none';
+        if (selId === 'custom' && p) {
+            document.getElementById('llm-custom-base').value = p.base_url || '';
+            document.getElementById('llm-custom-model').value = p.model || '';
+        }
+        keyInput.placeholder = p && p.key_set ? '已保存 Key（可留空直接验证切换）' : '粘贴该供应商的 Key';
+    };
+    const _loadLlmConfig = async () => {
         try {
-            const r = await fetch('/api/llm-key');
-            _renderLlmKeyStatus(await r.json());
+            const r = await fetch('/api/llm-config');
+            const cfg = await r.json();
+            const sel = document.getElementById('llm-provider-select');
+            sel.innerHTML = (cfg.providers || []).map(p =>
+                `<option value="${p.id}" ${p.id === cfg.provider ? 'selected' : ''}>${p.label}${p.key_set && p.id !== cfg.provider ? '（Key 已存）' : ''}</option>`
+            ).join('');
+            _renderLlmStatus(cfg);
+            _syncProviderForm(cfg, cfg.provider);
         } catch { /* 状态行保持为空 */ }
     };
     const _renderSchedule = (scheduled) => {
@@ -230,29 +249,44 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch { showToast('保存失败'); }
     });
 
-    // 🔑 GLM API Key：验证→保存→即时生效（后端先测一次最小请求，失败不落盘）
+    // 🔑 AI 供应商：下拉选择（GLM/DeepSeek/自定义）→ 验证→保存→即时生效
+    document.getElementById('llm-provider-select')?.addEventListener('change', (e) => {
+        _syncProviderForm(null, e.target.value);
+    });
     document.getElementById('btn-llm-key-eye')?.addEventListener('click', () => {
         const input = document.getElementById('llm-key-input');
         input.type = input.type === 'password' ? 'text' : 'password';
     });
     document.getElementById('btn-llm-key-save')?.addEventListener('click', async () => {
-        const input = document.getElementById('llm-key-input');
+        const sel = document.getElementById('llm-provider-select');
+        const keyInput = document.getElementById('llm-key-input');
         const btn = document.getElementById('btn-llm-key-save');
-        const key = input.value.trim();
-        if (!key) { showToast('请先粘贴新 Key'); return; }
+        const payload = { provider: sel.value, key: keyInput.value.trim() };
+        if (!payload.key && keyInput.placeholder.indexOf('已保存') === -1) {
+            showToast('请先粘贴该供应商的 Key'); return;
+        }
+        if (sel.value === 'custom') {
+            payload.base_url = document.getElementById('llm-custom-base').value.trim();
+            payload.model = document.getElementById('llm-custom-model').value.trim();
+            if (!payload.base_url.startsWith('http') || !payload.model) {
+                showToast('自定义供应商需填写 Base URL 和模型名'); return;
+            }
+        }
         btn.disabled = true; btn.textContent = '验证中…';
         try {
-            const resp = await fetch('/api/llm-key', {
+            const resp = await fetch('/api/llm-config', {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key }),
+                body: JSON.stringify(payload),
             });
             const data = await resp.json();
             if (!resp.ok) { showToast(data.error || '验证失败，未保存'); return; }
-            input.value = '';
-            _renderLlmKeyStatus(data);
-            showToast('✓ Key 已验证并即时生效');
+            keyInput.value = '';
+            await _loadLlmConfig();
+            showToast(data.cleared_overrides && data.cleared_overrides.length
+                ? `✓ 已切换（清除了 ${data.cleared_overrides.length} 个按任务模型覆盖）`
+                : '✓ 已验证并即时生效');
         } catch { showToast('保存失败（网络错误）'); }
-        finally { btn.disabled = false; btn.textContent = '验证并保存'; }
+        finally { btn.disabled = false; btn.textContent = '验证并切换'; }
     });
 
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）

@@ -92,10 +92,12 @@ def build_chat(
     elif mode in ("off", "0", "false", "disabled"):
         thinking = False
 
-    params: dict = {
-        "timeout": timeout,
-        "extra_body": {"thinking": {"type": "enabled" if thinking else "disabled"}},
-    }
+    params: dict = {"timeout": timeout}
+    # thinking 开关是 GLM 专属参数：DeepSeek 等其他 OpenAI 兼容端点不认识，
+    # 可能直接 400——只在 bigmodel 端点上附带
+    effective_base = kwargs.get("base_url") or os.environ.get("OPENAI_BASE_URL", "") or ""
+    if "bigmodel" in effective_base:
+        params["extra_body"] = {"thinking": {"type": "enabled" if thinking else "disabled"}}
     if temperature is not None:
         params["temperature"] = temperature
     params.update(kwargs)

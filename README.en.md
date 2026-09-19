@@ -72,8 +72,10 @@ flowchart TB
 Also: grouped sidebar filters + search + 7 sort orders, CCF catalog labels
 (130+ venues / 80+ journals), 4 themes, keyboard shortcuts (`j`/`k`, `f`, `/`, `?`),
 a settings panel (schedule / staggering / rotation + instant triggers), and the
-GLM API key can be edited right in the web UI (validated, then written back to
-`ai/.env` and applied without a restart).
+LLM provider — GLM (coding plan or pay-as-you-go), DeepSeek, or any
+OpenAI-compatible endpoint — can be switched right in the web UI: validated
+first, written back to `ai/.env`, applied without a restart, with per-provider
+key memory.
 
 ## 🚀 Quick Start
 
