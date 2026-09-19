@@ -97,6 +97,7 @@ function renderSortOptions() {
     const container = document.getElementById('sidebar-sort');
     if (!container) return;
     const options = [
+        { value: 'ingested', label: '⏱ 入库时间：新→旧' },
         { value: 'desc', label: '↓ 日期：新→旧' },
         { value: 'asc', label: '↑ 日期：旧→新' },
         { value: 'relevance', label: '★ 相关性' },
@@ -245,6 +246,7 @@ export function applyFiltersAndSort() {
     }
 
     result.sort((a, b) => {
+        if (sortOrder === 'ingested') return (b.created_at || '').localeCompare(a.created_at || '');
         if (sortOrder === 'relevance') return ((b.AI || {}).relevance_score || 0) - ((a.AI || {}).relevance_score || 0);
         if (sortOrder === 'quality') return ((b.AI || {}).quality_score || 0) - ((a.AI || {}).quality_score || 0);
         if (sortOrder === 'citations') return (b.citation_count || 0) - (a.citation_count || 0);
