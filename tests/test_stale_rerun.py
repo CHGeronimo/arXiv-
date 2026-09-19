@@ -35,6 +35,12 @@ for i in range(3):
                 (f"rerun-test-{i}", f"old {i}", "2026-08-01"))
 tmp.execute("INSERT INTO papers (id, source, title, summary) VALUES ('rerun-fresh','test','F','s')")
 tmp.execute("INSERT INTO ai_results VALUES ('rerun-fresh','new',?,'recommended',9)", (PIPELINE_VERSION,))
+# 被过滤的两类：ignored 池成员 / ai 判 ignore 的降级行（均不应重跑）
+tmp.execute("INSERT INTO papers (id, source, title, summary) VALUES ('rerun-ignored','test','I','s')")
+tmp.execute("INSERT INTO ai_results VALUES ('rerun-ignored','old','2026-08-01','recommended',8)")
+tmp.execute("INSERT INTO ignored_papers VALUES ('rerun-ignored','user_deleted')")
+tmp.execute("INSERT INTO papers (id, source, title, summary) VALUES ('rerun-ignmark','test','M','s')")
+tmp.execute("INSERT INTO ai_results VALUES ('rerun-ignmark','old','2026-08-01','ignore',3)")
 tmp.commit()
 
 written = {}      # paper_id → ai dict（假写入器记录）
@@ -46,7 +52,8 @@ def _fake_insert_ai(paper_id, ai):
 
 
 c = api.app.test_client()
-with patch.object(jobs, "get_conn", lambda: tmp), \
+with patch.object(jobs, "_RERUN_LOCK_PATH", "/tmp/.rerun_test.lock"), \
+     patch.object(jobs, "get_conn", lambda: tmp), \
      patch.object(jobs, "get_ai_chain", return_value=(None, {"direction": "MARL"})), \
      patch.object(jobs, "enhance_single",
                   lambda p, ch, pr, lang: {"id": p["id"], "AI": {"tldr": f"重跑后 {p['id']}",
@@ -71,7 +78,9 @@ with patch.object(jobs, "get_conn", lambda: tmp), \
     assert set(written) == {f"rerun-test-{i}" for i in range(3)}, written
     assert set(cards) == set(written), "知识卡片应随增强重提取"
     assert "rerun-fresh" not in written
-    print("[1] 旧版本重跑+卡片随跑 / 新版本不动 ✓")
+    assert "rerun-ignored" not in written, "ignored 池成员不应重跑"
+    assert "rerun-ignmark" not in written, "ai 判 ignore 的不应重跑"
+    print("[1] 旧版本重跑+卡片随跑 / 新版本不动 / 被过滤两类跳过 ✓")
 
     # [2] 全部最新（把 written 结果模拟入库）→ 幂等跳过
     for pid, ai in written.items():

@@ -652,13 +652,16 @@ def run_retro_enhance():
 # Digest job (unchanged — digest.py will be updated separately)
 # ---------------------------------------------------------------------------
 
+_RERUN_LOCK_PATH = "data/.rerun.lock"  # 测试可指向临时文件
+
+
 def run_stale_rerun():
     """重跑旧流程结果（跨进程单实例）：daemon 与游离进程同时跑会双倍并发
     打穿限流（2026-09-19 实锤 1302 风暴），fcntl 锁保证全局仅一个实例。"""
     import fcntl
     from pathlib import Path as _P
-    _P("data").mkdir(exist_ok=True)
-    lock_fh = open("data/.rerun.lock", "w")
+    _P(_RERUN_LOCK_PATH).parent.mkdir(exist_ok=True)
+    lock_fh = open(_RERUN_LOCK_PATH, "w")
     try:
         fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -682,15 +685,32 @@ def _run_stale_rerun_impl():
     try:
         chain, profile = get_ai_chain()
         conn = get_conn()
+        # 只重跑"正式在册"的论文：已被过滤的不烧配额——
+        # ① 在 ignored 池（用户删除/历史 ai_ignore/重跑降级）的跳过
+        # ② ai 判 ignore 的降级行跳过（papers 表里有行但已被判出局）
         rows = conn.execute(
             """SELECT p.id, p.title, p.summary, p.authors, p.categories,
                       p.doi, p.published_date, p.url, p.pdf, p.venue,
                       p.citation_count, p.source
-               FROM papers p JOIN ai_results a ON p.id = a.paper_id
-               WHERE a.pipeline_version IS NULL OR a.pipeline_version != ?
+               FROM papers p
+               JOIN ai_results a ON p.id = a.paper_id
+               LEFT JOIN ignored_papers ig ON ig.paper_id = p.id
+               WHERE (a.pipeline_version IS NULL OR a.pipeline_version != ?)
+                 AND ig.paper_id IS NULL
+                 AND COALESCE(a.recommendation, '') != 'ignore'
                ORDER BY p.created_at DESC""",
             (PIPELINE_VERSION,),
         ).fetchall()
+        skipped = conn.execute(
+            """SELECT COUNT(*) FROM papers p
+               JOIN ai_results a ON p.id = a.paper_id
+               LEFT JOIN ignored_papers ig ON ig.paper_id = p.id
+               WHERE (a.pipeline_version IS NULL OR a.pipeline_version != ?)
+                 AND (ig.paper_id IS NOT NULL OR a.recommendation = 'ignore')""",
+            (PIPELINE_VERSION,),
+        ).fetchone()[0]
+        if skipped:
+            logger.info(f"[rerun] {skipped} 篇已被过滤（ignore/忽略池），按规则跳过不重跑")
         total = len(rows)
         if not total:
             _set_job_status("enhance_rerun", "done", "无旧流程结果，全部最新")
