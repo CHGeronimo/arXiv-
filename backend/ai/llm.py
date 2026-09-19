@@ -14,8 +14,9 @@ The THINKING env var overrides globally: auto (default, per-task defaults)
 全局 LLM 频率控制（2026-09-12 实锤 Error 1302 速率限制）：
 所有 LLM 请求经此处的信号量+最小间隔节流，并对 429/1302 做指数退避重试。
 LLM_MAX_CONCURRENT（默认4）与 LLM_MIN_INTERVAL（默认0.8s）可调。
-2026-09-19 实测标定：GLM Coding Plan 并发8触发 1302（7/8成功），
-并发4持续两轮 8/8 全绿——默认值据此设为 4；1302 时指数退避兜底。
+2026-09-19 实测标定（GLM Coding Plan）：并发4 三轮全绿；并发6 16/18
+（~11% 触发 1302，由指数退避吸收后净吞吐仍高于 4）；并发8 7/8 且明显恶化。
+默认取 6（激进档，用户指定）——退避兜底，撞线自动回落重试不丢任务。
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ from langchain_openai import ChatOpenAI
 logger = logging.getLogger(__name__)
 
 # ── 全局频率控制 ─────────────────────────────────────────────
-LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "4"))
+LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "6"))
 LLM_MIN_INTERVAL = float(os.environ.get("LLM_MIN_INTERVAL", "0.8"))
 _LLM_SEM = threading.Semaphore(LLM_MAX_CONCURRENT)
 _llm_lock = threading.Lock()
