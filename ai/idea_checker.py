@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from db import get_conn
-from .llm import build_chat
+from .llm import build_chat, task_model
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ _CHAIN = None
 def _get_chain():
     global _CHAIN
     if _CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        model_name = task_model("idea")
         llm = build_chat(model_name, thinking=True).with_structured_output(IdeaAnalysis, method="json_mode")
         _CHAIN = ChatPromptTemplate.from_template(_IDEA_PROMPT) | llm
     return _CHAIN

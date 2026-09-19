@@ -15,7 +15,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-from .llm import build_chat
+from .llm import build_chat, task_model
 from .structure import Structure
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ def main():
     parser.add_argument("--max_workers", type=int, default=1, help="parallel workers")
     args = parser.parse_args()
 
-    model_name = os.environ.get("MODEL_NAME", 'glm-5.3-flash')
+    model_name = task_model("enhance")
     language = os.environ.get("LANGUAGE", 'Chinese')
     target_file = args.data.replace('.jsonl', f'_AI_enhanced_{language}.jsonl')
 

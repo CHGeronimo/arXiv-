@@ -25,7 +25,7 @@ from pathlib import Path
 import dotenv
 from langchain_core.prompts import ChatPromptTemplate
 
-from .llm import build_chat
+from .llm import build_chat, task_model
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ MAX_QUERIES = 90
 
 
 def _get_llm():
-    model_name = os.environ.get("KEYWORD_MODEL", "glm-5.3-flash")
+    model_name = task_model("keyword")
     return build_chat(model_name, thinking=False, temperature=0.3)
 
 

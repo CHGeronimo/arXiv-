@@ -208,6 +208,30 @@
                     <button id="btn-llm-key-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">验证并切换</button>
                 </div>
                 <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">验证通过后写入 ai/.env 并即时生效（无需重启）；各供应商的 Key 分别记忆，切回无需重填；切换会清掉按任务模型覆盖（如有）</p>
+                <details style="margin-top:8px">
+                    <summary style="font-size:0.82rem;color:var(--text-1);cursor:pointer;padding:4px 0;user-select:none">🎛 按任务指定模型</summary>
+                    <div id="llm-models-form" style="margin-top:6px;max-height:260px;overflow-y:auto"></div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                        <button id="btn-llm-models-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px">保存任务模型</button>
+                        <span style="font-size:0.7rem;color:var(--text-3)">留空 = 跟随默认；即时生效</span>
+                    </div>
+                </details>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <b style="font-size:0.85rem;color:var(--text-1)">🌐 监听地址</b>
+                    <span id="bind-status" style="font-size:0.72rem;color:var(--text-3);font-family:var(--font-mono)"></span>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <input id="bind-host" list="bind-host-list" value="127.0.0.1" autocomplete="off" style="flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.8rem;font-family:var(--font-mono)">
+                    <datalist id="bind-host-list">
+                        <option value="127.0.0.1">仅本机访问</option>
+                        <option value="0.0.0.0">局域网开放（有风险）</option>
+                    </datalist>
+                    <input id="bind-port" type="number" min="1" max="65535" value="8080" style="width:88px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.8rem;font-family:var(--font-mono);text-align:center">
+                    <button id="btn-bind-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">保存</button>
+                </div>
+                <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">⟳ 重启 daemon 后生效；0.0.0.0 会把服务（含 AI 供应商配置接口）暴露给局域网，公用网络慎用</p>
             </div>
             <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
             <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>

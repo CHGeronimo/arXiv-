@@ -7,7 +7,7 @@ from typing import Optional
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from .llm import build_chat
+from .llm import build_chat, task_model
 from .structure import FulltextAnalysis
 from .fulltext_fetcher import fetch_and_extract
 from .enhance import load_research_profile
@@ -93,7 +93,7 @@ def _parse_analysis(raw_text: str) -> FulltextAnalysis:
 def _get_chain():
     global _CHAIN
     if _CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        model_name = task_model("fulltext")
         # 不用 with_structured_output：GLM 思考模式常返回嵌套 dict 值
         # （实测六字段全是对象，pydantic 严格校验丢弃整个高质量分析）——自行解析拍平
         llm = build_chat(model_name, thinking=True)

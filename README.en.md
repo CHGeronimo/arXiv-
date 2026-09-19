@@ -94,12 +94,14 @@ python3 daemon.py --port 8080
 Personal runtime files (`research_profile.json`, `subscriptions.json`,
 `data/papers.db`) are auto-generated on first run and never committed.
 
-## 🔌 API (46 endpoints)
+## 🔌 API (52 endpoints)
 
 Full list in `api.py` — papers (paginated, up to 50k lightweight), subscriptions
 & profile, field-level feedback with note academicization, manual triggers for
 every job, jobs/stats observability, weekly/monthly trend radars, BibTeX export,
-daily digests, and masked LLM-key management.
+daily digests, provider switching (GLM / DeepSeek / custom OpenAI-compatible),
+per-task model overrides for 10 pipeline tasks, masked LLM-key management, and
+listen host/port configuration (applied on daemon restart).
 
 ## 🧪 Tests
 
@@ -107,7 +109,7 @@ daily digests, and masked LLM-key management.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-22 regression scripts, fully mocked (no API quota consumed).
+25 regression scripts, fully mocked (no API quota consumed).
 
 ## 📄 License & Citation
 

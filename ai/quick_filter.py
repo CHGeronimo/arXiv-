@@ -5,7 +5,7 @@ import re
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from .llm import build_chat
+from .llm import build_chat, task_model
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ Abstract:
 
 
 def build_quick_filter(model_name: str | None = None):
-    model = model_name or os.environ.get("QUICK_FILTER_MODEL", "glm-5.3-flash")
+    model = model_name or task_model("quick_filter")
     # 不用 with_structured_output：GLM 偶尔包 {"answer": "..."} 信封导致
     # pydantic 严格校验失败（实测 4% 论文因此跳过预筛直进昂贵增强）——
     # 自己解析 + 解包容错更稳

@@ -421,8 +421,10 @@ _LLM_PROVIDERS = {
     "custom": {"label": "自定义（OpenAI 兼容端点）", "base_url": "", "model": ""},
 }
 # 切换供应商时必须清掉的按任务模型覆盖——它们指向旧供应商的模型名，
-# 留着会让部分任务打到新端点时报 model not found
-_TASK_MODEL_VARS = ("QUICK_FILTER_MODEL", "KEYWORD_MODEL", "TOPIC_MODEL", "CLUSTER_MODEL")
+# 留着会让部分任务打到新端点时报 model not found（全集见 ai.llm.TASK_MODEL_VARS）
+def _task_model_var_names() -> tuple:
+    from ai.llm import TASK_MODEL_VARS
+    return tuple(TASK_MODEL_VARS.values())
 
 
 def _provider_key_var(pid: str) -> str:
@@ -550,7 +552,7 @@ def put_llm_config():
         return jsonify({"error": "缺少有效 API Key（请先粘贴该供应商的 Key）"}), 400
 
     # 用目标供应商的 base/model/key 实测一次最小请求；失败不落盘
-    from ai.llm import build_chat
+    from ai.llm import build_chat, task_model
     try:
         chat = build_chat(model, thinking=False, timeout=20, api_key=key, base_url=base_url)
         chat.invoke("ping")
@@ -571,7 +573,7 @@ def put_llm_config():
         updates["CUSTOM_MODEL"] = model
     if pid != prev_pid:
         # 清掉指向旧供应商模型名的按任务覆盖
-        for v in _TASK_MODEL_VARS:
+        for v in _task_model_var_names():
             if env.get(v):
                 removes.append(v)
                 cleared.append(v)
@@ -606,7 +608,7 @@ def put_llm_key():
     if len(key) < 16:
         return jsonify({"error": "Key 格式不对（API Key 通常 30+ 位）"}), 400
     env = _effective_env()
-    from ai.llm import build_chat
+    from ai.llm import build_chat, task_model
     try:
         chat = build_chat(env.get("MODEL_NAME", "glm-5.3-flash"), thinking=False, timeout=20, api_key=key)
         chat.invoke("ping")
@@ -622,6 +624,132 @@ def put_llm_key():
         os.environ[k] = v
     logging.getLogger(__name__).info(f"LLM API Key 已更新（{_mask_key(key)}）")
     return jsonify({"ok": True, "configured": True, "masked": _mask_key(key)})
+
+
+# ── 任务级模型（前端逐任务指定模型；空 = 跟随默认）─────────────────
+
+_TASK_LABELS = {
+    "quick_filter": "快速预筛（关思考）",
+    "keyword": "关键词扩展 / 类别推荐（关思考）",
+    "topic": "主题提取 / 评语改写（关思考）",
+    "cluster": "知识图谱聚类（关思考）",
+    "enhance": "深度增强 / 评分（开思考）",
+    "fulltext": "全文深读（开思考）",
+    "trend": "周/月趋势雷达（开思考）",
+    "digest": "今日简报（开思考）",
+    "knowledge": "知识卡片提取（关思考）",
+    "idea": "研究想法查重（开思考）",
+}
+
+_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$")
+
+
+def _model_suggestions() -> list:
+    pid = _active_provider_id()
+    if pid == "deepseek":
+        return ["deepseek-chat", "deepseek-reasoner"]
+    if pid.startswith("glm"):
+        return ["glm-5.3-flash"]
+    return []
+
+
+@app.route("/api/llm-models", methods=["GET"])
+def get_llm_models():
+    from ai.llm import TASK_MODEL_VARS
+    env = _effective_env()
+    tasks = [
+        {"id": tid, "label": _TASK_LABELS.get(tid, tid), "model": env.get(var, "")}
+        for tid, var in TASK_MODEL_VARS.items()
+    ]
+    return jsonify({"default": env.get("MODEL_NAME", ""),
+                    "tasks": tasks, "suggestions": _model_suggestions()})
+
+
+@app.route("/api/llm-models", methods=["PUT"])
+def put_llm_models():
+    from ai.llm import TASK_MODEL_VARS
+    data = request.get_json() or {}
+    env = _effective_env()
+    updates, removes = {}, []
+    for k, v in data.items():
+        if k == "default":
+            var = "MODEL_NAME"
+        else:
+            var = TASK_MODEL_VARS.get(k)
+            if not var:
+                return jsonify({"error": f"未知任务: {k}"}), 400
+        m = (v or "").strip()
+        if m:
+            if not _MODEL_NAME_RE.match(m):
+                return jsonify({"error": f"模型名不合法: {m[:40]}"}), 400
+            updates[var] = m
+        else:
+            if var == "MODEL_NAME":
+                return jsonify({"error": "默认模型不能为空"}), 400
+            if env.get(var):
+                removes.append(var)  # 空 = 清除覆盖，跟随默认
+    if not updates and not removes:
+        return jsonify({"error": "无有效修改"}), 400
+    try:
+        _write_env_vars(updates, tuple(removes))
+    except OSError as e:
+        return jsonify({"error": f"写入 ai/.env 失败: {e}"}), 500
+    for k, v in updates.items():
+        os.environ[k] = v
+    for v in removes:
+        os.environ.pop(v, None)
+    logging.getLogger(__name__).info(
+        f"任务模型已更新: {[f'{k}={v}' for k, v in updates.items()] + [f'-{r}' for r in removes]}"
+    )
+    return get_llm_models()
+
+
+# ── 监听地址（HOST/PORT 写入 ai/.env，重启 daemon 生效）────────────
+
+_BIND_HOST_RE = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+
+
+@app.route("/api/bind", methods=["GET"])
+def get_bind():
+    env = _effective_env()
+    try:
+        actual_port = int(os.environ.get("DAEMON_PORT_ACTUAL", "0") or 0)
+    except ValueError:
+        actual_port = 0
+    return jsonify({
+        "host": env.get("DAEMON_HOST", "") or "127.0.0.1",
+        "port": env.get("DAEMON_PORT", "") or "8080",
+        "actual_host": os.environ.get("DAEMON_HOST_ACTUAL", ""),
+        "actual_port": actual_port,
+        # 配置与实际不一致 = 改过但 daemon 未重启
+        "pending_restart": (env.get("DAEMON_HOST", "") or "127.0.0.1") != (os.environ.get("DAEMON_HOST_ACTUAL", "") or "127.0.0.1")
+        or str(env.get("DAEMON_PORT", "") or "8080") != str(actual_port or "8080"),
+    })
+
+
+@app.route("/api/bind", methods=["PUT"])
+def put_bind():
+    data = request.get_json() or {}
+    host = (data.get("host") or "").strip()
+    if host == "localhost":
+        host = "127.0.0.1"
+    try:
+        port = int(data.get("port"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "端口需为整数"}), 400
+    if not (1 <= port <= 65535):
+        return jsonify({"error": "端口需在 1-65535 之间"}), 400
+    if host not in ("127.0.0.1", "0.0.0.0") and not _BIND_HOST_RE.match(host):
+        return jsonify({"error": "地址需为 127.0.0.1 / 0.0.0.0 或具体 IPv4"}), 400
+    try:
+        _write_env_vars({"DAEMON_HOST": host, "DAEMON_PORT": str(port)})
+    except OSError as e:
+        return jsonify({"error": f"写入 ai/.env 失败: {e}"}), 500
+    os.environ["DAEMON_HOST"] = host
+    os.environ["DAEMON_PORT"] = str(port)
+    logging.getLogger(__name__).info(f"监听地址已更新: {host}:{port}（重启 daemon 后生效）")
+    return jsonify({"ok": True, "host": host, "port": port, "restart_required": True,
+                    "lan_warning": host == "0.0.0.0"})
 
 
 # ── Digest ────────────────────────────────────────────────────────
@@ -1155,7 +1283,7 @@ def recommend_categories():
 
     from pydantic import BaseModel, Field
     import os
-    from ai.llm import build_chat
+    from ai.llm import build_chat, task_model
 
     class CategoryRecommendation(BaseModel):
         primary: list[str] = Field(description="5-10 most relevant arXiv category codes (e.g. cs.CV, cs.LG)")
@@ -1174,7 +1302,7 @@ Available arXiv categories:
 Select categories that would contain papers relevant to this researcher."""
 
     try:
-        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        model_name = task_model("keyword")
         llm = build_chat(model_name, thinking=False).with_structured_output(CategoryRecommendation, method="json_mode")
         from langchain_core.prompts import ChatPromptTemplate
         chain = ChatPromptTemplate.from_template(prompt) | llm
@@ -1211,9 +1339,9 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
     if len(topics) <= 3:
         return topics
     try:
-        from ai.llm import build_chat
+        from ai.llm import build_chat, task_model
         llm = build_chat(
-            os.environ.get("TOPIC_MODEL", "glm-5.3-flash"),
+            task_model("topic"),
             thinking=False, temperature=0.1,
         )
         resp = llm.invoke(
@@ -1253,8 +1381,8 @@ def _academicize_note(note: str, rating: str) -> str:
     版本供评分 prompt 使用——规范表述更利于评分模型解析与遵循。
     失败时退回原文（不阻塞反馈闭环）。"""
     try:
-        from ai.llm import build_chat
-        llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
+        from ai.llm import build_chat, task_model
+        llm = build_chat(task_model("topic"), thinking=False, temperature=0.2)
         resp = llm.invoke(
             "将下面的用户论文评语改写为规范的学术表述。要求：保留原始含义、"
             "倾向（认可/否定）与全部具体细节（方法名/机构/代码有无等）；"
@@ -1346,8 +1474,8 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             )
 
         try:
-            from ai.llm import build_chat
-            llm = build_chat(os.environ.get("TOPIC_MODEL", "glm-5.3-flash"), thinking=False, temperature=0.2)
+            from ai.llm import build_chat, task_model
+            llm = build_chat(task_model("topic"), thinking=False, temperature=0.2)
             resp = llm.invoke(
                 f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
                 f"用简体中文输出主题（标准技术术语保留英文），与用户画像语言一致。"

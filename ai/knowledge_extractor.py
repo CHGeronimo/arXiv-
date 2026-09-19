@@ -6,7 +6,7 @@ import os
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from .llm import build_chat
+from .llm import build_chat, task_model
 from .structure import KnowledgeCard
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ _CHAIN = None
 def _get_chain():
     global _CHAIN
     if _CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        model_name = task_model("knowledge")
         llm = build_chat(model_name, thinking=False).with_structured_output(KnowledgeCard, method="json_mode")
         _CHAIN = ChatPromptTemplate.from_template(_EXTRACT_PROMPT) | llm
     return _CHAIN

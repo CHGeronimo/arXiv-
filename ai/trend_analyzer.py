@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from langchain_core.prompts import ChatPromptTemplate
 
 from db import get_conn
-from .llm import build_chat
+from .llm import build_chat, task_model
 from .structure import TrendReport
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ _RAW_CHAIN = None
 def _get_raw_chain():
     global _RAW_CHAIN
     if _RAW_CHAIN is None:
-        model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
+        model_name = task_model("trend")
         # 思考模式 + 50篇论文长prompt：默认120s超时不够（实测 Request timed out）
         llm = build_chat(model_name, thinking=True, timeout=300,
                          model_kwargs={"response_format": {"type": "json_object"}})

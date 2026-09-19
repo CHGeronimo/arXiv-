@@ -26,9 +26,9 @@ def _extract_themes(all_keywords: list[str], kw_counter: Counter) -> list[str]:
     kw_list = [kw for kw, _ in top_kws]
 
     try:
-        from .llm import build_chat
+        from .llm import build_chat, task_model
         llm = build_chat(
-            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            task_model("cluster"),
             thinking=False, temperature=0.1, timeout=60,
         )
         prompt = (
@@ -68,9 +68,9 @@ def _assign_papers_to_themes_llm(
 ) -> dict[str, list[str]]:
     """Assign papers to themes using LLM for semantic matching."""
     try:
-        from .llm import build_chat
+        from .llm import build_chat, task_model
         llm = build_chat(
-            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            task_model("cluster"),
             thinking=False, temperature=0.05, timeout=120,
         )
 
@@ -207,9 +207,9 @@ def _label_problem_domains(cluster_names: list[str]) -> dict[str, str]:
     if not cluster_names:
         return {}
     try:
-        from .llm import build_chat
+        from .llm import build_chat, task_model
         llm = build_chat(
-            os.environ.get("CLUSTER_MODEL", "glm-5.3-flash"),
+            task_model("cluster"),
             thinking=False, temperature=0.1, timeout=60,
         )
         prompt = (

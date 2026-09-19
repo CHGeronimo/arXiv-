@@ -186,6 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
             _renderSchedule(scheduled);
             _loadLlmConfig();
+            _loadLlmModels();
+            _loadBind();
         } catch { form.innerHTML = '<p style="color:var(--text-3)">加载失败</p>'; }
     };
     const _renderLlmStatus = (cfg) => {
@@ -217,6 +219,37 @@ document.addEventListener('DOMContentLoaded', () => {
             ).join('');
             _renderLlmStatus(cfg);
             _syncProviderForm(cfg, cfg.provider);
+        } catch { /* 状态行保持为空 */ }
+    };
+
+    // 🎛 按任务指定模型（留空 = 跟随默认）
+    const _loadLlmModels = async () => {
+        const box = document.getElementById('llm-models-form');
+        if (!box) return;
+        try {
+            const r = await fetch('/api/llm-models');
+            const cfg = await r.json();
+            const input = (key, val, ph) =>
+                `<input data-model-key="${key}" value="${val || ''}" placeholder="${ph || ''}" list="model-suggestions" class="model-input">`;
+            box.innerHTML =
+                `<datalist id="model-suggestions">${(cfg.suggestions || []).map(s => `<option value="${s}">`).join('')}</datalist>` +
+                `<label class="model-row"><span>默认模型（全部任务兜底）</span>${input('default', cfg.default, '必填')}</label>` +
+                (cfg.tasks || []).map(t =>
+                    `<label class="model-row"><span>${t.label}</span>${input(t.id, t.model, '跟随默认')}</label>`).join('');
+        } catch { box.innerHTML = '<p style="font-size:0.75rem;color:var(--text-3)">加载失败</p>'; }
+    };
+
+    // 🌐 监听地址（重启 daemon 生效）
+    const _loadBind = async () => {
+        try {
+            const r = await fetch('/api/bind');
+            const b = await r.json();
+            document.getElementById('bind-host').value = b.host;
+            document.getElementById('bind-port').value = b.port;
+            const st = document.getElementById('bind-status');
+            const actual = b.actual_port ? `${b.actual_host}:${b.actual_port}` : '未知';
+            st.textContent = b.pending_restart ? `运行中 ${actual} ⟳ 待重启` : `运行中 ${actual}`;
+            st.style.color = b.pending_restart ? 'var(--warning)' : 'var(--text-3)';
         } catch { /* 状态行保持为空 */ }
     };
     const _renderSchedule = (scheduled) => {
@@ -287,6 +320,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '✓ 已验证并即时生效');
         } catch { showToast('保存失败（网络错误）'); }
         finally { btn.disabled = false; btn.textContent = '验证并切换'; }
+    });
+
+    // 🎛 任务模型保存（留空 = 清除覆盖跟随默认，即时生效）
+    document.getElementById('btn-llm-models-save')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-llm-models-save');
+        const payload = {};
+        document.querySelectorAll('#llm-models-form [data-model-key]').forEach(inp => {
+            payload[inp.dataset.modelKey] = inp.value.trim();
+        });
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/llm-models', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok) { showToast(data.error || '保存失败'); return; }
+            showToast('✓ 任务模型已保存（即时生效）');
+        } catch { showToast('保存失败（网络错误）'); }
+        finally { btn.disabled = false; }
+    });
+
+    // 🌐 监听地址保存（重启 daemon 后生效）
+    document.getElementById('btn-bind-save')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-bind-save');
+        const payload = {
+            host: document.getElementById('bind-host').value.trim(),
+            port: parseInt(document.getElementById('bind-port').value),
+        };
+        if (!payload.host || !payload.port) { showToast('请填写地址和端口'); return; }
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/bind', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok) { showToast(data.error || '保存失败'); return; }
+            showToast(data.lan_warning
+                ? '⚠ 已保存（0.0.0.0 局域网开放，注意安全），重启 daemon 后生效'
+                : '✓ 已保存，重启 daemon 后生效');
+            _loadBind();
+        } catch { showToast('保存失败（网络错误）'); }
+        finally { btn.disabled = false; }
     });
 
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）

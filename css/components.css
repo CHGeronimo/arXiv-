@@ -1024,6 +1024,35 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* --- Settings modal: per-task model rows --- */
+.model-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 0.78rem;
+  color: var(--text-2);
+  cursor: default;
+}
+.model-row span {
+  flex: 1;
+  min-width: 0;
+}
+.model-input {
+  width: 158px;
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-0);
+  color: var(--text-0);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
 /* --- Header h1 (old: color: var(--accent-primary)) --- */
 header h1 {
   font-family: var(--font-display);

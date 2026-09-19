@@ -35,6 +35,29 @@ _llm_last = 0.0
 
 _RATE_LIMIT_MARKERS = ("1302", "429", "速率限制", "rate limit", "Rate limit")
 
+# 任务级模型覆盖：行为 → 环境变量（未设则跟随 MODEL_NAME）。
+# 前端 ⚙️ 设置面板的任务模型表直接读写这些变量。
+TASK_MODEL_VARS = {
+    "quick_filter": "QUICK_FILTER_MODEL",   # 快速相关性预筛（关思考）
+    "keyword": "KEYWORD_MODEL",             # 关键词扩展/类别推荐（关思考）
+    "topic": "TOPIC_MODEL",                 # feedback 主题提取/评语改写（关思考）
+    "cluster": "CLUSTER_MODEL",             # 知识图谱聚类（关思考）
+    "enhance": "ENHANCE_MODEL",             # 深度增强/评分（开思考）
+    "fulltext": "FULLTEXT_MODEL",           # 全文深读（开思考）
+    "trend": "TREND_MODEL",                 # 周/月趋势雷达（开思考）
+    "digest": "DIGEST_MODEL",               # 今日简报（开思考）
+    "knowledge": "KNOWLEDGE_MODEL",         # 知识卡片提取（关思考）
+    "idea": "IDEA_MODEL",                   # 研究想法查重（开思考）
+}
+
+
+def task_model(task: str) -> str:
+    """任务模型解析：任务级覆盖 → MODEL_NAME → glm-5.3-flash。"""
+    var = TASK_MODEL_VARS.get(task, "")
+    return ((os.environ.get(var, "") if var else "")
+            or os.environ.get("MODEL_NAME", "")
+            or "glm-5.3-flash")
+
 
 def _acquire_llm_slot() -> None:
     """占一个并发槽并对请求起点做全局最小间隔（所有 LLM 调用共享）。"""

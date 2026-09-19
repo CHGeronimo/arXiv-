@@ -30,7 +30,7 @@ LLM 流水线完成相关性快筛与深度解读，你的点赞/点踩/评语�
 - **知识图谱**：论文知识卡片 d3 力导向聚类，L1/L2/L3 层级导航
 - **研究想法工作台**：提交 idea，AI 检索已有论文并分析差异化与可行性
 - **今日简报**：每日 digest 自动生成，GFM 表格渲染，晨读预设一键过滤
-- **自托管 & 单机部署**：Flask + SQLite（WAL），无外部服务依赖；抓取调度、错峰间隔、轮换周期均可在前端设置面板调整并立即触发
+- **自托管 & 单机部署**：Flask + SQLite（WAL），无外部服务依赖；抓取调度、错峰间隔、轮换周期、AI 供应商（GLM/DeepSeek/自定义）、10 类任务的逐个模型、监听 IP/端口均可在前端设置面板调整
 
 ## 🧠 系统流水线
 
@@ -114,7 +114,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 - **自动迁移**：启动时检测旧 JSONL 数据自动导入
 - **常用索引**：source / published_date / recommendation / relevance_score
 
-## 🔌 API（48 个端点）
+## 🔌 API（52 个端点）
 
 主要资源（完整列表见 `api.py`）：
 
@@ -123,7 +123,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 | 论文 | `GET /api/papers`（分页/筛选/排序，最高 5 万条轻量模式）、`GET /api/paper/<id>`（全文深读） |
 | 订阅与画像 | `GET/PUT /api/subscriptions`、`GET/PUT /api/profile`（PUT 合并保存）、`POST /api/extract-keywords` |
 | 反馈 | `POST /api/feedback`（字段级更新）、书签/已读、`POST /api/feedback/note`（评语学术化） |
-| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`、`GET /api/stats`（含版本一致性）、`GET/PUT /api/llm-config`（供应商切换：GLM/DeepSeek/自定义）+ `GET/PUT /api/llm-key`（Key 修改，脱敏回显） |
+| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`、`GET /api/stats`（含版本一致性）、`GET/PUT /api/llm-config`（供应商切换）+ `GET/PUT /api/llm-models`（10 类任务逐个指定模型）+ `GET/PUT /api/llm-key`（Key 修改，脱敏回显）、`GET/PUT /api/bind`（监听 IP/端口，重启生效） |
 | 趋势与导出 | `GET /api/trend-radars`（周/月）、`POST /api/export/bibtex`、`GET /api/digest/<date>` |
 
 ## 🧪 测试与运维
@@ -144,19 +144,19 @@ GLM 全局速率限制（并发信号量 + 间隔 + 指数退避）；arXiv 停�
 ## 📁 项目结构
 
 ```
-├── daemon.py                # 入口：argparse + app factory + Scheduler
-├── api.py                   # Flask 路由（44 端点）
+├── daemon.py                # 入口：argparse + app factory + Scheduler；监听地址 命令行>ai/.env>默认
+├── api.py                   # Flask 路由（52 端点）
 ├── db.py                    # SQLite + 写队列 + schema/迁移 + 运行时设置
 ├── jobs.py                  # BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
 ├── paper_store.py           # SQLite CRUD
 ├── crawler/                 # 6 个爬虫 + models + subs_store
-├── ai/                      # LLM 工厂(限流) / 快筛 / 增强 / 全文抓取+深读 /
+├── ai/                      # LLM 工厂(限流+task_model) / 快筛 / 增强 / 全文抓取+深读 /
 │                            # 关键词扩展 / 趋势分析 / 知识聚类 / 简报 / idea 检查
 ├── js/                      # ES modules：app/render/modal/filters/graph/trend/
 │                            # digest/compare/subscriptions/state/api/ccf-data
 ├── css/                     # tokens(4 主题) + base + components + utilities
-├── scripts/                 # 审计 / 回填 / 主题清理 / 反馈闭环验证
-├── tests/                   # 21 个回归测试
+├── scripts/                 # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移(JSONL·CCF)
+├── tests/                   # 25 个回归测试
 └── index.html               # SPA 入口
 ```
 
