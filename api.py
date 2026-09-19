@@ -1,3 +1,4 @@
+"""arXiv 每日电讯 — Flask API layer."""
 from __future__ import annotations
 
 import json

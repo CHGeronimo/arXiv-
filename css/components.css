@@ -1013,7 +1013,7 @@
 /* --- Header h1 (old: color: var(--accent-primary)) --- */
 header h1 {
   font-family: var(--font-display);
-  font-size: var(--text-xl);
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--accent-primary);
   white-space: nowrap;

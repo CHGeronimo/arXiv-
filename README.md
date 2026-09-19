@@ -1,6 +1,6 @@
-# arxivSCI-daily
+# arXiv 每日电讯（arxivSCI-daily）
 
-多源学术论文订阅守护进程，集成 AI 深度筛选。支持 arXiv、Crossref 期刊、DBLP 会议、OpenAlex 搜索、S2 Author 五大数据源，AI 自动生成中文解读、质量评分和推荐等级，前端提供侧边栏筛选、4 套主题和 CCF 分级展示。
+多源学术论文订阅守护进程——"arXiv 每日电讯"，集成 AI 深度筛选。支持 arXiv、Crossref 期刊、DBLP 会议、OpenAlex 搜索、S2 Author 五大数据源，AI 自动生成中文解读、质量评分和推荐等级，前端提供侧边栏筛选、4 套主题和 CCF 分级展示。
 
 ## Quick Start
 

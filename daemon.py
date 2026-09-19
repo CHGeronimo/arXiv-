@@ -20,7 +20,7 @@ logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="arxivSCI-daily daemon")
+    parser = argparse.ArgumentParser(description="arXiv 每日电讯 daemon")
     parser.add_argument("--port", type=int, default=8080, help="HTTP port")
     parser.add_argument("--config", default="subscriptions.json", help="Subscriptions file")
     args = parser.parse_args()
@@ -66,7 +66,7 @@ def main():
     else:
         logger.info(f"调度器已启动: 自动任务每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行（手动触发随时可用）")
 
-    logger.info(f"服务启动，端口 {args.port}")
+    logger.info(f"「arXiv 每日电讯」服务启动，端口 {args.port}")
     app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
 
 
