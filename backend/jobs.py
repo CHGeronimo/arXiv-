@@ -136,6 +136,7 @@ class BaseCrawlerJob(ABC):
             lock = threading.Lock()
             done_count = [0]
             last_log_t = [time.monotonic()]
+            samples = [(time.monotonic(), 0)]  # (t, n) 采样，近 3 分钟窗口算即时速度
             start_time = time.monotonic()
 
             def _process_one(paper):
@@ -149,14 +150,21 @@ class BaseCrawlerJob(ABC):
                     else:
                         skipped[result] = skipped.get(result, 0) + 1
                     n = done_count[0]
-                    # 每 10 篇一条 + 至少间隔 3s 节流（本地预筛秒过阶段不刷屏）；
-                    # 进度同时写入任务状态，🔄 菜单计数器实时可见
+                    # 每 10 篇一条 + 至少间隔 3s 节流；速度用近 3 分钟窗口（全程均值
+                    # 会被早期慢段带偏，显示 0.0/s、ETA 数千秒）；进度同步任务状态
                     now = time.monotonic()
                     if (n % 10 == 0 or n == fetched) and (now - last_log_t[0] >= 3 or n == fetched):
                         last_log_t[0] = now
+                        samples.append((now, n))
+                        while len(samples) > 2 and samples[1][0] < now - 180:
+                            samples.pop(0)
+                        if len(samples) >= 2 and now - samples[0][0] >= 5:
+                            dt = now - samples[0][0]
+                            recent = (n - samples[0][1]) / dt  # 篇/秒（近窗口）
+                        else:
+                            recent = n / max(0.001, now - start_time)
+                        eta = (fetched - n) / recent if recent > 0 else 0
                         elapsed = now - start_time
-                        speed = n / elapsed if elapsed > 0 else 0
-                        eta = (fetched - n) / speed if speed > 0 else 0
                         parts = [f"{written} 接受"]
                         if skipped.get("filter_reject"):
                             parts.append(f"{skipped['filter_reject']} 过滤")
@@ -165,7 +173,13 @@ class BaseCrawlerJob(ABC):
                         ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
                         if ignored_total:
                             parts.append(f"{ignored_total} 拒绝")
-                        prog = f"{n}/{fetched} ({speed:.1f}/s, ETA {eta:.0f}s)"
+                        # 手动多任务并行时共享 GLM 限流器，各任务速度减半——提示出来
+                        others = [k for k, v in get_job_status().items()
+                                  if k != self.name and isinstance(v, dict) and v.get("status") == "running"]
+                        if others:
+                            parts.append(f"与 {','.join(others)} 并行抢LLM限额")
+                        prog = (f"{n}/{fetched} · {recent * 60:.1f}篇/分 · ETA {eta / 60:.0f}分"
+                                f" · 已用 {int(elapsed // 60)}:{int(elapsed % 60):02d}")
                         logger.info(f"[{self.name}] {prog} │ {' │ '.join(parts)}")
                         _set_job_status(self.name, "running", f"{prog} │ {' │ '.join(parts)}")
                 return result
