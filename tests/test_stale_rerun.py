@@ -80,13 +80,15 @@ with patch.object(jobs, "get_conn", lambda: tmp), \
     tmp.commit()
     written.clear()
     c.post("/api/trigger/enhance-rerun")
+    time.sleep(0.5)  # 等新实例把状态刷成 running/新 done，避免读到上一轮残留
     deadline = time.time() + 10
+    st = None
     while time.time() < deadline:
         st = c.get("/api/jobs").get_json().get("enhance_rerun")
-        if st and st["status"] in ("done", "error"):
+        if st and st["status"] == "done" and "无旧流程" in st.get("message", ""):
             break
         time.sleep(0.2)
-    assert st["status"] == "done" and "无旧流程" in st["message"], st
+    assert st and st["status"] == "done" and "无旧流程" in st["message"], st
     assert not written
     print("[2] 全最新时幂等跳过 ✓")
 

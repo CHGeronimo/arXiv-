@@ -68,7 +68,8 @@ with patch.object(L.ChatOpenAI, "invoke", flaky_invoke), \
     out = chat3.invoke("hi")
 assert out.content == "recovered" and len(attempts) == 3
 backoffs = [s for s in sleeps if s >= 3]  # 过滤掉节流的小间隔 sleep
-assert backoffs == [3, 6], f"退避应为3/6s: {sleeps}"
+# 抖动退避：base 3/6 + uniform(0, base*0.5)
+assert len(backoffs) == 2 and 3 <= backoffs[0] < 4.6 and 6 <= backoffs[1] < 9.1, f"退避应≈3/6s带抖动: {backoffs}"
 # 非限流错误不重试
 calls = []
 def hard_error(self, inp, *a, **k):

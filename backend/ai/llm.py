@@ -111,8 +111,10 @@ class _RateLimitedChat(ChatOpenAI):
                 return super().invoke(input, *args, **kwargs)
             except Exception as e:
                 if _is_rate_limit_error(e) and attempt < 3:
-                    wait = 3 * (attempt + 1)
-                    logger.warning(f"GLM 限流（{str(e)[:80]}...），退避 {wait}s 后重试（第 {attempt + 1}/3 次）")
+                    import random
+                    base = 3 * (attempt + 1)
+                    wait = base + random.uniform(0, base * 0.5)  # 抖动：惊群错峰
+                    logger.warning(f"GLM 限流（{str(e)[:80]}...），退避 {wait:.1f}s 后重试（第 {attempt + 1}/3 次）")
                     time.sleep(wait)
                     last_err = e
                     continue
@@ -137,7 +139,9 @@ def build_chat(
     elif mode in ("off", "0", "false", "disabled"):
         thinking = False
 
-    params: dict = {"timeout": timeout}
+    # SDK 自带 429 重试（默认2次）会与我们的指数退避叠加成双层重试风暴，
+    # 1302 高发期实际请求量翻倍——关掉，统一走本模块的抖动退避
+    params: dict = {"timeout": timeout, "max_retries": 0}
     # thinking 开关是 GLM 专属参数：DeepSeek 等其他 OpenAI 兼容端点不认识，
     # 可能直接 400——只在 bigmodel 端点上附带
     effective_base = kwargs.get("base_url") or os.environ.get("OPENAI_BASE_URL", "") or ""

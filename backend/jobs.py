@@ -653,6 +653,27 @@ def run_retro_enhance():
 # ---------------------------------------------------------------------------
 
 def run_stale_rerun():
+    """重跑旧流程结果（跨进程单实例）：daemon 与游离进程同时跑会双倍并发
+    打穿限流（2026-09-19 实锤 1302 风暴），fcntl 锁保证全局仅一个实例。"""
+    import fcntl
+    from pathlib import Path as _P
+    _P("data").mkdir(exist_ok=True)
+    lock_fh = open("data/.rerun.lock", "w")
+    try:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        _set_job_status("enhance_rerun", "error", "另一实例正在重跑（跨进程锁），勿重复触发")
+        logger.warning("[rerun] ✘ 另一实例运行中，本次跳过")
+        lock_fh.close()
+        return
+    try:
+        _run_stale_rerun_impl()
+    finally:
+        fcntl.flock(lock_fh, fcntl.LOCK_UN)
+        lock_fh.close()
+
+
+def _run_stale_rerun_impl():
     """重跑旧流程处理过的论文：按 PIPELINE_VERSION 识别落后结果，逐篇重新
     增强 + 知识卡片。中断续跑天然支持——重跑过的已打新版本，再次触发只补剩余。"""
     from backend.ai.enhance import PIPELINE_VERSION
