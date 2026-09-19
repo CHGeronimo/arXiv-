@@ -80,8 +80,8 @@ git clone https://github.com/CHGeronimo/arxivSCI-daily.git
 cd arxivSCI-daily
 pip install -r requirements.txt
 
-cp ai/.env.example ai/.env
-# 编辑 ai/.env，填入 GLM API Key（https://open.bigmodel.cn 免费申请）
+cp backend/ai/.env.example backend/ai/.env
+# 编辑 backend/ai/.env，填入 GLM API Key（https://open.bigmodel.cn 免费申请）
 
 python3 daemon.py --port 8080
 # 打开 http://localhost:8080
@@ -95,7 +95,7 @@ python3 daemon.py --port 8080
 
 | 文件 | 说明 |
 |:-----|:-----|
-| `ai/.env` | GLM/DeepSeek API Key / endpoint / 模型名（**gitignored**；⚙️ 设置面板可直接选择/切换 AI 供应商，验证通过即时生效，各供应商 Key 分别记忆） |
+| `backend/ai/.env` | GLM/DeepSeek API Key / endpoint / 模型名（**gitignored**；⚙️ 设置面板可直接选择/切换 AI 供应商，验证通过即时生效，各供应商 Key 分别记忆） |
 | `research_profile.json` | 研究方向 + 关键词 + liked/disliked 主题（反馈沉淀，**自动生成，gitignored**） |
 | `subscriptions.json` | 订阅配置（arXiv 分类 / 期刊 / 会议 / 作者 / 搜索关键词，**自动生成，gitignored**） |
 | `data/papers.db` | SQLite 数据库（自动创建 + 迁移，gitignored） |
@@ -144,20 +144,22 @@ GLM 全局速率限制（并发信号量 + 间隔 + 指数退避）；arXiv 停�
 ## 📁 项目结构
 
 ```
-├── daemon.py                # 入口：argparse + app factory + Scheduler；监听地址 命令行>ai/.env>默认
-├── api.py                   # Flask 路由（52 端点）
-├── db.py                    # SQLite + 写队列 + schema/迁移 + 运行时设置
-├── jobs.py                  # BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
-├── paper_store.py           # SQLite CRUD
-├── crawler/                 # 6 个爬虫 + models + subs_store
-├── ai/                      # LLM 工厂(限流+task_model) / 快筛 / 增强 / 全文抓取+深读 /
-│                            # 关键词扩展 / 趋势分析 / 知识聚类 / 简报 / idea 检查
-├── js/                      # ES modules：app/render/modal/filters/graph/trend/
-│                            # digest/compare/subscriptions/state/api/ccf-data
-├── css/                     # tokens(4 主题) + base + components + utilities
-├── scripts/                 # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移(JSONL·CCF)
-├── tests/                   # 25 个回归测试
-└── index.html               # SPA 入口
+├── daemon.py               # 入口薄壳（python daemon.py 兼容不变），主体在 backend/
+├── backend/                # 后端 Python 包
+│   ├── daemon.py           #   入口主体：绑定解析 + app factory + Scheduler
+│   ├── api.py              #   Flask 路由（52 端点）
+│   ├── db.py               #   SQLite + 写队列 + schema/迁移 + 运行时设置
+│   ├── jobs.py             #   BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
+│   ├── paper_store.py      #   SQLite CRUD
+│   ├── ccf_map.py          #   CCF 目录映射
+│   ├── ai/                 #   LLM 工厂(限流+task_model) / 快筛 / 增强 / 全文深读 /
+│   │                       #   关键词扩展 / 趋势 / 知识聚类 / 简报 / idea 检查
+│   └── crawler/            #   六大发现源爬虫
+├── web/                    # 前端（SPA）
+│   ├── index.html  js/  css/(4主题)  vendor/
+├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
+├── tests/                  # 25 个回归测试
+└── docs/                   # 设计文档
 ```
 
 ## 🧭 设计决策与已知限制

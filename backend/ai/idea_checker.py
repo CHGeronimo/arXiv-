@@ -7,7 +7,7 @@ import os
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from db import get_conn
+from backend.db import get_conn
 from .llm import build_chat, task_model
 
 logger = logging.getLogger(__name__)

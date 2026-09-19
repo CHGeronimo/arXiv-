@@ -1,6 +1,6 @@
 """One-shot migration: backfill ccf_tier column from venue/journal_title."""
 import sqlite3
-from paper_store import _match_ccf
+from backend.paper_store import _match_ccf
 
 DB_PATH = "data/papers.db"
 

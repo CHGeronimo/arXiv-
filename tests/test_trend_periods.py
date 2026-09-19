@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import api  # noqa: E402
-from ai import trend_analyzer  # noqa: E402
+import backend.api as api  # noqa: E402
+from backend.ai import trend_analyzer  # noqa: E402
 
 # ── [1] 月度生成：本月入库论文入选、键为 YYYY-MM、period_type=monthly ──
 mem = sqlite3.connect(":memory:")
@@ -36,7 +36,7 @@ class _Prompt:
     def __or__(self, other): return _Chain()
 
 with patch.object(trend_analyzer, "get_conn", return_value=mem), \
-     patch("ai.llm.build_chat", return_value=object()), \
+     patch("backend.ai.llm.build_chat", return_value=object()), \
      patch.object(trend_analyzer.ChatPromptTemplate, "from_template", return_value=_Prompt()):
     r = trend_analyzer.generate_trend_report_period("monthly")
 assert r["week_start"] == this_month and r["period_type"] == "monthly", r
@@ -64,7 +64,7 @@ print("[2] API scope 过滤 + 周月列表分离 ✓")
 
 # ── [3] trigger 带 scope=monthly 调用月度生成 ──
 import time  # noqa: E402
-with patch("ai.trend_analyzer.generate_trend_report_period",
+with patch("backend.ai.trend_analyzer.generate_trend_report_period",
            return_value={"week_start": "2026-09", "paper_count": 9, "period_type": "monthly"}) as gen:
     r = c.post("/api/trigger/trend", json={"scope": "monthly"})
     assert r.status_code == 200 and r.get_json()["scope"] == "monthly"
@@ -76,12 +76,12 @@ with patch("ai.trend_analyzer.generate_trend_report_period",
 print("[3] trigger scope=monthly ✓")
 
 # ── [4] 滚动刷新：每晚刷当期周/月报；1日额外归档上月（带上界防跨期污染）──
-from jobs import run_trend_auto, get_job_status  # noqa: E402
+from backend.jobs import run_trend_auto, get_job_status  # noqa: E402
 calls = []
 def _rec(pt, key=None, window_end=None):
     calls.append((pt, key, window_end))
     return {"week_start": key or "x", "paper_count": 1}
-with patch("ai.trend_analyzer.generate_trend_report_period", side_effect=_rec):
+with patch("backend.ai.trend_analyzer.generate_trend_report_period", side_effect=_rec):
     run_trend_auto(today=date(2026, 9, 5))    # 周六：滚动刷当期
     assert calls == [("weekly", None, None), ("monthly", None, None)], calls
     calls.clear()

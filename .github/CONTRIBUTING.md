@@ -8,7 +8,7 @@
 git clone https://github.com/CHGeronimo/arxivSCI-daily.git
 cd arxivSCI-daily
 pip install -r requirements.txt
-cp ai/.env.example ai/.env   # 填入 GLM API Key（https://open.bigmodel.cn）
+cp backend/ai/.env.example backend/ai/.env   # 填入 GLM API Key（https://open.bigmodel.cn）
 python3 daemon.py --port 8080
 ```
 

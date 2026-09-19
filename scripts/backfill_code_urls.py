@@ -11,8 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import sqlite3
 
-from db import init_db
-from paper_store import extract_code_url
+from backend.db import init_db
+from backend.paper_store import extract_code_url
 
 init_db()
 conn = sqlite3.connect("data/papers.db", timeout=30)

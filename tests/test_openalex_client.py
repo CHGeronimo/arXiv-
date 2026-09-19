@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import crawler.openalex_client as oc
+import backend.crawler.openalex_client as oc
 
 oc.MIN_INTERVAL = 0.15  # 测试用短间隔
 

@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 logging.basicConfig(level=logging.INFO)
 
-import ai.keyword_expander as ke
+import backend.ai.keyword_expander as ke
 
 DIR = "动态不确定环境下的智能感知与协同决策：以深度学习、强化学习为基础，融合博弈论与多智能体建模，研究部分可观测条件下的策略演化、信用分配、防合谋机制、信念更新与分布式协同；面向体征感知、智能决策、网络安全落地。"
 SEEDS = ["multi-agent reinforcement learning", "POMDP", "remote vital sign monitoring"]

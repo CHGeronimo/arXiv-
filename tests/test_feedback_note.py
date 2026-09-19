@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import init_db, stop_writer  # noqa: E402
+from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
 
-import api  # noqa: E402
+import backend.api as api  # noqa: E402
 
 DB = "data/papers.db"
 TESTPID = "note-test-paper"
@@ -87,7 +87,7 @@ try:
             _t.sleep(0.3)
         return json.loads(prof_path.read_text(encoding="utf-8")).get("feedback_notes", [])
 
-    with patch("ai.llm.build_chat", return_value=FakeLLM()), \
+    with patch("backend.ai.llm.build_chat", return_value=FakeLLM()), \
          patch.object(api, "reset_ai_chain"):
         api._update_profile_from_feedback(TESTPID, "like")
     assert any("方法太老" in p for p in captured), "评语必须进入提取 prompt"
@@ -98,7 +98,7 @@ try:
     # [2b] 改评语 → feedback_notes 替换旧条目（note_index），不堆积
     conn.execute("UPDATE feedback SET note='新评语：希望多推实证' WHERE paper_id=?", (TESTPID,))
     conn.commit()
-    with patch("ai.llm.build_chat", return_value=FakeLLM()), \
+    with patch("backend.ai.llm.build_chat", return_value=FakeLLM()), \
          patch.object(api, "reset_ai_chain"):
         api._update_profile_from_feedback(TESTPID, "like")
     notes_final = _wait_note("规范化表述：新评语")
@@ -113,7 +113,7 @@ try:
     print("[2c] 取消投票 → 评语条目清理 ✓")
 
     # [4] feedback_notes 直通评分提示词（[2c]已按生命周期清理测试评语，重新种入验证模板管道）
-    from ai.enhance import enhance_single
+    from backend.ai.enhance import enhance_single
 
     prof = json.loads(prof_path.read_text(encoding="utf-8"))
     prof["feedback_notes"] = ["[like] 方法太老，没有MARL实证"]

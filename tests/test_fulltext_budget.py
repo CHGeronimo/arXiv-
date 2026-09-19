@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import ai.fulltext_analyzer as fa  # noqa: E402
+import backend.ai.fulltext_analyzer as fa  # noqa: E402
 
 PAPER = {"id": "2609.00001", "source": "arxiv", "title": "T", "summary": "S"}
 
@@ -71,7 +71,7 @@ assert r4["method_implementation"].startswith("⚠️ 正文获取不完整")
 print("[4] 降级诚实标注 ✓")
 
 # [5] fetcher 占位页检测：总字数 <2000 → None（下轮重试而非垃圾分析）
-from ai import fulltext_fetcher as ff  # noqa: E402
+from backend.ai import fulltext_fetcher as ff  # noqa: E402
 placeholder_html = "<html><body><h2>2 Experiments</h2><p>arXivLabs platform template text " + "x" * 300 + "</p></body></html>"
 with patch.object(ff, "fetch_arxiv_html", return_value=placeholder_html):
     assert ff.fetch_and_extract("2609.04445") is None

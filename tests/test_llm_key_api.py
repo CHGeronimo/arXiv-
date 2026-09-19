@@ -9,11 +9,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 
-from db import init_db  # noqa: E402
+from backend.db import init_db  # noqa: E402
 init_db()
 
-import ai.llm  # noqa: E402
-import api  # noqa: E402
+import backend.ai.llm as llm_mod  # noqa: E402
+import backend.api as api  # noqa: E402
 
 
 class FakeChat:
@@ -47,7 +47,7 @@ api._ENV_PATH = str(env_file)
 c = api.app.test_client()
 
 # 全程 Mock 掉 build_chat（PUT 验证走 FakeChat，绝不打真实 GLM）
-patcher = patch.object(ai.llm, "build_chat", lambda *a, **k: FakeChat(*a, **k))
+patcher = patch.object(llm_mod, "build_chat", lambda *a, **k: FakeChat(*a, **k))
 patcher.start()
 
 try:

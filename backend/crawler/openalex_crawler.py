@@ -6,8 +6,8 @@ import time
 from datetime import datetime, timezone
 from typing import Generator, List, Set
 
-from crawler.models import Paper
-from crawler.openalex_client import openalex_get
+from backend.crawler.models import Paper
+from backend.crawler.openalex_client import openalex_get
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from crawler.citation_crawler import CitationCrawler  # noqa: E402
+from backend.crawler.citation_crawler import CitationCrawler  # noqa: E402
 
 ANCHOR_WORK = {
     "id": "https://openalex.org/W111",
@@ -41,7 +41,7 @@ def fake_openalex_get(url, params=None, timeout=30):
     return {"results": []}
 
 crawler = CitationCrawler(anchors=[{"id": "x", "doi": "10.x/anchor", "title": "Anchor"}], max_per_anchor=15)
-with patch("crawler.citation_crawler.openalex_get", side_effect=fake_openalex_get):
+with patch("backend.crawler.citation_crawler.openalex_get", side_effect=fake_openalex_get):
     papers = crawler.crawl()
 
 titles = [p.title for p in papers]
@@ -55,7 +55,7 @@ print(f"[1] 锚点扩展正确：{len(papers)} 候选，年份过滤/来源标�
 
 # 上限控制（max_per_anchor=1）
 crawler2 = CitationCrawler(anchors=[{"id": "x", "doi": "10.x/anchor", "title": "Anchor"}], max_per_anchor=1)
-with patch("crawler.citation_crawler.openalex_get", side_effect=fake_openalex_get):
+with patch("backend.crawler.citation_crawler.openalex_get", side_effect=fake_openalex_get):
     papers2 = crawler2.crawl()
 assert len(papers2) == 2, f"refs+citers 各取1应得 2, got {len(papers2)}"
 print("[2] max_per_anchor 上限生效（引用/被引各 1）✓")

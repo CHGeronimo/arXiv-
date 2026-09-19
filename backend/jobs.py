@@ -19,19 +19,19 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
-from ai.digest import generate_digest
-from ai.enhance import enhance_single, load_research_profile
-from ai.keyword_expander import expand_keywords
-from crawler.arxiv_crawler import ArxivCrawler
-from crawler.author_crawler import AuthorCrawler
-from crawler.citation_crawler import CitationCrawler
-from crawler.crossref_crawler import CrossrefCrawler
-from crawler.dblp_crawler import DblpCrawler
-from crawler.openalex_crawler import OpenAlexCrawler
-from crawler.subs_store import Subscriptions
+from backend.ai.digest import generate_digest
+from backend.ai.enhance import enhance_single, load_research_profile
+from backend.ai.keyword_expander import expand_keywords
+from backend.crawler.arxiv_crawler import ArxivCrawler
+from backend.crawler.author_crawler import AuthorCrawler
+from backend.crawler.citation_crawler import CitationCrawler
+from backend.crawler.crossref_crawler import CrossrefCrawler
+from backend.crawler.dblp_crawler import DblpCrawler
+from backend.crawler.openalex_crawler import OpenAlexCrawler
+from backend.crawler.subs_store import Subscriptions
 
-from db import get_conn
-from paper_store import (
+from backend.db import get_conn
+from backend.paper_store import (
     AI_LANGUAGE,
     append_paper,
     get_ai_chain,
@@ -42,7 +42,7 @@ logger = logging.getLogger("jobs")
 
 _job_status: dict[str, dict] = {}
 def _ai_workers() -> int:
-    from db import get_runtime_settings
+    from backend.db import get_runtime_settings
     try:
         return int(get_runtime_settings().get("AI_MAX_WORKERS", os.environ.get("AI_MAX_WORKERS", "5")))
     except Exception:
@@ -183,7 +183,7 @@ class BaseCrawlerJob(ABC):
             total_rejected = fetched - written
             msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
             try:
-                from crawler.openalex_client import quota_paused
+                from backend.crawler.openalex_client import quota_paused
                 if quota_paused():
                     msg += " ⚠️OpenAlex限流暂停中(≤10分钟)，稍后手动重试"
             except Exception:
@@ -311,7 +311,7 @@ class DblpJob(BaseCrawlerJob):
     def _create_crawler(self, subs: Subscriptions):
         if not subs.conferences:
             return None
-        from db import get_runtime_settings
+        from backend.db import get_runtime_settings
         return DblpCrawler(
             conferences=subs.conferences,
             rotate_days=int(get_runtime_settings()["DBLP_ROTATE_DAYS"]),
@@ -374,7 +374,7 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"关键词扩展失败，使用原始关键词: {e}")
             keywords = seed_keywords
-        from db import get_runtime_settings
+        from backend.db import get_runtime_settings
         return OpenAlexCrawler(
             keywords=keywords, max_per_keyword=20,
             rotate_days=int(get_runtime_settings()["S2_ROTATE_DAYS"]),
@@ -490,7 +490,7 @@ def run_trend_auto(today=None):
     today 参数仅为可测试性。"""
     from datetime import date as _date, timedelta as _td
     today = today or _date.today()
-    from ai.trend_analyzer import generate_trend_report_period
+    from backend.ai.trend_analyzer import generate_trend_report_period
     _set_job_status("trend_auto", "running")
     done = []
     try:
@@ -641,7 +641,7 @@ class Scheduler:
         _scheduler_instance = self
 
     def start(self):
-        from db import get_runtime_settings
+        from backend.db import get_runtime_settings
         self._running = True
         if get_runtime_settings()["RUN_ON_START"]:
             logger.info("[调度器] RUN_ON_START=1，启动时立即执行全部任务（此后仍按凌晨计划）")
@@ -660,7 +660,7 @@ class Scheduler:
     def _next_run_at(self, job_name: str) -> datetime:
         """Next nightly run time: NIGHT_START + job_index × STAGGER_MINUTES,
         today if still ahead, otherwise tomorrow. 设置动态读取——前端改动即时生效。"""
-        from db import get_runtime_settings
+        from backend.db import get_runtime_settings
         s = get_runtime_settings()
         now = datetime.now()
         order = list(JOB_FUNCS)
@@ -727,12 +727,12 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"回溯增强执行错误: {e}")
             try:
-                from api import _retro_knowledge_extract
+                from backend.api import _retro_knowledge_extract
                 _retro_knowledge_extract()
             except Exception as e:
                 logger.error(f"知识卡片抽取执行错误: {e}")
             try:
-                from api import _retro_fulltext_analyze
+                from backend.api import _retro_fulltext_analyze
                 _retro_fulltext_analyze()
             except Exception as e:
                 logger.error(f"正文分析执行错误: {e}")

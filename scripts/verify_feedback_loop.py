@@ -18,12 +18,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import init_db, stop_writer  # noqa: E402
+from backend.db import init_db, stop_writer  # noqa: E402
 
 init_db()
 
-import api  # noqa: E402
-from ai.enhance import enhance_single  # noqa: E402
+import backend.api as api  # noqa: E402
+from backend.ai.enhance import enhance_single  # noqa: E402
 
 NOTE = "信用分配的方差分解思路很好，希望多推这类有MARL实证的工作"
 

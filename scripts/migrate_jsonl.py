@@ -5,7 +5,7 @@ and ai_results tables.  Idempotent: re-running on an already-migrated
 database is a no-op (needs_migration returns False).
 
 Usage:
-    from db import init_db
+    from backend.db import init_db
     init_db()
     from migrate_jsonl import run_migration
     count = run_migration()
@@ -17,7 +17,7 @@ import json
 import logging
 from pathlib import Path
 
-from db import get_conn
+from backend.db import get_conn
 
 logger = logging.getLogger("migrate_jsonl")
 

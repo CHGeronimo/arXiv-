@@ -5,11 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import api  # noqa: E402
+import backend.api as api  # noqa: E402
 
 c = api.app.test_client()
 
-for path in ["/ai/.env", "/data/papers.db", "/logs/arxivsci.log", "ai/.env", ".git/config"]:
+for path in ["/backend/ai/.env", "/backend/api.py", "/data/papers.db", "/logs/arxivsci.log", "/scripts/audit_discovery.py", ".git/config"]:
     r = c.get(f"/{path}" if not path.startswith("/") else path)
     assert r.status_code == 403, f"{path} 应 403, got {r.status_code}"
 

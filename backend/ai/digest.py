@@ -37,7 +37,7 @@ Papers data:
 
 def generate_digest(date_str: str | None = None, language: str = "Chinese") -> str:
     date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    from db import get_conn, queue_write
+    from backend.db import get_conn, queue_write
 
     conn = get_conn()
     # 按入库时间取论文：published_date 是投稿日（arXiv 早 1-2 天、会议论文是年初），

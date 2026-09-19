@@ -6,11 +6,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import api  # noqa: E402
+import backend.api as api  # noqa: E402
 
 # ── [1] Crossref 爬取层跳过已知论文（不为它下载后处理/回填摘要）──
-from crawler.crossref_crawler import CrossrefCrawler  # noqa: E402
-from crawler.subs_store import Journal  # noqa: E402
+from backend.crawler.crossref_crawler import CrossrefCrawler  # noqa: E402
+from backend.crawler.subs_store import Journal  # noqa: E402
 
 items = [{"DOI": "10.1/known", "title": ["已知论文"], "type": "journal-article", "abstract": "<p>abs</p>"},
          {"DOI": "10.1/new", "title": ["新论文"], "type": "journal-article", "abstract": "<p>abs</p>"}]

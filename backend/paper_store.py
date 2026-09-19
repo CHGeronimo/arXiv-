@@ -12,12 +12,12 @@ import os
 import re
 from pathlib import Path
 
-from ai.enhance import enhance_single, build_chain, load_research_profile
-from ai.knowledge_extractor import extract_knowledge_card
-from ai.quick_filter import build_quick_filter, quick_filter_paper
-from crawler.models import Paper
-from db import get_conn, queue_write, ignore_paper, is_ignored
-from ccf_map import CCF_MAP
+from backend.ai.enhance import enhance_single, build_chain, load_research_profile
+from backend.ai.knowledge_extractor import extract_knowledge_card
+from backend.ai.quick_filter import build_quick_filter, quick_filter_paper
+from backend.crawler.models import Paper
+from backend.db import get_conn, queue_write, ignore_paper, is_ignored
+from backend.ccf_map import CCF_MAP
 
 logger = logging.getLogger("paper_store")
 
@@ -78,7 +78,7 @@ _local_terms: set[str] | None = None
 
 def _local_filter_enabled() -> bool:
     try:
-        from db import get_runtime_settings
+        from backend.db import get_runtime_settings
         return bool(get_runtime_settings()["LOCAL_FILTER"])
     except Exception:
         return os.environ.get("LOCAL_FILTER", "on").strip().lower() not in ("off", "0", "false")
@@ -319,7 +319,7 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
                     logger.warning(f"知识卡片抽取失败 {paper.id}: {e}")
                 if ai_data.get("recommendation") in ("must-read", "recommended"):
                     try:
-                        from ai.fulltext_analyzer import analyze_fulltext
+                        from backend.ai.fulltext_analyzer import analyze_fulltext
                         ft_result = analyze_fulltext(paper_dict, profile)
                         if ft_result:
                             _insert_fulltext_analysis(paper.id, ft_result)

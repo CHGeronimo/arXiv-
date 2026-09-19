@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ai.knowledge_clustering import _assign_papers_to_themes_llm  # noqa: E402
+from backend.ai.knowledge_clustering import _assign_papers_to_themes_llm  # noqa: E402
 
 paper_kw = {
     "p1": ["multi-agent reinforcement learning", "credit assignment"],
@@ -18,7 +18,7 @@ themes = ["multi-agent reinforcement learning", "mechanism design"]
 kw_counter = Counter(t for kws in paper_kw.values() for t in kws)
 
 # LLM 挂掉 → 回退关键词匹配（修复前此处 TypeError）
-with patch("ai.llm.build_chat", side_effect=RuntimeError("LLM down")):
+with patch("backend.ai.llm.build_chat", side_effect=RuntimeError("LLM down")):
     result = _assign_papers_to_themes_llm(paper_kw, themes, kw_counter)
 assert isinstance(result, dict) and set(result) == {"p1", "p2", "p3"}
 assert "multi-agent reinforcement learning" in result["p1"] + result["p1"]

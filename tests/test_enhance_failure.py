@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import ai.enhance as enhance  # noqa: E402
-import paper_store  # noqa: E402
-from crawler.models import Paper  # noqa: E402
+import backend.ai.enhance as enhance  # noqa: E402
+import backend.paper_store as paper_store  # noqa: E402
+from backend.crawler.models import Paper  # noqa: E402
 
 # 1) enhance_single 在 LLM 异常时打 _llm_failed 标记
 paper = {"id": "test.1", "title": "t", "summary": "s"}

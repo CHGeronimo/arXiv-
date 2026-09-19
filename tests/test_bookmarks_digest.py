@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import api  # noqa: E402
+import backend.api as api  # noqa: E402
 
 # 触发 schema 迁移（幂等；新 daemon 启动时也会自动执行）
-from db import init_db, stop_writer  # noqa: E402
+from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
 
 c = api.app.test_client()
@@ -49,7 +49,7 @@ finally:
 stop_writer()
 
 # ── Digest: created_at 窗口而非 published_date ─────────────────
-from ai import digest  # noqa: E402
+from backend.ai import digest  # noqa: E402
 
 mem = sqlite3.connect(":memory:")
 mem.row_factory = sqlite3.Row
@@ -73,9 +73,9 @@ class _Chain:
 
 out_path = Path("digests") / f"{today}-test.md"
 try:
-    with patch("db.get_conn", return_value=mem), \
-         patch("db.queue_write"), \
-         patch("ai.llm.build_chat", return_value=object()), \
+    with patch("backend.db.get_conn", return_value=mem), \
+         patch("backend.db.queue_write"), \
+         patch("backend.ai.llm.build_chat", return_value=object()), \
          patch.object(digest.ChatPromptTemplate, "from_template", return_value=type("P", (), {"__or__": lambda s, o: _Chain()})()):
         path = digest.generate_digest(date_str=today)
     assert path, "digest 应生成文件"

@@ -74,7 +74,7 @@ Also: grouped sidebar filters + search + 7 sort orders, CCF catalog labels
 a settings panel (schedule / staggering / rotation + instant triggers), and the
 LLM provider — GLM (coding plan or pay-as-you-go), DeepSeek, or any
 OpenAI-compatible endpoint — can be switched right in the web UI: validated
-first, written back to `ai/.env`, applied without a restart, with per-provider
+first, written back to `backend/ai/.env`, applied without a restart, with per-provider
 key memory.
 
 ## 🚀 Quick Start
@@ -84,8 +84,8 @@ git clone https://github.com/CHGeronimo/arxivSCI-daily.git
 cd arxivSCI-daily
 pip install -r requirements.txt
 
-cp ai/.env.example ai/.env
-# edit ai/.env with your GLM API key (free at https://open.bigmodel.cn)
+cp backend/ai/.env.example backend/ai/.env
+# edit backend/ai/.env with your GLM API key (free at https://open.bigmodel.cn)
 
 python3 daemon.py --port 8080
 # open http://localhost:8080

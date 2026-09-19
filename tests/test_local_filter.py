@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import paper_store  # noqa: E402
+import backend.paper_store as paper_store  # noqa: E402
 
 # 词表构建：profile 关键词 + 扩展缓存 → len>=4 token
 with patch.object(paper_store, "load_research_profile",
@@ -28,7 +28,7 @@ assert paper_store.local_reject({"title": "Reinforcement learning for MARL",
 assert paper_store.local_reject({"title": "x", "summary": "mechanism design approach"}, terms) is False
 
 # append_paper 集成：0 命中 → filter_reject + local_filter_reject
-from crawler.models import Paper
+from backend.crawler.models import Paper
 calls = []
 p = Paper(id="test.lf.1", source="arxiv", title="Thermal-NeRF from infrared camera", summary="radiance field")
 with patch.object(paper_store, "_paper_exists", return_value=False), \

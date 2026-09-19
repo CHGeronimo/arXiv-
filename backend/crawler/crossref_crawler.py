@@ -8,9 +8,9 @@ from typing import Generator, List, Set
 
 import httpx
 
-from crawler.models import Paper
-from crawler.openalex_client import openalex_get
-from crawler.subs_store import Journal
+from backend.crawler.models import Paper
+from backend.crawler.openalex_client import openalex_get
+from backend.crawler.subs_store import Journal
 
 logger = logging.getLogger(__name__)
 

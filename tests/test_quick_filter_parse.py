@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ai.quick_filter import quick_filter_paper  # noqa: E402
+from backend.ai.quick_filter import quick_filter_paper  # noqa: E402
 
 PROFILE = {"direction": "MARL", "keywords": [], "liked_topics": [], "disliked_topics": []}
 PAPER = {"id": "x", "title": "t", "summary": "s"}

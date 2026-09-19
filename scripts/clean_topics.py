@@ -15,9 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import dotenv  # noqa: E402
 
-dotenv.load_dotenv("ai/.env")
+dotenv.load_dotenv("backend/ai/.env")
 
-import api  # noqa: E402
+import backend.api as api  # noqa: E402
 
 prof_path = Path("research_profile.json")
 prof = json.loads(prof_path.read_text(encoding="utf-8"))

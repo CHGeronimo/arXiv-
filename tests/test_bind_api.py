@@ -8,11 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 
-from db import init_db  # noqa: E402
+from backend.db import init_db  # noqa: E402
 init_db()
 
-import api  # noqa: E402
-import daemon  # noqa: E402
+import backend.api as api  # noqa: E402
+import backend.daemon as daemon  # noqa: E402
 
 _M = ["DAEMON_HOST", "DAEMON_PORT", "DAEMON_HOST_ACTUAL", "DAEMON_PORT_ACTUAL"]
 saved = {k: os.environ.get(k) for k in _M}
@@ -69,7 +69,7 @@ try:
     assert g5["pending_restart"] is False and g5["actual_port"] == 9090
     print("[5] 局域网警告+一致判定 ✓")
 finally:
-    api._ENV_PATH = "ai/.env"
+    api._ENV_PATH = "backend/ai/.env"
     for k in _M:
         if saved[k] is not None:
             os.environ[k] = saved[k]

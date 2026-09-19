@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import ai.llm as L  # noqa: E402
+import backend.ai.llm as L  # noqa: E402
 
 # 测试环境无真实 key：构造前注入假凭据（invoke 全程被 mock，不会真请求）
 import os

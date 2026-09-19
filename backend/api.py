@@ -11,14 +11,14 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory
 
-from crawler.subs_store import Subscriptions, Journal, Conference, Author
+from backend.crawler.subs_store import Subscriptions, Journal, Conference, Author
 
-from paper_store import (
+from backend.paper_store import (
     append_paper, find_paper_by_id, load_all_papers,
     reset_ai_chain,
 )
-from db import get_conn, queue_write, sync_write
-from jobs import (
+from backend.db import get_conn, queue_write, sync_write
+from backend.jobs import (
     get_job_status, run_arxiv_job, run_crossref_job, run_dblp_job,
     run_s2_job, run_author_job, run_citations_job,
     run_retro_enhance, run_digest_job, _subs_lock,
@@ -57,7 +57,8 @@ logging.getLogger().propagate = False
 _log_path = os.path.abspath(os.path.join(_LOG_DIR, "arxivsci.log"))
 _root_logger.info(f"日志文件: {_log_path}")
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+_WEB_DIR = str(Path(__file__).resolve().parent.parent / "web")
+app = Flask(__name__, static_folder=_WEB_DIR, static_url_path="")
 
 SUBS_PATH = "subscriptions.json"
 CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
@@ -102,7 +103,7 @@ def _write_profile_atomic(profile: dict) -> None:
 # Flask 的内置 static 路由（static_folder="."）会先于自定义路由匹配，
 # 所以用 before_request 拦截，保证任何路径都过黑名单。
 _STATIC_BLOCKED_PREFIXES = (
-    "ai/", "data/", "logs/", ".git", ".claude", ".understand-anything",
+    "backend/", "scripts/", "tests/", "data/", "logs/", ".git", ".claude", ".understand-anything",
     "__pycache__", "design-system/", "docs/",
 )
 _STATIC_BLOCKED_SUFFIXES = (".env", ".db", ".db-wal", ".db-shm", ".pyc")
@@ -118,12 +119,12 @@ def _block_sensitive_static():
 
 @app.route("/")
 def index():
-    return send_from_directory(".", "index.html")
+    return send_from_directory(_WEB_DIR, "index.html")
 
 
 @app.route("/<path:path>")
 def static_files(path: str):
-    return send_from_directory(".", path)
+    return send_from_directory(_WEB_DIR, path)
 
 
 # ── Papers ────────────────────────────────────────────────────────
@@ -306,7 +307,7 @@ def extract_keywords():
     if not seeds:
         seeds = profile.get("keywords", [])
 
-    from ai.keyword_expander import extract_keywords_strict
+    from backend.ai.keyword_expander import extract_keywords_strict
     try:
         keywords = extract_keywords_strict(
             direction=direction,
@@ -348,14 +349,14 @@ def trigger_enhance():
 @app.route("/api/trigger/digest", methods=["POST"])
 def trigger_digest():
     """Regenerate today's digest on demand (normally nightly after arxiv)."""
-    from ai.digest import generate_digest
+    from backend.ai.digest import generate_digest
     threading.Thread(target=generate_digest, daemon=True).start()
     return jsonify({"status": "triggered", "job": "digest"})
 
 
 @app.route("/api/jobs", methods=["GET"])
 def get_jobs():
-    from jobs import get_scheduled_at
+    from backend.jobs import get_scheduled_at
     return jsonify({**get_job_status(), "__scheduled__": get_scheduled_at()})
 
 
@@ -373,8 +374,8 @@ _SETTINGS_META = {
 
 @app.route("/api/settings", methods=["GET"])
 def get_settings():
-    from db import get_runtime_settings
-    from jobs import get_scheduled_at
+    from backend.db import get_runtime_settings
+    from backend.jobs import get_scheduled_at
     s = get_runtime_settings(force=True)
     return jsonify({"settings": s, "meta": _SETTINGS_META, "scheduled": get_scheduled_at()})
 
@@ -382,7 +383,7 @@ def get_settings():
 @app.route("/api/settings", methods=["PUT"])
 def put_settings():
     data = request.get_json() or {}
-    from db import save_runtime_settings
+    from backend.db import save_runtime_settings
     clean = {}
     for key, val in data.items():
         if key not in _SETTINGS_META:
@@ -402,17 +403,17 @@ def put_settings():
         return jsonify({"error": "无有效设置项"}), 400
     merged = save_runtime_settings(clean)
     try:
-        from jobs import replan_scheduler
+        from backend.jobs import replan_scheduler
         replan_scheduler()  # 时间类设置变更立即重排
     except Exception as e:
         logging.getLogger(__name__).warning(f"重排时间表失败（下次调度仍会生效）: {e}")
-    from jobs import get_scheduled_at
+    from backend.jobs import get_scheduled_at
     return jsonify({"settings": merged, "scheduled": get_scheduled_at()})
 
 
 # ── LLM 供应商配置（前端选择 GLM/DeepSeek/自定义：验证→写回 ai/.env→即时生效）──
 
-_ENV_PATH = "ai/.env"
+_ENV_PATH = "backend/ai/.env"
 
 _LLM_PROVIDERS = {
     "glm_coding": {"label": "GLM Coding Plan（订阅）", "base_url": "https://open.bigmodel.cn/api/coding/paas/v4/", "model": "glm-5.3-flash"},
@@ -423,7 +424,7 @@ _LLM_PROVIDERS = {
 # 切换供应商时必须清掉的按任务模型覆盖——它们指向旧供应商的模型名，
 # 留着会让部分任务打到新端点时报 model not found（全集见 ai.llm.TASK_MODEL_VARS）
 def _task_model_var_names() -> tuple:
-    from ai.llm import TASK_MODEL_VARS
+    from backend.ai.llm import TASK_MODEL_VARS
     return tuple(TASK_MODEL_VARS.values())
 
 
@@ -552,7 +553,7 @@ def put_llm_config():
         return jsonify({"error": "缺少有效 API Key（请先粘贴该供应商的 Key）"}), 400
 
     # 用目标供应商的 base/model/key 实测一次最小请求；失败不落盘
-    from ai.llm import build_chat, task_model
+    from backend.ai.llm import build_chat, task_model
     try:
         chat = build_chat(model, thinking=False, timeout=20, api_key=key, base_url=base_url)
         chat.invoke("ping")
@@ -608,7 +609,7 @@ def put_llm_key():
     if len(key) < 16:
         return jsonify({"error": "Key 格式不对（API Key 通常 30+ 位）"}), 400
     env = _effective_env()
-    from ai.llm import build_chat, task_model
+    from backend.ai.llm import build_chat, task_model
     try:
         chat = build_chat(env.get("MODEL_NAME", "glm-5.3-flash"), thinking=False, timeout=20, api_key=key)
         chat.invoke("ping")
@@ -655,7 +656,7 @@ def _model_suggestions() -> list:
 
 @app.route("/api/llm-models", methods=["GET"])
 def get_llm_models():
-    from ai.llm import TASK_MODEL_VARS
+    from backend.ai.llm import TASK_MODEL_VARS
     env = _effective_env()
     tasks = [
         {"id": tid, "label": _TASK_LABELS.get(tid, tid), "model": env.get(var, "")}
@@ -667,7 +668,7 @@ def get_llm_models():
 
 @app.route("/api/llm-models", methods=["PUT"])
 def put_llm_models():
-    from ai.llm import TASK_MODEL_VARS
+    from backend.ai.llm import TASK_MODEL_VARS
     data = request.get_json() or {}
     env = _effective_env()
     updates, removes = {}, []
@@ -967,8 +968,8 @@ def trigger_knowledge_extract():
 
 
 def _retro_knowledge_extract():
-    from ai.knowledge_extractor import extract_knowledge_card
-    from ai.enhance import load_research_profile
+    from backend.ai.knowledge_extractor import extract_knowledge_card
+    from backend.ai.enhance import load_research_profile
 
     conn = get_conn()
     profile = load_research_profile()
@@ -998,7 +999,7 @@ def _retro_knowledge_extract():
     logger.info(f"知识卡片抽取完成: {len(rows)} 篇已处理")
 
     if len(rows) > 0:
-        from ai.knowledge_clustering import run_clustering
+        from backend.ai.knowledge_clustering import run_clustering
         n = run_clustering()
         logger.info(f"自动触发聚类完成: {n} 个聚类")
 
@@ -1012,8 +1013,8 @@ def trigger_fulltext_analyze():
 
 
 def _retro_fulltext_analyze():
-    from ai.fulltext_analyzer import analyze_fulltext
-    from ai.enhance import load_research_profile
+    from backend.ai.fulltext_analyzer import analyze_fulltext
+    from backend.ai.enhance import load_research_profile
 
     conn = get_conn()
     profile = load_research_profile()
@@ -1070,7 +1071,7 @@ def get_knowledge_graph():
     if saved:
         clusters = [dict(r) for r in saved]
     else:
-        from ai.knowledge_clustering import compute_clusters
+        from backend.ai.knowledge_clustering import compute_clusters
         clusters = compute_clusters()
     nodes, edges = [], []
     for i, c in enumerate(clusters):
@@ -1095,7 +1096,7 @@ def trigger_clustering():
 
 
 def _run_clustering_job():
-    from ai.knowledge_clustering import run_clustering
+    from backend.ai.knowledge_clustering import run_clustering
     run_clustering()
 
 
@@ -1141,10 +1142,10 @@ def trigger_trend():
         scope = "weekly"
 
     def _run_trend():
-        from jobs import _set_job_status
+        from backend.jobs import _set_job_status
         _set_job_status("trend", "running")
         try:
-            from ai.trend_analyzer import generate_trend_report_period
+            from backend.ai.trend_analyzer import generate_trend_report_period
             result = generate_trend_report_period(scope)
             if result:
                 _set_job_status("trend", "done", f"{'周' if scope == 'weekly' else '月'}报 {result['week_start']}: {result['paper_count']} 篇论文分析完成")
@@ -1178,7 +1179,7 @@ def idea_check():
     idea = data.get("idea", "").strip()
     if not idea:
         return jsonify({"error": "idea is required"}), 400
-    from ai.idea_checker import check_idea
+    from backend.ai.idea_checker import check_idea
     result = check_idea(idea)
     if result is None:
         return jsonify({"error": "analysis failed"}), 500
@@ -1283,7 +1284,7 @@ def recommend_categories():
 
     from pydantic import BaseModel, Field
     import os
-    from ai.llm import build_chat, task_model
+    from backend.ai.llm import build_chat, task_model
 
     class CategoryRecommendation(BaseModel):
         primary: list[str] = Field(description="5-10 most relevant arXiv category codes (e.g. cs.CV, cs.LG)")
@@ -1339,7 +1340,7 @@ def _deduplicate_topics(topics: list[str]) -> list[str]:
     if len(topics) <= 3:
         return topics
     try:
-        from ai.llm import build_chat, task_model
+        from backend.ai.llm import build_chat, task_model
         llm = build_chat(
             task_model("topic"),
             thinking=False, temperature=0.1,
@@ -1381,7 +1382,7 @@ def _academicize_note(note: str, rating: str) -> str:
     版本供评分 prompt 使用——规范表述更利于评分模型解析与遵循。
     失败时退回原文（不阻塞反馈闭环）。"""
     try:
-        from ai.llm import build_chat, task_model
+        from backend.ai.llm import build_chat, task_model
         llm = build_chat(task_model("topic"), thinking=False, temperature=0.2)
         resp = llm.invoke(
             "将下面的用户论文评语改写为规范的学术表述。要求：保留原始含义、"
@@ -1474,7 +1475,7 @@ def _update_profile_from_feedback(paper_id: str, rating: str):
             )
 
         try:
-            from ai.llm import build_chat, task_model
+            from backend.ai.llm import build_chat, task_model
             llm = build_chat(task_model("topic"), thinking=False, temperature=0.2)
             resp = llm.invoke(
                 f"Extract 5-7 short topic phrases (2-5 words each) from this paper's method and motivation. "
@@ -1526,7 +1527,7 @@ def search_author_api():
     query = request.args.get("query", "").strip()
     if not query or len(query) < 2:
         return jsonify({"authors": []})
-    from crawler.author_crawler import search_authors, resolve_orcid_to_author
+    from backend.crawler.author_crawler import search_authors, resolve_orcid_to_author
     if query.startswith("0000-") or "orcid.org" in query:
         author = resolve_orcid_to_author(query)
         return jsonify({"authors": [author] if author else []})

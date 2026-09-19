@@ -7,12 +7,12 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import init_db, stop_writer  # noqa: E402
+from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
 
-import api  # noqa: E402
-import paper_store  # noqa: E402
-from crawler.models import Paper  # noqa: E402
+import backend.api as api  # noqa: E402
+import backend.paper_store as paper_store  # noqa: E402
+from backend.crawler.models import Paper  # noqa: E402
 
 # ── B④ quick_filter 元组 + relevance_reason 入 ignored_papers ──
 ignored_calls = []
@@ -67,7 +67,7 @@ assert isinstance(weeks, list) and weeks, weeks
 print(f"[4] /api/trend-radars 历史{len(weeks)}周 ✓")
 
 # ── B⑦ 问题域标注器（LLM 挂掉时返回空，不炸聚类）──
-from ai.knowledge_clustering import _label_problem_domains  # noqa: E402
+from backend.ai.knowledge_clustering import _label_problem_domains  # noqa: E402
 
 class _Resp:
     content = '{"多智能体强化学习": "序贯决策与控制", "机制设计": "机制设计与激励"}'
@@ -75,10 +75,10 @@ class _FakeLLM:
     def invoke(self, prompt):
         assert "多智能体强化学习" in prompt
         return _Resp()
-with patch("ai.llm.build_chat", return_value=_FakeLLM()):
+with patch("backend.ai.llm.build_chat", return_value=_FakeLLM()):
     domains = _label_problem_domains(["多智能体强化学习", "机制设计"])
 assert domains["机制设计"] == "机制设计与激励", domains
-with patch("ai.llm.build_chat", side_effect=RuntimeError("LLM down")):
+with patch("backend.ai.llm.build_chat", side_effect=RuntimeError("LLM down")):
     assert _label_problem_domains(["x"]) == {}
 print("[5] 聚类问题域标注（LLM失败降级空）✓")
 

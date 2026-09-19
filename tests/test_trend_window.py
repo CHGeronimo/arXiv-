@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import api  # noqa: E402
-from ai import trend_analyzer  # noqa: E402
+import backend.api as api  # noqa: E402
+from backend.ai import trend_analyzer  # noqa: E402
 
 # [1] 窗口按 created_at：本周入库但 published_date 是老日期的论文必须入选
 mem = sqlite3.connect(":memory:")
@@ -37,7 +37,7 @@ class _Prompt:
     def __or__(self, other): return _Chain()
 
 with patch.object(trend_analyzer, "get_conn", return_value=mem), \
-     patch("ai.llm.build_chat", return_value=object()), \
+     patch("backend.ai.llm.build_chat", return_value=object()), \
      patch.object(trend_analyzer.ChatPromptTemplate, "from_template", return_value=_Prompt()):
     result = trend_analyzer.generate_trend_report()
 
@@ -56,8 +56,8 @@ with patch.object(trend_analyzer, "get_conn", return_value=mem2):
 print("[2] 无论文入库时返回 None ✓")
 
 # [3] trigger 端点写入 job 状态（前端轮询 /api/jobs 判断完成）
-from jobs import get_job_status  # noqa: E402
-with patch("ai.trend_analyzer.generate_trend_report_period",
+from backend.jobs import get_job_status  # noqa: E402
+with patch("backend.ai.trend_analyzer.generate_trend_report_period",
            return_value={"paper_count": 5, "week_start": "x", "period_type": "weekly"}) as gen:
     import threading, time
     c = api.app.test_client()

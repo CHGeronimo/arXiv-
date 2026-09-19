@@ -8,11 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 
-from db import init_db  # noqa: E402
+from backend.db import init_db  # noqa: E402
 init_db()
 
-import api  # noqa: E402
-from ai.llm import task_model, TASK_MODEL_VARS  # noqa: E402
+import backend.api as api  # noqa: E402
+from backend.ai.llm import task_model, TASK_MODEL_VARS  # noqa: E402
 
 # [1] task_model 解析链：任务覆盖 > MODEL_NAME > glm-5.3-flash
 _M = ["MODEL_NAME", *TASK_MODEL_VARS.values()]
@@ -74,7 +74,7 @@ try:
     assert tr["model"] == ""
     print("[5] 空值清除覆盖 ✓")
 finally:
-    api._ENV_PATH = "ai/.env"
+    api._ENV_PATH = "backend/ai/.env"
     for k in (*TASK_MODEL_VARS.values(), "MODEL_NAME"):
         os.environ.pop(k, None)
     for k, v in saved.items():

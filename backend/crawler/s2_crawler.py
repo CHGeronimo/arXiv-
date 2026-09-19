@@ -6,7 +6,7 @@ from typing import Generator, List, Set
 
 import httpx
 
-from crawler.models import Paper
+from backend.crawler.models import Paper
 
 logger = logging.getLogger(__name__)
 

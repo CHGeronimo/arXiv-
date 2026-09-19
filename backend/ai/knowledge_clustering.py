@@ -11,7 +11,7 @@ import logging
 import os
 from collections import Counter, defaultdict
 
-from db import get_conn
+from backend.db import get_conn
 
 logger = logging.getLogger(__name__)
 

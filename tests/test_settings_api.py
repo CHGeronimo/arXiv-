@@ -10,11 +10,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import init_db, get_runtime_settings, save_runtime_settings  # noqa: E402
+from backend.db import init_db, get_runtime_settings, save_runtime_settings  # noqa: E402
 init_db()
 
-import api  # noqa: E402
-import jobs  # noqa: E402
+import backend.api as api  # noqa: E402
+import backend.jobs as jobs  # noqa: E402
 
 c = api.app.test_client()
 BACKUP = None

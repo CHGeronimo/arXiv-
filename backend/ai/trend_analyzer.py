@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from db import get_conn
+from backend.db import get_conn
 from .llm import build_chat, task_model
 from .structure import TrendReport
 

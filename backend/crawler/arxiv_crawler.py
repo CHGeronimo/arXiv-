@@ -8,7 +8,7 @@ import arxiv
 import httpx
 from bs4 import BeautifulSoup
 
-from crawler.models import Paper
+from backend.crawler.models import Paper
 
 logger = logging.getLogger(__name__)
 

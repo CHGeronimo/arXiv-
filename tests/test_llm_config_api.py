@@ -9,11 +9,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 
-from db import init_db  # noqa: E402
+from backend.db import init_db  # noqa: E402
 init_db()
 
-import ai.llm  # noqa: E402
-import api  # noqa: E402
+import backend.ai.llm as llm_mod  # noqa: E402
+import backend.api as api  # noqa: E402
 
 
 class FakeChat:
@@ -55,7 +55,7 @@ for k in _MANAGE_ENV:
     os.environ.pop(k, None)
 api._ENV_PATH = str(env_file)
 c = api.app.test_client()
-patcher = patch.object(ai.llm, "build_chat", lambda *a, **k: FakeChat(*a, **k))
+patcher = patch.object(llm_mod, "build_chat", lambda *a, **k: FakeChat(*a, **k))
 patcher.start()
 
 try:
@@ -117,7 +117,7 @@ try:
     print("[7] 自定义 OpenAI 兼容端点 ✓")
 finally:
     patcher.stop()
-    api._ENV_PATH = "ai/.env"
+    api._ENV_PATH = "backend/ai/.env"
     for k, v in saved.items():
         if v is not None:
             os.environ[k] = v
@@ -127,9 +127,9 @@ finally:
 # [8] thinking 参数按端点条件附加（真实 build_chat，不发请求）
 os.environ["OPENAI_API_KEY"] = "sk-test-dummy"
 os.environ["OPENAI_BASE_URL"] = CODING_BASE
-chat_glm = ai.llm.build_chat("glm-5.3-flash", thinking=False)
+chat_glm = llm_mod.build_chat("glm-5.3-flash", thinking=False)
 assert chat_glm.extra_body == {"thinking": {"type": "disabled"}}
-chat_ds = ai.llm.build_chat("deepseek-chat", thinking=True, base_url=DS_BASE)
+chat_ds = llm_mod.build_chat("deepseek-chat", thinking=True, base_url=DS_BASE)
 assert not getattr(chat_ds, "extra_body", None), "DeepSeek 端点不应携带 thinking 参数"
 print("[8] thinking 仅 GLM 端点附带 ✓")
 

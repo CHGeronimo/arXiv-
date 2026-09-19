@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import jobs
+import backend.jobs as jobs
 
 ran = []
 chain = []
@@ -18,7 +18,7 @@ jobs.JOB_FUNCS = {name: (lambda n=name: ran.append(n)) for name in
 jobs.run_retro_enhance = lambda: chain.append("enhance")
 jobs.run_digest_job = lambda: chain.append("digest")
 
-import api
+import backend.api as api
 api._retro_knowledge_extract = lambda: chain.append("knowledge")
 api._retro_fulltext_analyze = lambda: chain.append("fulltext")
 
@@ -49,7 +49,7 @@ print("[1] 默认启动不跑任务；02:00-05:00 七任务错峰 ✓")
 
 # 2) STAGGER_MINUTES 可调（设置层有60s缓存——patch 内强刷使其读到env值）
 with patch.dict("os.environ", {"STAGGER_MINUTES": "60"}):
-    from db import get_runtime_settings as _grs
+    from backend.db import get_runtime_settings as _grs
     _grs(force=True)
     s4 = jobs.Scheduler()
     t = s4._next_run_at("author")
@@ -75,7 +75,7 @@ print("[3] 任务执行 + arxiv 串联分析链 + 自动重排 ✓")
 
 # 4) RUN_ON_START=1 立即执行（patch 内强刷设置缓存）
 with patch.dict("os.environ", {"RUN_ON_START": "1"}):
-    from db import get_runtime_settings as _grs2
+    from backend.db import get_runtime_settings as _grs2
     _grs2(force=True)
     s3 = jobs.Scheduler()
     n_before = len(ran)

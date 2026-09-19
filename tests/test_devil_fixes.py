@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db import init_db, stop_writer  # noqa: E402
+from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
 
-import api  # noqa: E402
-import paper_store  # noqa: E402
-from crawler.models import Paper  # noqa: E402
+import backend.api as api  # noqa: E402
+import backend.paper_store as paper_store  # noqa: E402
+from backend.crawler.models import Paper  # noqa: E402
 
 c = api.app.test_client()
 DB = "data/papers.db"
@@ -46,7 +46,7 @@ try:
         def invoke(self, prompt): return FakeResp()
 
     resets = []
-    with patch("ai.llm.build_chat", return_value=FakeLLM()), \
+    with patch("backend.ai.llm.build_chat", return_value=FakeLLM()), \
          patch.object(api, "reset_ai_chain", side_effect=lambda: resets.append(1)):
         api._update_profile_from_feedback(TESTPID, "like")
     assert resets, "必须调用 reset_ai_chain"

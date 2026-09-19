@@ -5,8 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from paper_store import extract_code_url, load_all_papers  # noqa: E402
-import api  # noqa: E402
+from backend.paper_store import extract_code_url, load_all_papers  # noqa: E402
+import backend.api as api  # noqa: E402
 
 # 1) GitHub 链接提取（含归一化与边界）
 assert extract_code_url({"summary": "code at https://github.com/foo/Bar.baz please", "comment": ""}) == "https://github.com/foo/Bar.baz"
