@@ -410,6 +410,89 @@ def put_settings():
     return jsonify({"settings": merged, "scheduled": get_scheduled_at()})
 
 
+# ── LLM API Key（前端修改：验证→写回 ai/.env→进程内即时生效）──────
+
+_ENV_PATH = "ai/.env"
+
+
+def _mask_key(key: str) -> str:
+    if not key:
+        return ""
+    if len(key) <= 10:
+        return "****"
+    return f"{key[:5]}****{key[-4:]}"
+
+
+def _read_env_key() -> str:
+    """进程内 env（PUT 时已同步）优先，回退读 ai/.env 文件。"""
+    k = os.environ.get("OPENAI_API_KEY", "").strip()
+    if k:
+        return k
+    try:
+        for line in Path(_ENV_PATH).read_text(encoding="utf-8").splitlines():
+            if line.strip().startswith("OPENAI_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _write_env_key(key: str) -> None:
+    """只替换 OPENAI_API_KEY 行，其余配置/注释原样保留；原子写。"""
+    path = Path(_ENV_PATH)
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    out, replaced = [], False
+    for line in lines:
+        if line.strip().startswith("OPENAI_API_KEY="):
+            out.append(f"OPENAI_API_KEY={key}")
+            replaced = True
+        else:
+            out.append(line)
+    if not replaced:
+        out.append(f"OPENAI_API_KEY={key}")
+    tmp = str(path) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    os.replace(tmp, path)
+
+
+@app.route("/api/llm-key", methods=["GET"])
+def get_llm_key():
+    k = _read_env_key()
+    return jsonify({"configured": bool(k), "masked": _mask_key(k)})
+
+
+@app.route("/api/llm-key", methods=["PUT"])
+def put_llm_key():
+    data = request.get_json() or {}
+    key = (data.get("key") or "").strip()
+    if len(key) < 16:
+        return jsonify({"error": "Key 格式不对（GLM API Key 通常 30+ 位）"}), 400
+
+    # 用新 Key 实测一次最小请求（thinking 关闭，20s 超时）；失败不落盘
+    from ai.llm import build_chat
+    try:
+        chat = build_chat(
+            os.environ.get("MODEL_NAME", "glm-5.3-flash"),
+            thinking=False,
+            timeout=20,
+            api_key=key,
+        )
+        chat.invoke("ping")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"LLM Key 验证失败: {str(e)[:120]}")
+        return jsonify({"error": f"验证失败（未保存）: {str(e)[:160]}"}), 400
+
+    try:
+        _write_env_key(key)
+    except OSError as e:
+        return jsonify({"error": f"验证通过但写入 ai/.env 失败: {e}"}), 500
+    # 即时生效：pipeline 每次 build_chat 都重新解析 env，无需重启 daemon
+    os.environ["OPENAI_API_KEY"] = key
+    logging.getLogger(__name__).info(f"LLM API Key 已更新（{_mask_key(key)}）")
+    return jsonify({"ok": True, "configured": True, "masked": _mask_key(key)})
+
+
 # ── Digest ────────────────────────────────────────────────────────
 
 @app.route("/api/digest/<date_str>", methods=["GET"])

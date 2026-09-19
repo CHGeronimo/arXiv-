@@ -94,7 +94,7 @@ python3 daemon.py --port 8080
 
 | 文件 | 说明 |
 |:-----|:-----|
-| `ai/.env` | GLM API Key / endpoint / 模型名（**gitignored**） |
+| `ai/.env` | GLM API Key / endpoint / 模型名（**gitignored**；Key 可在前端 ⚙️ 设置面板里验证并修改，即时生效） |
 | `research_profile.json` | 研究方向 + 关键词 + liked/disliked 主题（反馈沉淀，**自动生成，gitignored**） |
 | `subscriptions.json` | 订阅配置（arXiv 分类 / 期刊 / 会议 / 作者 / 搜索关键词，**自动生成，gitignored**） |
 | `data/papers.db` | SQLite 数据库（自动创建 + 迁移，gitignored） |
@@ -113,7 +113,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 - **自动迁移**：启动时检测旧 JSONL 数据自动导入
 - **常用索引**：source / published_date / recommendation / relevance_score
 
-## 🔌 API（44 个端点）
+## 🔌 API（46 个端点）
 
 主要资源（完整列表见 `api.py`）：
 
@@ -122,7 +122,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 | 论文 | `GET /api/papers`（分页/筛选/排序，最高 5 万条轻量模式）、`GET /api/paper/<id>`（全文深读） |
 | 订阅与画像 | `GET/PUT /api/subscriptions`、`GET/PUT /api/profile`（PUT 合并保存）、`POST /api/extract-keywords` |
 | 反馈 | `POST /api/feedback`（字段级更新）、书签/已读、`POST /api/feedback/note`（评语学术化） |
-| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`、`GET /api/stats`（含版本一致性） |
+| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`、`GET /api/stats`（含版本一致性）、`GET/PUT /api/llm-key`（Key 验证修改，脱敏回显） |
 | 趋势与导出 | `GET /api/trend-radars`（周/月）、`POST /api/export/bibtex`、`GET /api/digest/<date>` |
 
 ## 🧪 测试与运维

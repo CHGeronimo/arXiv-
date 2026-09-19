@@ -185,7 +185,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <input type="number" data-setting-key="${key}" value="${val}" min="${m.min}" max="${m.max}" style="width:72px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);text-align:center"></label>`;
             }).join('');
             _renderSchedule(scheduled);
+            _loadLlmKeyStatus();
         } catch { form.innerHTML = '<p style="color:var(--text-3)">加载失败</p>'; }
+    };
+    const _renderLlmKeyStatus = ({ configured, masked }) => {
+        const el = document.getElementById('llm-key-status');
+        if (!el) return;
+        el.textContent = configured ? `已配置 ${masked}` : '未配置';
+        el.style.color = configured ? 'var(--success)' : 'var(--warning)';
+    };
+    const _loadLlmKeyStatus = async () => {
+        try {
+            const r = await fetch('/api/llm-key');
+            _renderLlmKeyStatus(await r.json());
+        } catch { /* 状态行保持为空 */ }
     };
     const _renderSchedule = (scheduled) => {
         const el = document.getElementById('settings-schedule');
@@ -215,6 +228,31 @@ document.addEventListener('DOMContentLoaded', () => {
             _renderSchedule(data.scheduled);
             showToast('✓ 已保存并重排时间表');
         } catch { showToast('保存失败'); }
+    });
+
+    // 🔑 GLM API Key：验证→保存→即时生效（后端先测一次最小请求，失败不落盘）
+    document.getElementById('btn-llm-key-eye')?.addEventListener('click', () => {
+        const input = document.getElementById('llm-key-input');
+        input.type = input.type === 'password' ? 'text' : 'password';
+    });
+    document.getElementById('btn-llm-key-save')?.addEventListener('click', async () => {
+        const input = document.getElementById('llm-key-input');
+        const btn = document.getElementById('btn-llm-key-save');
+        const key = input.value.trim();
+        if (!key) { showToast('请先粘贴新 Key'); return; }
+        btn.disabled = true; btn.textContent = '验证中…';
+        try {
+            const resp = await fetch('/api/llm-key', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) { showToast(data.error || '验证失败，未保存'); return; }
+            input.value = '';
+            _renderLlmKeyStatus(data);
+            showToast('✓ Key 已验证并即时生效');
+        } catch { showToast('保存失败（网络错误）'); }
+        finally { btn.disabled = false; btn.textContent = '验证并保存'; }
     });
 
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
