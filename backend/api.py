@@ -1652,18 +1652,32 @@ def export_bibtex():
 
 # ── Paper deletion ───────────────────────────────────────────────
 
+# schema 无外键级联——删除必须连带子表，否则留孤儿行（2026-09-19 审查实锤）
+_PAPER_CHILD_TABLES = ("ai_results", "feedback", "knowledge_cards", "fulltext_analysis")
+
+
+def _delete_papers_with_children(conn, ids: list) -> int:
+    if not ids:
+        return 0
+    ph = ",".join("?" * len(ids))
+    for table in _PAPER_CHILD_TABLES:
+        conn.execute(f"DELETE FROM {table} WHERE paper_id IN ({ph})", ids)
+    cur = conn.execute(f"DELETE FROM papers WHERE id IN ({ph})", ids)
+    return cur.rowcount
+
+
 @app.route("/api/paper/<path:paper_id>", methods=["DELETE"])
 def delete_paper(paper_id: str):
-    """Delete a single paper and all related data (CASCADE). Records as ignored."""
+    """Delete a single paper and all related data. Records as ignored."""
     conn = get_conn()
-    cur = conn.execute("DELETE FROM papers WHERE id = ?", (paper_id,))
-    conn.execute("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
-                 (paper_id, "user_deleted"))
-    conn.commit()
-    if cur.rowcount == 0:
-        return jsonify({"error": "not found"}), 404
-    logging.getLogger(__name__).info(f"已删除论文 {paper_id}")
-    return jsonify({"deleted": paper_id})
+    deleted = _delete_papers_with_children(conn, [paper_id])
+    if deleted:
+        conn.execute("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
+                     (paper_id, "user_deleted"))
+        conn.commit()
+        logging.getLogger(__name__).info(f"已删除论文 {paper_id}（含子表）")
+        return jsonify({"deleted": paper_id})
+    return jsonify({"error": "not found"}), 404
 
 
 @app.route("/api/papers/before/<date_str>", methods=["DELETE"])
@@ -1672,7 +1686,7 @@ def delete_papers_before_date(date_str: str):
     conn = get_conn()
     ids = [r[0] for r in conn.execute("SELECT id FROM papers WHERE published_date < ?", (date_str,)).fetchall()]
     if ids:
-        conn.execute("DELETE FROM papers WHERE published_date < ?", (date_str,))
+        _delete_papers_with_children(conn, ids)
         conn.executemany("INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?, ?)",
                          [(pid, "purge_before_date") for pid in ids])
         conn.commit()
@@ -1694,7 +1708,7 @@ def purge_papers():
         ).fetchall()
         ids = [r[0] for r in rows]
         if ids:
-            conn.execute("DELETE FROM papers WHERE id IN (" + ",".join("?" * len(ids)) + ")", ids)
+            _delete_papers_with_children(conn, ids)
             ignored_ids.extend(ids)
             count += len(ids)
 
@@ -1703,7 +1717,7 @@ def purge_papers():
         rows = conn.execute(f"SELECT id FROM papers WHERE published_date < date({cutoff})").fetchall()
         ids = [r[0] for r in rows]
         if ids:
-            conn.execute("DELETE FROM papers WHERE id IN (" + ",".join("?" * len(ids)) + ")", ids)
+            _delete_papers_with_children(conn, ids)
             ignored_ids.extend(ids)
             count += len(ids)
 

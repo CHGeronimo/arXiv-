@@ -1,5 +1,9 @@
 // js/graph.js — force-directed knowledge graph with cluster coloring
 
+function _esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const CLUSTER_PALETTE = [
   '#818cf8', '#34d399', '#f472b6', '#fbbf24', '#60a5fa',
   '#a78bfa', '#fb923c', '#2dd4bf', '#e879f9', '#4ade80',
@@ -173,12 +177,12 @@ function _showDetail(d) {
   el.innerHTML = `
     <div class="graph-detail-header">
       <span class="graph-detail-dot" style="background:${d.color}"></span>
-      <span class="graph-detail-name">${d.name}</span>
+      <span class="graph-detail-name">${_esc(d.name)}</span>
     </div>
     ${d.domains && d.domains.length ? `
     <div class="graph-detail-stat">
       <span class="graph-detail-label">问题域</span>
-      <span class="graph-detail-value">${d.domains.join('、')}</span>
+      <span class="graph-detail-value">${_esc(d.domains.join('、'))}</span>
     </div>` : ''}
     <div class="graph-detail-stat">
       <span class="graph-detail-label">论文数</span>
@@ -188,7 +192,7 @@ function _showDetail(d) {
     <div class="graph-detail-kws">
       <span class="graph-detail-label">关键词</span>
       <div class="graph-detail-kw-list">
-        ${d.keywords.map(k => `<span class="graph-detail-kw-tag">${k}</span>`).join('')}
+        ${d.keywords.map(k => `<span class="graph-detail-kw-tag">${_esc(k)}</span>`).join('')}
       </div>
     </div>` : ''}
     <button class="btn btn--primary" style="margin-top:12px;width:100%;font-size:0.78rem;padding:5px 0"

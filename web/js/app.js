@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rec = p.AI?.recommendation || '';
                 const [rl, rc] = REC_LABEL[rec] || ['', 'var(--text-3)'];
                 return `<div class="cluster-paper-row" data-cp-id="${p.id}" style="padding:8px 10px;border-bottom:1px dashed var(--border);cursor:pointer;display:flex;gap:8px;align-items:baseline">
-                    <span style="flex:1;min-width:0;font-size:0.85rem;color:var(--text-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title_zh || p.title || p.id}</span>
+                    <span style="flex:1;min-width:0;font-size:0.85rem;color:var(--text-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(p.title_zh || p.title || p.id)}</span>
                     ${rl ? `<span style="flex:none;font-size:0.72rem;color:${rc};font-weight:600">${rl}</span>` : ''}
                     <span style="flex:none;font-size:0.7rem;color:var(--text-3);font-family:var(--font-mono)">${(p.published_date || '').slice(0, 7)}</span>
                 </div>`;
@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px dashed var(--border)">
                         <span style="color:${color[c.status]};font-weight:700;flex:none">${icon[c.status]}</span>
                         <span style="flex:none;color:var(--text-1)">${c.name}</span>
-                        <span title="${(c.detail || '').replace(/"/g, '&quot;')}" style="color:var(--text-3);font-size:0.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.detail || ''}</span>
+                        <span title="${(c.detail || '').replace(/"/g, '&quot;')}" style="color:var(--text-3);font-size:0.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escAttr(c.detail || '')}</span>
                         <span style="color:var(--text-3);font-size:0.7rem;font-family:var(--font-mono);flex:none">${c.ms}ms</span>
                     </div>`).join('')}
             </div>`).join('');

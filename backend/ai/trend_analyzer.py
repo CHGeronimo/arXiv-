@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -63,7 +63,7 @@ def generate_trend_report_period(period_type: str = "weekly", period_key: str | 
     """
     if period_type not in ("weekly", "monthly"):
         return None
-    today = datetime.now()
+    today = datetime.now(timezone.utc)  # created_at 存 UTC——窗口基准必须同源（此前本地时间偏 8h）
     if period_type == "weekly":
         if period_key is None:
             period_key = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
