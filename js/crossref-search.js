@@ -5,7 +5,7 @@ let searchDebounce = null;
 
 async function searchJournals(query) {
     if (!query || query.length < 2) return [];
-    const url = `${CROSSREF_JOURNALS_API}?query=${encodeURIComponent(query)}&rows=20&mailto=CHGeronimo@users.noreply.github.com`;
+    const url = `${CROSSREF_JOURNALS_API}?query=${encodeURIComponent(query)}&rows=20`;
     try {
         const resp = await fetch(url);
         if (!resp.ok) return [];

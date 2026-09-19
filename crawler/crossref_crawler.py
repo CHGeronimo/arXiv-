@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Generator, List, Set
@@ -14,7 +15,9 @@ from crawler.subs_store import Journal
 logger = logging.getLogger(__name__)
 
 CROSSREF_BASE = "https://api.crossref.org"
-MAILTO = "mailto=CHGeronimo@users.noreply.github.com"
+# polite pool 联系邮箱（可选）：设置 CROSSREF_EMAIL 环境变量后自动附加
+_contact = os.environ.get("CROSSREF_EMAIL", "").strip()
+MAILTO = f"mailto={_contact}" if _contact else ""
 
 
 class CrossrefCrawler:
@@ -42,8 +45,8 @@ class CrossrefCrawler:
         url = (
             f"{CROSSREF_BASE}/works"
             f"?rows=100&sort=created&order=desc"
-            f"&filter={issn_filter}&{MAILTO}"
-        )
+            f"&filter={issn_filter}"
+        ) + (f"&{MAILTO}" if MAILTO else "")
         for attempt in range(3):
             try:
                 resp = httpx.get(url, timeout=30)

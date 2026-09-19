@@ -75,8 +75,8 @@ flowchart TB
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/<you>/arxivSCI-daily.git
-cd arxivSCI-daily
+git clone https://github.com/CHGeronimo/arXiv-.git
+cd arXiv-
 pip install -r requirements.txt
 
 cp ai/.env.example ai/.env
@@ -95,9 +95,11 @@ python3 daemon.py --port 8080
 | 文件 | 说明 |
 |:-----|:-----|
 | `ai/.env` | GLM API Key / endpoint / 模型名（**gitignored**） |
-| `research_profile.json` | 研究方向 + 关键词 + liked/disliked 主题（反馈沉淀） |
-| `subscriptions.json` | 订阅配置（arXiv 分类 / 期刊 / 会议 / 作者 / 搜索关键词） |
+| `research_profile.json` | 研究方向 + 关键词 + liked/disliked 主题（反馈沉淀，**自动生成，gitignored**） |
+| `subscriptions.json` | 订阅配置（arXiv 分类 / 期刊 / 会议 / 作者 / 搜索关键词，**自动生成，gitignored**） |
 | `data/papers.db` | SQLite 数据库（自动创建 + 迁移，gitignored） |
+
+个人运行时数据（研究画像、订阅、反馈、数据库）均不入库，仓库中只含代码与文档。
 
 运行时设置（凌晨起始小时、错峰分钟、启动即跑、DBLP/OpenAlex 轮换天数、本地预筛开关）
 支持环境变量与前端设置面板双通道，热生效（调度器自动重排）。

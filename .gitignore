@@ -12,3 +12,10 @@ logs/
 digests/
 # 同步工具冲突副本
 *SFConflict*
+# 个人运行时数据与本地文档（首次运行自动生成，不入库）
+/research_profile.json
+/subscriptions.json
+/feedback.json
+/papers.db
+HANDOFF.md
+第七版*.pdf
