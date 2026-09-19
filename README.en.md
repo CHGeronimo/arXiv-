@@ -11,7 +11,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
-![Tests](https://img.shields.io/badge/tests-31/31-brightgreen)
+![Tests](https://img.shields.io/badge/tests-32/32-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
@@ -55,8 +55,10 @@ local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
   model for deep reading; empty = follow the default
 - **Adaptive thinking flag**: the GLM-specific `thinking` parameter is only sent
   to bigmodel endpoints; DeepSeek and other OpenAI-compatible APIs skip it
-- **Global rate limiting**: concurrency 6 + min interval + exponential
-  backoff on 429/1302 (measured: 4 fully clean / 6 ~11% absorbed by backoff / 8 degrades)
+- **Global rate limiting + priority slot**: concurrency 6 + min interval + exponential
+  backoff on 429/1302 (measured: 4 fully clean / 6 ~11% absorbed by backoff / 8 degrades);
+  one slot is reserved for interactive single-shot jobs (digest / trend / idea / keyword
+  extraction) so they never queue behind a crawl storm
 
 ### 🔁 Feedback loop — it learns your direction
 
@@ -135,7 +137,7 @@ jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-31 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+32 regression scripts, fully mocked (no API quota consumed). Ops scripts in
 `scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
 feedback-loop verification.
 
