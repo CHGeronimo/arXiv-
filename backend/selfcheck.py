@@ -225,6 +225,85 @@ def run_selftest() -> dict:
     _check(checks, "LLM", "想法查重", _idea_smoke)
 
 
+    def _dedup_smoke():
+        # 反馈闭环的关键守卫链路：主题语义去重（LLM + 空结果保底）
+        from backend.api import _deduplicate_topics
+        out = _deduplicate_topics(["opponent modeling", "Opponent Modeling", "diffusion policy"])
+        if not isinstance(out, list) or not out:
+            raise RuntimeError(f"去重输出异常: {out}")
+        return f"{len(out)} 个主题（语义去重+守卫正常）"
+    _check(checks, "LLM", "主题去重（反馈环）", _dedup_smoke)
+
+    # ── API 层组：内部往返（test_client，零外部成本/零写） ─────────
+    def _api(method, path, **kw):
+        from backend.api import app as _app
+        r = _app.test_client().open(path, method=method, **kw)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        return r.get_json() if r.mimetype == "application/json" else r.data
+
+    _check(checks, "API", "论文列表", lambda: f"{_api('GET', '/api/papers?per_page=1')['total']} 篇")
+
+    def _api_stats():
+        d = _api("GET", "/api/stats")
+        return f"{d.get('total_papers', '?')} 篇 · 必读 {d.get('must_read', '?')} · 版本 {d.get('daemon_version', '?')}"
+    _check(checks, "API", "统计/版本", _api_stats)
+
+    def _api_bibtex():
+        row = __import__("backend.db", fromlist=["get_conn"]).get_conn().execute(
+            "SELECT id FROM papers LIMIT 1").fetchone()
+        if not row:
+            return ("库为空，跳过", "warn")
+        d = _api("POST", "/api/export/bibtex", json={"ids": [row[0]]})
+        return f"导出 {len(d) if isinstance(d, list) else 1} 条（含斜杠 id 路由验证）"
+    _check(checks, "API", "BibTeX 导出", _api_bibtex)
+
+    def _api_trend():
+        d = _api("GET", "/api/trend-radars?scope=weekly")
+        n = len(d.get("reports", d if isinstance(d, list) else []))
+        return f"{n} 份周报"
+    _check(checks, "API", "趋势雷达", _api_trend)
+
+    _check(checks, "API", "简报列表", lambda: f"{len(_api('GET', '/api/digests')['digests'])} 期")
+
+    # ── 数据就绪组：配置与数据文件可解析 ──────────────────────────
+    def _subs_ready():
+        import json as _json
+        path = __import__("pathlib").Path("subscriptions.json")
+        if not path.exists():
+            return ("subscriptions.json 缺失（首次运行会生成）", "warn")
+        d = _json.loads(path.read_text(encoding="utf-8"))
+        n_arxiv = len((d.get("arxiv") or {}).get("categories") or [])
+        n_journal = len((d.get("crossref") or {}).get("journals") or [])
+        n_conf = len(d.get("conferences") or [])
+        n_author = len((d.get("authors") or d.get("author") or []) or [])
+        n_kw = len((d.get("search") or {}).get("keywords") or [])
+        total = n_arxiv + n_journal + n_conf + n_author + n_kw
+        if not total:
+            return ("订阅为空——所有抓取任务将跳过", "warn")
+        return f"分类{n_arxiv} 期刊{n_journal} 会议{n_conf} 作者{n_author} 关键词{n_kw}"
+    _check(checks, "数据", "订阅配置", _subs_ready)
+
+    def _profile_ready():
+        import json as _json
+        path = __import__("pathlib").Path("research_profile.json")
+        if not path.exists():
+            return ("research_profile.json 缺失（首次保存时生成）", "warn")
+        d = _json.loads(path.read_text(encoding="utf-8"))
+        if not (d.get("direction") or d.get("keywords")):
+            return ("研究方向与关键词均为空，本地预筛与评分将退化", "warn")
+        return f"方向 {len(d.get('direction', ''))} 字 · 偏好 {len(d.get('liked_topics', []))}/{len(d.get('disliked_topics', []))}"
+    _check(checks, "数据", "研究画像", _profile_ready)
+
+    def _clusters_ready():
+        row = __import__("backend.db", fromlist=["get_conn"]).get_conn().execute(
+            "SELECT COUNT(*) FROM knowledge_clusters").fetchone()
+        n = row[0] if row else 0
+        if not n:
+            return ("无聚类数据——🕸️ 图谱为空，🤖 菜单跑一次重聚类", "warn")
+        return f"{n} 个聚类"
+    _check(checks, "数据", "知识聚类", _clusters_ready)
+
     # ── 存储与调度组：只读不写 ─────────────────────────────────
     def _db():
         from backend.db import get_conn
