@@ -9,7 +9,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
-![Tests](https://img.shields.io/badge/tests-26/26-brightgreen)
+![Tests](https://img.shields.io/badge/tests-27/27-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
@@ -132,7 +132,7 @@ jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-26 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+27 regression scripts, fully mocked (no API quota consumed). Ops scripts in
 `scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
 feedback-loop verification.
 
