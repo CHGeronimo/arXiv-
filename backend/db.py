@@ -52,9 +52,11 @@ def get_conn() -> sqlite3.Connection:
         conn = sqlite3.connect(
             str(DB_PATH),
             check_same_thread=False,
+            timeout=15,  # busy 等待（默认5s在流水线多写者下偶发不足→偶发 locked）
             isolation_level=None,  # Autocommit for reads
         )
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=15000")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.row_factory = sqlite3.Row
         _local.conn = conn

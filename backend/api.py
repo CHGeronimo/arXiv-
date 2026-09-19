@@ -1144,7 +1144,7 @@ def get_knowledge_graph():
     return jsonify({"nodes": nodes, "edges": edges})
 
 
-@app.route("/api/cluster/<cluster_name>/papers", methods=["GET"])
+@app.route("/api/cluster/<path:cluster_name>/papers", methods=["GET"])
 def cluster_papers(cluster_name: str):
     """某个聚类的论文列表（图谱下钻：点节点 → 弹窗列表 → 点开详情）。"""
     row = get_conn().execute(
