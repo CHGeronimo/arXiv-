@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """跨源去重：别名/DOI/标题+日期解析、ignored 别名、回填合并、存量合并脚本。"""
+import json
 import os
 import sqlite3
 import sys
@@ -28,6 +29,8 @@ def _tmp_db() -> sqlite3.Connection:
         CREATE TABLE feedback (paper_id TEXT PRIMARY KEY, rating TEXT);
         CREATE TABLE knowledge_cards (paper_id TEXT PRIMARY KEY, keywords TEXT);
         CREATE TABLE fulltext_analysis (paper_id TEXT PRIMARY KEY, content TEXT);
+        CREATE TABLE knowledge_clusters (cluster_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cluster_name TEXT, method_keywords TEXT, paper_ids TEXT, problem_domains TEXT);
     """)
     return conn
 
@@ -110,5 +113,18 @@ with patch.object(md, "init_db", lambda: None), patch.object(md, "sync_write", l
         assert conn2.execute("SELECT COUNT(*) FROM ai_results WHERE paper_id='dblp-W7'").fetchone()[0] == 1
         assert conn2.execute("SELECT COUNT(*) FROM feedback WHERE paper_id='dblp-W7'").fetchone()[0] == 1
 print("[5] 存量合并（canonical 保 AI、子表随迁、dry-run 不写）✓")
+
+# [6] 聚类悬空清理：被合并方的 id 从 knowledge_clusters.paper_ids 剔除
+conn3 = _tmp_db()
+conn3.executemany("INSERT INTO papers (id,source,title,doi) VALUES (?,?,?,?)", [
+    ("keep-1", "dblp", "Paper A", "10.1/x"), ("dup-1", "dblp", "Paper A", "10.1/X")])
+conn3.execute("INSERT INTO knowledge_clusters (cluster_name, method_keywords, paper_ids) VALUES (?,?,?)",
+              ("聚类X", "[]", '["keep-1","dup-1","keep-2"]'))
+with patch.object(md, "init_db", lambda: None), patch.object(md, "sync_write", lambda *a, **k: None), \
+     patch.object(md, "get_conn", lambda: conn3):
+    md.merge(dry_run=False)
+pids = json.loads(conn3.execute("SELECT paper_ids FROM knowledge_clusters").fetchone()[0])
+assert "dup-1" not in pids and "keep-1" in pids and "keep-2" in pids, pids
+print("[6] 合并同步剔除聚类悬空 id ✓")
 
 print("\n跨源去重测试通过 ✅")

@@ -128,7 +128,8 @@ class BaseCrawlerJob(ABC):
             # 流水线：抓取生产者与 AI 消费者并行——边抓边分析，不再等全部抓完
             # （背压队列 maxsize=50：抓取过快时生产者自然等待，内存有界）
             paper_q: "queue.Queue" = queue.Queue(maxsize=50)
-            fetched_box = [0]
+            fetched_box = [0]      # 已被工作线程取走（处理中/已处理）
+            yielded_box = [0]      # 爬虫已产出（含队列中未取走的）
             producer_done = threading.Event()
             written = 0
             skipped = {"exists": 0, "ignored": 0, "filter_reject": 0, "ai_reject": 0, "error": 0}
@@ -143,11 +144,12 @@ class BaseCrawlerJob(ABC):
                 try:
                     for paper in crawler.crawl_iter():
                         paper_q.put(paper)
+                        yielded_box[0] += 1
                 except Exception as e:
                     logger.error(f"[{self.name}] 爬取阶段异常（已抓取部分继续处理）: {e}", exc_info=True)
                 finally:
                     producer_done.set()
-                    logger.info(f"[{self.name}] 抓取完成, 共 {fetched_box[0]} 篇")
+                    logger.info(f"[{self.name}] 抓取完成, 共产出 {yielded_box[0]} 篇（处理 {fetched_box[0]}）")
                     for _ in range(_ai_max_workers):
                         paper_q.put(None)
 
@@ -169,8 +171,8 @@ class BaseCrawlerJob(ABC):
                     # 每 10 篇一条 + 至少间隔 3s 节流；速度用近 3 分钟窗口（全程均值
                     # 会被早期慢段带偏）；进度同步任务状态，🔄 菜单实时可见
                     now = time.monotonic()
-                    fetched_now = fetched_box[0]
-                    is_final = producer_done.is_set() and n == fetched_now and paper_q.empty()
+                    fetched_now = max(fetched_box[0], yielded_box[0])
+                    is_final = producer_done.is_set() and n == fetched_box[0] and paper_q.empty()
                     if (n % 10 == 0 or is_final) and (now - last_log_t[0] >= 3 or is_final):
                         last_log_t[0] = now
                         samples.append((now, n))
@@ -235,7 +237,7 @@ class BaseCrawlerJob(ABC):
                 return
 
             self._post_run(subs, fetched_info)
-            fetched = fetched_box[0]
+            fetched = fetched_box[0]  # join 后所有论文都已被取走，此即总数
             total_rejected = fetched - written
             msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
             try:

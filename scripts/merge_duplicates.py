@@ -13,6 +13,7 @@ ignored_papers）重指到 canonical 后删除重复行。
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -118,6 +119,16 @@ def merge(dry_run: bool = True) -> dict:
                     f"UPDATE OR IGNORE {table} SET paper_id = ? WHERE paper_id = ?",
                     (canon, dup_id)).rowcount
                 conn.execute(f"DELETE FROM {table} WHERE paper_id = ?", (dup_id,))
+            # 聚类里的 paper_ids 同步剔除被合并方（否则图谱节点计数与下钻列表不一致）
+            for row in conn.execute("SELECT cluster_id, paper_ids FROM knowledge_clusters").fetchall():
+                try:
+                    pids = json.loads(row["paper_ids"]) if isinstance(row["paper_ids"], str) else row["paper_ids"]
+                except json.JSONDecodeError:
+                    continue
+                if dup_id in pids:
+                    pids = [x for x in pids if x != dup_id]
+                    conn.execute("UPDATE knowledge_clusters SET paper_ids = ? WHERE cluster_id = ?",
+                                 (json.dumps(pids, ensure_ascii=False), row["cluster_id"]))
             conn.execute("DELETE FROM papers WHERE id = ?", (dup_id,))
             deleted += 1
         print(f"  合并 {len(g)} 篇 → {canon[:44]}")

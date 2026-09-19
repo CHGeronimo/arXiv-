@@ -113,11 +113,18 @@ function _bindGenerateButton() {
     if (!btn || btn.dataset.bound === '1') return;
     btn.dataset.bound = '1';
     btn.addEventListener('click', async () => {
+        // 基线：日期集合 + 最新一期内容长度（重新生成同日期时无新日期，靠长度变化判定）
         const before = new Set();
+        let baselineLen = -1;
         try {
             const r = await fetch('/api/digests');
-            (await r.json()).digests?.forEach(d => before.add(d));
-        } catch { /* 起点拿不到也能工作（任何日期出现都算新） */ }
+            const list = (await r.json()).digests || [];
+            list.forEach(d => before.add(d));
+            if (list[0]) {
+                const d = await fetch(`/api/digest/${list[0]}`);
+                if (d.ok) baselineLen = (await d.text()).length;
+            }
+        } catch { /* 起点拿不到也能工作 */ }
         try {
             const resp = await fetch('/api/trigger/digest', { method: 'POST' });
             if (!resp.ok) return;
@@ -131,15 +138,21 @@ function _bindGenerateButton() {
                 const r = await fetch('/api/digests');
                 const list = (await r.json()).digests || [];
                 const fresh = list.filter(d => !before.has(d));
-                if (fresh.length || Date.now() - t0 > 180000) {
+                let regen = false;
+                if (!fresh.length && list[0]) {
+                    const d = await fetch(`/api/digest/${list[0]}`);
+                    if (d.ok && baselineLen >= 0 && (await d.text()).length !== baselineLen) regen = true;
+                }
+                if (fresh.length || regen || Date.now() - t0 > 180000) {
                     clearInterval(timer);
                     btn.disabled = false;
                     btn.textContent = original;
-                    if (!fresh.length) return;
+                    if (!fresh.length && !regen) return;
+                    const target = fresh[0] || list[0];
                     const sel = document.getElementById('digest-date-select');
                     sel.innerHTML = list.map(d => `<option value="${d}">${d}</option>`).join('');
-                    sel.value = fresh[0];
-                    loadDigest(fresh[0]);
+                    sel.value = target;
+                    loadDigest(target);
                 }
             } catch { /* 瞬时失败继续轮询 */ }
         }, 3000);

@@ -4,6 +4,8 @@
 
 **arxivSCI-daily · Personalized Research Intelligence Daemon**
 
+<img src="docs/social-preview.png" alt="arXiv Daily Dispatch" width="640"/>
+
 [![中文](https://img.shields.io/badge/README-中文-red)](README.md)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
@@ -119,7 +121,7 @@ Personal runtime files (`research_profile.json`, `subscriptions.json`,
 Bind precedence: `--host/--port` CLI args > panel settings (`DAEMON_HOST/PORT` in
 `.env`) > default 127.0.0.1:8080.
 
-## 🔌 API (53 endpoints)
+## 🔌 API (54 endpoints)
 
 Full list in `backend/api.py` — papers (up to 50k lightweight), subscriptions &
 profile, field-level feedback with note academicization, provider switching

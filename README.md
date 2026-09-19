@@ -4,6 +4,8 @@
 
 **arxivSCI-daily · Personalized Research Intelligence Daemon**
 
+<img src="docs/social-preview.png" alt="arXiv 每日电讯" width="640"/>
+
 [![English](https://img.shields.io/badge/README-English-blue)](README.en.md)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
@@ -159,7 +161,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 - **常用索引**：source / published_date / recommendation / relevance_score
 - **运行时设置 KV**：环境变量之上叠加，前端保存即写库，60s 缓存 + 调度器自动重排
 
-## 🔌 API（53 个端点）
+## 🔌 API（54 个端点）
 
 主要资源（完整列表见 `backend/api.py`）：
 
@@ -170,7 +172,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 | 反馈 | `POST /api/feedback`（字段级更新）、书签/已读、评语学术化改写、主题提取与去重 |
 | AI 配置 | `GET/PUT /api/llm-config`（供应商切换，验证→写 .env→即时生效）、`GET/PUT /api/llm-models`（10 类任务逐个模型）、`GET/PUT /api/llm-key`（Key 修改，只回脱敏掩码） |
 | 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报 + 自检）、`GET /api/jobs`（含计划时间）、`GET /api/selftest`（自检报告）、`GET /api/stats`（含版本一致性）、`GET/PUT /api/bind`（监听地址） |
-| 趋势与导出 | `GET /api/trend-radars`（周/月 + 历史）、`POST /api/export/bibtex`、`GET /api/digest/<date>`、`GET /api/digests` |
+| 趋势与导出 | `GET /api/cluster/<name>/papers`（图谱下钻）、 `GET /api/trend-radars`（周/月 + 历史）、`POST /api/export/bibtex`、`GET /api/digest/<date>`、`GET /api/digests` |
 
 ## 🧪 测试与运维
 
@@ -202,7 +204,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── daemon.py               # 入口薄壳（python daemon.py 用法不变），主体在 backend/
 ├── backend/                # 后端 Python 包
 │   ├── daemon.py           #   入口主体：绑定解析 + app factory + Scheduler
-│   ├── api.py              #   Flask 路由（53 端点）
+│   ├── api.py              #   Flask 路由（54 端点）
 │   ├── db.py               #   SQLite + 写队列 + schema/迁移 + 运行时设置
 │   ├── jobs.py             #   BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
 │   ├── paper_store.py      #   SQLite CRUD
