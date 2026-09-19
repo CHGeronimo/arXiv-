@@ -47,8 +47,10 @@ for name, exp_min in zip(ORDER, EXPECTED_MINUTES):
 s.stop()
 print("[1] 默认启动不跑任务；02:00-05:00 七任务错峰 ✓")
 
-# 2) STAGGER_MINUTES 可调
+# 2) STAGGER_MINUTES 可调（设置层有60s缓存——patch 内强刷使其读到env值）
 with patch.dict("os.environ", {"STAGGER_MINUTES": "60"}):
+    from db import get_runtime_settings as _grs
+    _grs(force=True)
     s4 = jobs.Scheduler()
     t = s4._next_run_at("author")
     assert t.minute == 0 and t.hour == 6, f"02:00 + 4×60min 应为 06:00, got {t}"
@@ -71,8 +73,10 @@ assert chain == ["enhance", "knowledge", "fulltext", "digest"], "非 arxiv 不�
 s2.stop()
 print("[3] 任务执行 + arxiv 串联分析链 + 自动重排 ✓")
 
-# 4) RUN_ON_START=1 立即执行
+# 4) RUN_ON_START=1 立即执行（patch 内强刷设置缓存）
 with patch.dict("os.environ", {"RUN_ON_START": "1"}):
+    from db import get_runtime_settings as _grs2
+    _grs2(force=True)
     s3 = jobs.Scheduler()
     n_before = len(ran)
     s3.start()

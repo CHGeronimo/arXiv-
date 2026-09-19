@@ -41,7 +41,13 @@ from paper_store import (
 logger = logging.getLogger("jobs")
 
 _job_status: dict[str, dict] = {}
-_ai_max_workers = int(os.environ.get("AI_MAX_WORKERS", "5"))
+def _ai_workers() -> int:
+    from db import get_runtime_settings
+    try:
+        return int(get_runtime_settings().get("AI_MAX_WORKERS", os.environ.get("AI_MAX_WORKERS", "5")))
+    except Exception:
+        return 5
+_ai_max_workers = _ai_workers()
 _shutdown = False
 
 
@@ -54,6 +60,17 @@ SUBS_PATH = "subscriptions.json"
 
 # 并发任务（手动"全部爬取"）同时收尾时保护 subscriptions.json 的读-改-写
 _subs_lock = threading.Lock()
+_scheduled_at: dict[str, str] = {}   # 任务 → 下次计划运行时间（前端展示）
+_scheduler_instance = None            # 供设置变更后 replan
+
+
+def get_scheduled_at() -> dict:
+    return dict(_scheduled_at)
+
+
+def replan_scheduler():
+    if _scheduler_instance is not None:
+        _scheduler_instance.replan()
 
 
 def _load_subs() -> Subscriptions:
@@ -294,9 +311,10 @@ class DblpJob(BaseCrawlerJob):
     def _create_crawler(self, subs: Subscriptions):
         if not subs.conferences:
             return None
+        from db import get_runtime_settings
         return DblpCrawler(
             conferences=subs.conferences,
-            rotate_days=int(os.environ.get("DBLP_ROTATE_DAYS", "7")),
+            rotate_days=int(get_runtime_settings()["DBLP_ROTATE_DAYS"]),
         )
 
     def _skip_reason(self, subs: Subscriptions) -> str:
@@ -356,9 +374,10 @@ class S2Job(BaseCrawlerJob):
         except Exception as e:
             logger.warning(f"关键词扩展失败，使用原始关键词: {e}")
             keywords = seed_keywords
+        from db import get_runtime_settings
         return OpenAlexCrawler(
             keywords=keywords, max_per_keyword=20,
-            rotate_days=int(os.environ.get("S2_ROTATE_DAYS", "3")),
+            rotate_days=int(get_runtime_settings()["S2_ROTATE_DAYS"]),
         )
 
     def _skip_reason(self, subs: Subscriptions) -> str:
@@ -618,13 +637,13 @@ class Scheduler:
     def __init__(self):
         self._timers: list[threading.Timer] = []
         self._running = False
-        self._night_start = int(os.environ.get("NIGHT_START", "2"))
-        self._stagger_minutes = float(os.environ.get("STAGGER_MINUTES", "30"))
-        self._run_on_start = os.environ.get("RUN_ON_START", "") in ("1", "true", "yes")
+        global _scheduler_instance
+        _scheduler_instance = self
 
     def start(self):
+        from db import get_runtime_settings
         self._running = True
-        if self._run_on_start:
+        if get_runtime_settings()["RUN_ON_START"]:
             logger.info("[调度器] RUN_ON_START=1，启动时立即执行全部任务（此后仍按凌晨计划）")
             for job_name in JOB_FUNCS:
                 self._run_and_schedule_next(job_name)
@@ -640,11 +659,13 @@ class Scheduler:
 
     def _next_run_at(self, job_name: str) -> datetime:
         """Next nightly run time: NIGHT_START + job_index × STAGGER_MINUTES,
-        today if still ahead, otherwise tomorrow."""
+        today if still ahead, otherwise tomorrow. 设置动态读取——前端改动即时生效。"""
+        from db import get_runtime_settings
+        s = get_runtime_settings()
         now = datetime.now()
         order = list(JOB_FUNCS)
-        offset = order.index(job_name) * self._stagger_minutes
-        base = now.replace(hour=self._night_start, minute=0, second=0, microsecond=0)
+        offset = order.index(job_name) * float(s["STAGGER_MINUTES"])
+        base = now.replace(hour=int(s["NIGHT_START"]), minute=0, second=0, microsecond=0)
         target = base + timedelta(minutes=offset)
         if target <= now:
             target += timedelta(days=1)
@@ -659,7 +680,21 @@ class Scheduler:
         t.daemon = True
         t.start()
         self._timers.append(t)
+        _scheduled_at[job_name] = target.strftime("%Y-%m-%d %H:%M")
         logger.info(f"[调度器] {job_name} 计划于 {target:%Y-%m-%d %H:%M} 自动运行（手动触发不受限，随时可跑）")
+
+    def replan(self):
+        """设置变更后重排时间表：取消现有定时器（运行中任务除外，其完成时自会重排）。"""
+        if not self._running:
+            return
+        for t in self._timers:
+            t.cancel()
+        self._timers.clear()
+        running = {n for n, s in _job_status.items() if s.get("status") == "running"}
+        for job_name in JOB_FUNCS:
+            if job_name not in running:
+                self._schedule_next(job_name)
+        logger.info(f"[调度器] 已按新设置重排时间表（{len(JOB_FUNCS) - len(running)} 个任务，运行中 {len(running)} 个不变）")
 
     def _run_and_schedule_next(self, job_name: str):
         """Execute a job (with arxiv's chained analysis pipeline), then

@@ -354,7 +354,59 @@ def trigger_digest():
 
 @app.route("/api/jobs", methods=["GET"])
 def get_jobs():
-    return jsonify(get_job_status())
+    from jobs import get_scheduled_at
+    return jsonify({**get_job_status(), "__scheduled__": get_scheduled_at()})
+
+
+# ── Runtime Settings（前端可改的抓取/调度配置）────────────────────
+
+_SETTINGS_META = {
+    "NIGHT_START": {"label": "凌晨起始小时（0-6）", "type": "int", "min": 0, "max": 6, "restart": False},
+    "STAGGER_MINUTES": {"label": "任务错峰间隔分钟（5-120）", "type": "int", "min": 5, "max": 120, "restart": False},
+    "RUN_ON_START": {"label": "daemon 启动立即全量跑一轮", "type": "bool", "restart": True},
+    "DBLP_ROTATE_DAYS": {"label": "DBLP 会议轮换天数（1=每天全量）", "type": "int", "min": 1, "max": 30, "restart": False},
+    "S2_ROTATE_DAYS": {"label": "S2 关键词轮换天数（1=每天全量）", "type": "int", "min": 1, "max": 30, "restart": False},
+    "LOCAL_FILTER": {"label": "本地零成本预筛（省 LLM 配额）", "type": "bool", "restart": False},
+}
+
+
+@app.route("/api/settings", methods=["GET"])
+def get_settings():
+    from db import get_runtime_settings
+    from jobs import get_scheduled_at
+    s = get_runtime_settings(force=True)
+    return jsonify({"settings": s, "meta": _SETTINGS_META, "scheduled": get_scheduled_at()})
+
+
+@app.route("/api/settings", methods=["PUT"])
+def put_settings():
+    data = request.get_json() or {}
+    from db import save_runtime_settings
+    clean = {}
+    for key, val in data.items():
+        if key not in _SETTINGS_META:
+            continue
+        meta = _SETTINGS_META[key]
+        if meta["type"] == "bool":
+            clean[key] = bool(val)
+        else:
+            try:
+                iv = int(val)
+            except (TypeError, ValueError):
+                return jsonify({"error": f"{key} 需为整数"}), 400
+            if not (meta["min"] <= iv <= meta["max"]):
+                return jsonify({"error": f"{key} 需在 {meta['min']}-{meta['max']} 之间"}), 400
+            clean[key] = iv
+    if not clean:
+        return jsonify({"error": "无有效设置项"}), 400
+    merged = save_runtime_settings(clean)
+    try:
+        from jobs import replan_scheduler
+        replan_scheduler()  # 时间类设置变更立即重排
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"重排时间表失败（下次调度仍会生效）: {e}")
+    from jobs import get_scheduled_at
+    return jsonify({"settings": merged, "scheduled": get_scheduled_at()})
 
 
 # ── Digest ────────────────────────────────────────────────────────

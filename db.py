@@ -9,7 +9,9 @@ Provides:
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -378,3 +380,71 @@ def stop_writer() -> None:
         logger.info("写入线程已停止")
 
     _writer_thread = None
+
+
+# ---------------------------------------------------------------------------
+# Runtime settings（前端可在线修改的运行时配置）
+# 存 KV 表 runtime_settings(JSON)，环境变量作默认值回退；60s 缓存避免每篇论文一次查询
+# ---------------------------------------------------------------------------
+
+_SETTINGS_CACHE: dict = {"data": None, "checked": 0.0}
+_SETTING_DEFAULTS = {
+    "NIGHT_START": 2,          # 凌晨窗口起始小时
+    "STAGGER_MINUTES": 30,     # 夜间任务错峰间隔（分钟）
+    "RUN_ON_START": False,     # daemon 启动立即全量跑一轮（需重启生效）
+    "DBLP_ROTATE_DAYS": 7,     # DBLP 会议轮换天数
+    "S2_ROTATE_DAYS": 3,       # S2 关键词轮换天数
+    "LOCAL_FILTER": True,      # 本地零成本预筛
+}
+
+
+def get_runtime_settings(force: bool = False) -> dict:
+    """合并后的运行时设置：KV 覆盖 > 环境变量 > 内置默认。"""
+    import time as _t
+    now = _t.monotonic()
+    if not force and _SETTINGS_CACHE["data"] is not None and now - _SETTINGS_CACHE["checked"] < 60:
+        return dict(_SETTINGS_CACHE["data"])
+    out = {}
+    try:
+        row = get_conn().execute(
+            "SELECT value FROM subscriptions WHERE key = 'runtime_settings'"
+        ).fetchone()
+        stored = json.loads(row[0]) if row else {}
+    except Exception:
+        stored = {}
+    for key, default in _SETTING_DEFAULTS.items():
+        if key in stored:
+            out[key] = stored[key]
+        elif key in os.environ:
+            val = os.environ[key]
+            if isinstance(default, bool):
+                out[key] = val.lower() in ("1", "true", "yes", "on")
+            else:
+                try:
+                    out[key] = type(default)(val)
+                except (TypeError, ValueError):
+                    out[key] = default
+        else:
+            out[key] = default
+    _SETTINGS_CACHE["data"] = dict(out)
+    _SETTINGS_CACHE["checked"] = now
+    return out
+
+
+def save_runtime_settings(overrides: dict) -> dict:
+    """合并保存到 KV 并刷新缓存；返回合并后的完整设置。"""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT value FROM subscriptions WHERE key = 'runtime_settings'"
+        ).fetchone()
+        stored = json.loads(row[0]) if row else {}
+    except Exception:
+        stored = {}
+    stored.update({k: v for k, v in overrides.items() if k in _SETTING_DEFAULTS})
+    conn.execute(
+        "INSERT OR REPLACE INTO subscriptions (key, value) VALUES ('runtime_settings', ?)",
+        (json.dumps(stored, ensure_ascii=False),),
+    )
+    conn.commit()
+    return get_runtime_settings(force=True)

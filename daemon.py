@@ -60,7 +60,8 @@ def main():
     import os
     night_start = os.environ.get("NIGHT_START", "2")
     stagger = os.environ.get("STAGGER_MINUTES", "30")
-    if os.environ.get("RUN_ON_START", "") in ("1", "true", "yes"):
+    from db import get_runtime_settings
+    if get_runtime_settings()["RUN_ON_START"]:
         logger.info(f"调度器已启动: 全部任务立即执行一次，此后每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行")
     else:
         logger.info(f"调度器已启动: 自动任务每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行（手动触发随时可用）")

@@ -77,7 +77,11 @@ _local_terms: set[str] | None = None
 
 
 def _local_filter_enabled() -> bool:
-    return os.environ.get("LOCAL_FILTER", "on").strip().lower() not in ("off", "0", "false")
+    try:
+        from db import get_runtime_settings
+        return bool(get_runtime_settings()["LOCAL_FILTER"])
+    except Exception:
+        return os.environ.get("LOCAL_FILTER", "on").strip().lower() not in ("off", "0", "false")
 
 
 def get_local_terms() -> set[str]:

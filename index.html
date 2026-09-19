@@ -36,6 +36,7 @@
                     <div class="dropdown-option" data-crawl="enhance"><span>补 AI 增强</span></div>
                     <div class="dropdown-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
                     <hr style="border-color:var(--border);margin:4px 0">
+                    <div class="dropdown-option" data-crawl="settings"><span>⚙️ 抓取设置…</span></div>
                     <div class="dropdown-option" data-crawl="digest"><span>生成今日简报</span></div>
                     <div class="dropdown-option" data-crawl="clustering"><span>重跑图谱聚类</span></div>
                     <div class="dropdown-option" data-crawl="fulltext"><span>补全文分析</span></div>
@@ -174,6 +175,18 @@
             <p>输入研究想法，AI 将分析其可行性和差异化</p>
         </div>
         <div id="idea-result" class="idea-result"></div>
+    </div>
+
+    <!-- Crawl Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content" style="max-width:520px">
+            <button class="close-btn" id="close-settings-modal">&times;</button>
+            <h2 style="margin:0 0 4px">⚙️ 抓取设置</h2>
+            <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 14px">保存后立即重排时间表（标 ⟳ 的需重启 daemon 生效）</p>
+            <div id="settings-form"></div>
+            <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
+            <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>
+        </div>
     </div>
 
     <!-- Ignored Papers Modal（被过滤论文审计） -->

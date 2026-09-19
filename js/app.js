@@ -164,6 +164,59 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-subs').addEventListener('click', () => window.openSubscriptionModal());
 
     // Crawl trigger
+    // ⚙️ 抓取设置弹窗
+    const openSettingsModal = async () => {
+        const modal = document.getElementById('settings-modal');
+        const form = document.getElementById('settings-form');
+        modal.classList.add('active');
+        form.innerHTML = '<div class="spinner"></div>';
+        try {
+            const resp = await fetch('/api/settings');
+            const { settings, meta, scheduled } = await resp.json();
+            form.innerHTML = Object.entries(meta).map(([key, m]) => {
+                const val = settings[key];
+                if (m.type === 'bool') {
+                    return `<label style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.85rem">
+                        <span>${m.label}${m.restart ? ' <span style="color:var(--warning)">⟳</span>' : ''}</span>
+                        <input type="checkbox" data-setting-key="${key}" ${val ? 'checked' : ''}></label>`;
+                }
+                return `<label style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.85rem">
+                    <span>${m.label}${m.restart ? ' <span style="color:var(--warning)">⟳</span>' : ''}</span>
+                    <input type="number" data-setting-key="${key}" value="${val}" min="${m.min}" max="${m.max}" style="width:72px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);text-align:center"></label>`;
+            }).join('');
+            _renderSchedule(scheduled);
+        } catch { form.innerHTML = '<p style="color:var(--text-3)">加载失败</p>'; }
+    };
+    const _renderSchedule = (scheduled) => {
+        const el = document.getElementById('settings-schedule');
+        if (!el) return;
+        const names = { arxiv: 'arXiv', crossref: '期刊', dblp: 'DBLP', s2: 'S2 搜索', author: '作者', citations: '引文追踪', trend_auto: '趋势刷新' };
+        el.innerHTML = '<b style="color:var(--text-1)">下次自动运行</b><br>' +
+            Object.entries(scheduled || {}).map(([k, v]) => `${names[k] || k}: <span style="font-family:var(--font-mono)">${v}</span>`).join('<br>');
+    };
+    document.getElementById('close-settings-modal')?.addEventListener('click', () => {
+        document.getElementById('settings-modal').classList.remove('active');
+    });
+    document.getElementById('settings-modal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+    });
+    document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
+        const payload = {};
+        document.querySelectorAll('#settings-form [data-setting-key]').forEach(inp => {
+            payload[inp.dataset.settingKey] = inp.type === 'checkbox' ? inp.checked : parseInt(inp.value);
+        });
+        try {
+            const resp = await fetch('/api/settings', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await resp.json();
+            if (!resp.ok) { showToast(data.error || '保存失败'); return; }
+            _renderSchedule(data.scheduled);
+            showToast('✓ 已保存并重排时间表');
+        } catch { showToast('保存失败'); }
+    });
+
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
     document.querySelectorAll('[data-dropdown]').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -177,7 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('panel-crawl').addEventListener('click', (e) => {
         const item = e.target.closest('[data-crawl]');
         if (item) {
-            triggerCrawl(item.dataset.crawl, { loadPapers });
+            if (item.dataset.crawl === 'settings') { openSettingsModal(); }
+            else triggerCrawl(item.dataset.crawl, { loadPapers });
             item.closest('.dropdown')?.classList.remove('open');
         }
     });
