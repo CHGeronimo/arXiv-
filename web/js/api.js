@@ -81,7 +81,23 @@ export async function triggerCrawl(job, { loadPapers }) {
     if (job === 'clustering') {
         try {
             const resp = await fetch('/api/trigger/clustering', { method: 'POST' });
-            showToast(resp.ok ? '聚类已启动，完成后到 🕸️ 刷新图谱' : '启动失败');
+            if (!resp.ok) { showToast('启动失败'); return; }
+            showToast('聚类已启动（2000 篇约 2-4 分钟，进度见日志）…');
+            const t0 = Date.now();
+            const timer = setInterval(async () => {
+                try {
+                    const st = await (await fetch('/api/jobs')).json();
+                    const s = st.clustering;
+                    if (!s || s.status === 'running') {
+                        if (s?.message) showToast(`聚类进度：${s.message}`);
+                        if (Date.now() - t0 > 600000) { clearInterval(timer); showToast('聚类超时，稍后到 🕸️ 刷新查看'); }
+                        return;
+                    }
+                    clearInterval(timer);
+                    if (s.status === 'done') showToast(`✓ 聚类完成：${s.message}，到 🕸️ 刷新图谱`);
+                    else showToast(`聚类失败：${s.message || s.status}`);
+                } catch { /* 轮询瞬时失败继续 */ }
+            }, 5000);
         } catch { showToast('启动失败'); }
         return;
     }

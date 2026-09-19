@@ -21,6 +21,16 @@ MIN_CLUSTER_SIZE = 3
 MAX_CLUSTERS = 30
 
 
+def _progress(msg: str) -> None:
+    """进度双通道：日志 + clustering 任务状态（前端 🤖 菜单轮询）。"""
+    logger.info(msg)
+    try:
+        from backend.jobs import _set_job_status
+        _set_job_status("clustering", "running", msg)
+    except Exception:
+        pass
+
+
 def _norm_theme(s: str) -> str:
     """主题名归一化（大小写/空白/连字符/逗号），供精确匹配。"""
     return re.sub(r"[\s\-_,，、]+", "", s.lower())
@@ -111,11 +121,11 @@ def _assign_papers_to_themes_llm(
         all_assignments: dict[str, list[str]] = {}
         rescue_pids: list[str] = []  # LLM 未给出有效主题的，走关键词救援
         pids = list(paper_kw.keys())
+        batches = [pids[i:i + batch_size] for i in range(0, len(pids), batch_size)]
 
-        for i in range(0, len(pids), batch_size):
-            batch = pids[i:i + batch_size]
+        def _paper_prompt(batch: list[str]) -> str:
             paper_data = {pid: paper_kw[pid][:8] for pid in batch}  # limit keywords per paper
-            prompt = (
+            return (
                 "You are a CS research taxonomy expert. Assign each paper to the 1-2 most relevant themes "
                 "from the given theme list. Return each theme EXACTLY as written in the list "
                 "(do not paraphrase, translate, abbreviate or merge themes).\n"
@@ -125,31 +135,43 @@ def _assign_papers_to_themes_llm(
                 f"Papers: {json.dumps(paper_data, ensure_ascii=False)}\n\n"
                 "Return ONLY a JSON object mapping paper_id to an array of theme strings. No explanation."
             )
-            batch_result: dict = {}
-            try:
-                resp = llm.invoke(prompt)
-                content = resp.content.strip()
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    parsed = json.loads(json_match.group())
-                    if isinstance(parsed, dict):
-                        batch_result = parsed
-            except Exception as e:
-                logger.warning(f"批次 {i // batch_size + 1} 解析失败（{len(batch)} 篇转关键词救援）: {e}")
 
-            for pid in batch:
-                assigned = batch_result.get(pid, [])
-                if not isinstance(assigned, list):
-                    assigned = []
-                valid: list[str] = []
-                for t in assigned:
-                    r = _resolve_theme(t, themes, norm_map)
-                    if r and r not in valid:
-                        valid.append(r)
-                if valid:
-                    all_assignments[pid] = valid[:2]
-                else:
-                    rescue_pids.append(pid)
+        def _run_batch(idx_batch: tuple[int, list[str]]) -> tuple[list[str], dict]:
+            """单批：调用 + 解析。异常/解析失败返回空 dict（该批走关键词救援）。"""
+            idx, batch = idx_batch
+            try:
+                resp = llm.invoke(_paper_prompt(batch))
+                content = resp.content.strip()
+                m = re.search(r'\{.*\}', content, re.DOTALL)
+                if m:
+                    parsed = json.loads(m.group())
+                    if isinstance(parsed, dict):
+                        return batch, parsed
+            except Exception as e:
+                logger.warning(f"批次 {idx + 1} 调用失败（{len(batch)} 篇转关键词救援）: {e}")
+            return batch, {}
+
+        # 2 路并行（= LLM_MAX_CONCURRENT，全局速率限制仍在 build_chat 内生效）
+        from concurrent.futures import ThreadPoolExecutor
+        done = 0
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            for batch, batch_result in ex.map(_run_batch, enumerate(batches)):
+                done += 1
+                for pid in batch:
+                    assigned = batch_result.get(pid, [])
+                    if not isinstance(assigned, list):
+                        assigned = []
+                    valid: list[str] = []
+                    for t in assigned:
+                        r = _resolve_theme(t, themes, norm_map)
+                        if r and r not in valid:
+                            valid.append(r)
+                    if valid:
+                        all_assignments[pid] = valid[:2]
+                    else:
+                        rescue_pids.append(pid)
+                if done % 5 == 0 or done == len(batches):
+                    _progress(f"主题分配批次 {done}/{len(batches)}（{done * batch_size}/{len(pids)} 篇）")
 
         # 救援通道：LLM 判"其他"/未返回的论文 → 关键词宽匹配（真不相关才会留在"其他"）
         if rescue_pids:
@@ -359,7 +381,24 @@ def save_clusters(clusters: list[dict]) -> None:
 
 
 def run_clustering() -> int:
-    clusters = compute_clusters()
-    save_clusters(clusters)
-    logger.info(f"计算了 {len(clusters)} 个聚类")
+    try:
+        clusters = compute_clusters()
+        save_clusters(clusters)
+    except Exception as e:
+        logger.error(f"聚类失败: {e}", exc_info=True)
+        try:
+            from backend.jobs import _set_job_status
+            _set_job_status("clustering", "error", str(e)[:160])
+        except Exception:
+            pass
+        raise
+    total = sum(len(json.loads(c["paper_ids"])) for c in clusters)
+    other = next((len(json.loads(c["paper_ids"])) for c in clusters if c["cluster_name"] == "其他"), 0)
+    msg = f"{len(clusters)} 个聚类 / {total} 篇（'其他' {other} 篇，{other * 100 // max(1, total)}%）"
+    logger.info(f"计算了 {msg}")
+    try:
+        from backend.jobs import _set_job_status
+        _set_job_status("clustering", "done", msg)
+    except Exception:
+        pass
     return len(clusters)
