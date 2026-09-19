@@ -1,196 +1,180 @@
-# arXiv 每日电讯（arxivSCI-daily）
+<div align="center">
 
-多源学术论文订阅守护进程——"arXiv 每日电讯"，集成 AI 深度筛选。支持 arXiv、Crossref 期刊、DBLP 会议、OpenAlex 搜索、S2 Author 五大数据源，AI 自动生成中文解读、质量评分和推荐等级，前端提供侧边栏筛选、4 套主题和 CCF 分级展示。
+# 📡 arXiv 每日电讯
 
-## 致谢与衍生说明
+**arxivSCI-daily · Personalized Research Intelligence Daemon**
 
-本项目初始架构（arXiv 抓取 + AI 中文摘要 + 网页展示）的灵感来自 [dw-dengwei/daily-arXiv-ai-enhanced](https://github.com/dw-dengwei/daily-arXiv-ai-enhanced)，在此致谢。当前版本已在其思路上完全重构与扩展：Flask 守护进程 + SQLite 存储、五大数据源（arXiv / Crossref 期刊 / DBLP 会议 / OpenAlex / Semantic Scholar）、引文顺藤摸瓜、AI 评分与用户反馈闭环、周/月趋势雷达、知识图谱聚类等均为本项目的独立实现。
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
+![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-GLM_(智谱)-3859FF)
+![Tests](https://img.shields.io/badge/tests-21/21-brightgreen)
 
-## Quick Start
+多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱
 
-```bash
-pip install -r requirements.txt
-cp ai/.env.example ai/.env  # 配置 GLM API key（https://open.bigmodel.cn）
-python3 daemon.py --port 8080
-# http://localhost:8080
+一个自托管的个人研究文献智能调度站：六大发现源每日凌晨自动汇集论文，
+LLM 流水线完成相关性快筛与深度解读，你的点赞/点踩/评语持续回流影响后续评分与检索，
+趋势雷达与知识图谱帮你看见领域正在发生什么。
+
+</div>
+
+---
+
+## ✨ 核心特性
+
+- **六大发现源**：arXiv 分类订阅、Crossref 期刊、DBLP（55 个 CCF 会议）、OpenAlex 关键词搜索（LLM 两阶段扩展到 40–90 条查询）、Semantic Scholar 作者订阅、引文顺藤摸瓜（以必读 ∪ 点赞论文为锚点追引用/被引）
+- **分级 AI 流水线**：本地规则预筛（免费）→ GLM 快筛（关闭思考，省时）→ 深度增强（开启思考：中文解读、TLDR、方法/结果拆解、相关度×质量双评分、四级推荐理由）→ 可选全文深读（ar5iv 抓取，预算可控）
+- **反馈闭环**：每篇论文可点赞/点踩/写评语；评语自动学术化改写并沉淀为 liked/disliked 主题，注入后续评分提示词与关键词挖掘——系统越用越懂你的方向
+- **趋势雷达**：周/月双粒度中文趋势报告（新方法涌现、机会点、领域迁移），历史归档随时回看
+- **知识图谱**：论文知识卡片 d3 力导向聚类，L1/L2/L3 层级导航
+- **研究想法工作台**：提交 idea，AI 检索已有论文并分析差异化与可行性
+- **今日简报**：每日 digest 自动生成，GFM 表格渲染，晨读预设一键过滤
+- **自托管 & 单机部署**：Flask + SQLite（WAL），无外部服务依赖；抓取调度、错峰间隔、轮换周期均可在前端设置面板调整并立即触发
+
+## 🧠 系统流水线
+
+```mermaid
+flowchart TB
+    subgraph SRC["六大发现源（每日凌晨错峰）"]
+        direction LR
+        A["arXiv<br/>分类订阅"]
+        B["Crossref<br/>期刊订阅"]
+        C["DBLP<br/>55 CCF 会议"]
+        D["OpenAlex<br/>LLM 扩展关键词"]
+        E["S2 Author<br/>作者订阅"]
+        F["引文追踪<br/>必读 ∪ 点赞锚点"]
+    end
+    SRC --> P{"本地预筛<br/>免费规则"}
+    P -->|相关| Q["快筛 quick_filter<br/>GLM · 关闭思考"]
+    P -->|不相关| IG["ignored 归档"]
+    Q -->|通过| H["深度增强<br/>GLM · 开启思考<br/>注入近期反馈"]
+    Q -->|拦截| IG
+    H --> FT["全文深读（可选）<br/>ar5iv 抓取"]
+    H --> DB[("SQLite WAL<br/>data/papers.db")]
+    FT --> DB
+    DB --> UI["前端五页<br/>日报 / 图谱 / 趋势 / 想法 / 简报"]
+    UI -->|"点赞 · 点踩 · 评语"| PR["research_profile<br/>liked / disliked 主题"]
+    PR -.->|注入评分提示词| H
+    PR -.->|纳入关键词挖掘| D
 ```
 
-首次启动自动迁移已有 JSONL 数据到 SQLite，无需手动操作。
+## 🖥 前端一览
 
-## 系统架构
-
-```
-arXiv (02:00, 串联分析链) ──┐
-Crossref (02:30) ──┤── BaseCrawlerJob.run()
-DBLP (03:00)    ──┤      ↓
-OpenAlex (03:30)─┤   crawl_iter() → append_paper(enhance=True)
-S2 Author (04:00)─┘      ↓
-                   quick_filter → enhance_single() → GLM
-                        ↓
-                  data/papers.db (SQLite WAL)
-                        ↓
-                 run_digest_job() → digests/YYYY-MM-DD.md
-```
-
-自动任务每天凌晨 2 点起、每 30 分钟错峰一个（`NIGHT_START`/`STAGGER_MINUTES` 可调，`RUN_ON_START=1` 启动即跑一轮）；UI/API 手动触发不受时间限制。所有 OpenAlex 请求经共享节流客户端（全局最小间隔 + 429 退避，`OPENALEX_EMAIL` 进 polite pool）。
-
-## 数据源
-
-| 源 | 爬虫 | 调度 | 说明 |
-|:---|:-----|:-----|:-----|
-| arXiv | `crawler/arxiv_crawler.py` | 每日 02:00 | 按 category 订阅，后续串联增强/知识卡片/全文分析/digest |
-| Crossref | `crawler/crossref_crawler.py` | 每日 02:30 | 期刊订阅（Nature 等），仅保留 research |
-| DBLP | `crawler/dblp_crawler.py` | 每日 03:00 | 55 个 CCF 会议（AI/数据/图形/理论/SE/网络/安全/体系/HCI） |
-| OpenAlex | `crawler/openalex_crawler.py` | 每日 03:30 | LLM扩展关键词+语义搜索（日期降序，保新论文可见），替代S2 |
-| Author | `crawler/author_crawler.py` | 每日 04:00 | S2 Author API + ORCID 辅助查找 |
-| 引文 | `crawler/citation_crawler.py` | 每日 04:30 | 顺藤摸瓜：must-read∪点赞论文的引用/被引（OpenAlex 免费，锚点轮换） |
-
-发现质量审计：`python scripts/audit_discovery.py --sample 20`（漏斗结构 / 评分×反馈混淆矩阵 / 锚点池）。arXiv 支持断档回补（停机 ≥2 天自动按提交日期区间补抓）。
-
-## 存储层
-
-SQLite 数据库（`data/papers.db`），WAL 模式支持并发读写。
-
-```sql
-papers        — 论文元数据（id, source, title, summary, authors, ...）
-ai_results    — AI 增强结果（tldr, motivation, method, result, ...）
-feedback      — 用户反馈（useful/not_useful）
-digests       — 每日综述 Markdown
-subscriptions — 订阅配置
-```
-
-关键设计：
-- **写队列**：后台线程批量写入（每50条或100ms刷盘），避免阻塞爬虫
-- **自动迁移**：启动时检测 JSONL 数据自动导入 SQLite
-- **索引**：papers(source), papers(published_date), ai_results(recommendation), ai_results(relevance_score)
-
-## Paper 模型
-
-```
-id, source, title, summary, authors, categories, doi, published_date,
-url, pdf, publisher, journal_title, issn, comment, article_type,
-venue, acceptance, citation_count, version,
-AI: { tldr, motivation, method, result, conclusion,
-      summary_zh, title_zh, relevance_score, quality_score, recommendation }
-```
-
-## 前端功能
-
-| 功能 | 说明 |
+| 页面 | 功能 |
 |:-----|:-----|
-| 侧边栏筛选 | 可收起侧边栏，分组折叠式（来源/会议/期刊/领域/推荐/收藏）+ 搜索 + 日期 + 7 种排序 |
-| 卡片三级层次 | 标题（加粗）→ TLDR（始终可见）→ 元信息（作者/日期/引用），点击查看完整 AI 解读 |
-| 详情弹窗 | AI 解读（TLDR+Motivation+Method+Result+Conclusion）+ 中文摘要 + Abstract + BibTeX |
-| 订阅管理 | 6-tab：arXiv 分类 / CCF 期刊 / CCF 会议 / 作者 / 搜索 / 通知(预留) |
-| 作者订阅 | S2 Author API 搜索 + ORCID 辅助查找，卡片/详情中作者名可点击快速订阅 |
-| 4 套主题 | 深色（默认）/ 浅色极简 / 学术白底 / 暖色暗黑，纯 CSS 变量一键切换 |
-| CCF 分级 | 第七版完整目录，130+ 会议 80+ 期刊，A/B/C 彩色标签 + 筛选 |
-| 键盘快捷键 | j/k 翻页, f 收藏, / 搜索, ? 帮助 |
-| 侧边栏触发 | header 按钮点击 + 左边缘 hover 自动展开 |
+| 论文日报 | 卡片三级层次（标题→TLDR→元信息）、四级推荐标签、晨读/必读/收藏预设、论文对比视图、BibTeX 批量导出、忽略论文复核、代码链接 |
+| 知识图谱 | 知识卡片 d3 力导向聚类，L1/L2/L3 层级导航入口 |
+| 趋势雷达 | 周/月双粒度报告切换 + 历史归档回看 |
+| 研究想法 | idea 提交 → AI 检索已有工作、分析差异化 |
+| 今日简报 | 每日 digest Markdown 渲染（GFM 表格、链接协议白名单） |
 
-## AI 关键词扩展
+通用：侧边栏分组筛选 + 搜索 + 7 种排序、CCF 第七版分级标签（130+ 会议 / 80+ 期刊）、
+4 套主题（深色/浅色/学术/暖色）、键盘快捷键（`j`/`k` 翻页、`f` 收藏、`/` 搜索、`?` 帮助）、
+抓取设置面板（调度时间/错峰/轮换 + 立即触发）、运行版本可观测。
 
-OpenAlex 搜索前，LLM 两阶段扩展关键词（目标 40-90 条查询）：
-1. **方向挖掘**：穷举（中文）研究方向描述中的每个研究概念——问题设定/方法论/理论工具/机制/评估性质/应用域，译为标准英文检索术语；liked 主题纳入挖掘，disliked 主题排除
-2. **查询扩展**：为种子+概念生成变体——缩写/全称（NeRF ↔ neural radiance fields）、子方向（diffusion models → score-based generative models）、新式表述（MARL → LLM-based multi-agent coordination）
-- 缓存：direction/种子/反馈不变时复用上次结果；LLM 失败时回退到种子关键词
-
-## API 端点
-
-| 端点 | 方法 | 说明 |
-|:-----|:-----|:-----|
-| `/api/papers` | GET | 论文列表，SQLite 索引查询 |
-| `/api/subscriptions` | GET/PUT | 订阅管理（期刊/会议/作者/搜索关键词） |
-| `/api/profile` | GET/PUT | 研究方向配置（PUT 合并保存，保留 liked/disliked 等反馈字段） |
-| `/api/extract-keywords` | POST | 从研究方向 LLM 两阶段提取搜索关键词（direction 必填） |
-| `/api/author/search` | GET | S2 Author 搜索（query=姓名或ORCID） |
-| `/api/trigger/<job>` | POST | 手动触发（arxiv/crossref/dblp/s2/author） |
-| `/api/trigger/enhance` | POST | 批量补 AI 增强 |
-| `/api/export/bibtex` | POST | BibTeX 导出 |
-| `/api/feedback` | POST/GET | 论文反馈（写入 SQLite feedback 表） |
-| `/api/digest/<date>` | GET | 每日综述 Markdown |
-| `/api/digests` | GET | 可用综述日期列表 |
-| `/api/jobs` | GET | 后台任务状态 |
-| `/api/stats` | GET | 统计信息（SQLite 聚合查询） |
-
-## 配置
+## 🚀 Quick Start
 
 ```bash
-ai/.env                    # GLM API key + base URL + 模型名
-research_profile.json      # 研究方向 + 关键词（LLM 自动扩展）
-subscriptions.json         # 订阅配置（期刊/会议/作者/搜索关键词）
-data/papers.db             # SQLite 数据库（自动创建+迁移）
+git clone https://github.com/<you>/arxivSCI-daily.git
+cd arxivSCI-daily
+pip install -r requirements.txt
+
+cp ai/.env.example ai/.env
+# 编辑 ai/.env，填入 GLM API Key（https://open.bigmodel.cn 免费申请）
+
+python3 daemon.py --port 8080
+# 打开 http://localhost:8080
 ```
 
-## 项目结构
+- 首次启动自动迁移历史 JSONL 数据到 SQLite，无需手动操作
+- 在「🎯 研究方向」中填写方向描述 → 一键 LLM 提取关键词；在「📡 订阅」中勾选 arXiv 分类 / 期刊 / 会议 / 作者
+- 默认每天凌晨 2:00 起错峰执行（`NIGHT_START` / `STAGGER_MINUTES` 可调，前端设置面板可改），UI/API 手动触发不受时间限制
 
-```
-├── daemon.py              # 入口：argparse + app factory + scheduler
-├── api.py                 # Flask 路由（12个端点）
-├── db.py                  # SQLite 连接池 + 写队列 + schema
-├── jobs.py                # BaseCrawlerJob + Scheduler
-├── paper_store.py         # SQLite CRUD 层
-├── migrate_jsonl.py       # JSONL→SQLite 自动迁移
-├── crawler/
-│   ├── arxiv_crawler.py   # arXiv category 订阅
-│   ├── crossref_crawler.py # Crossref 期刊订阅
-│   ├── dblp_crawler.py    # DBLP 会议爬取 (55 venues)
-│   ├── openalex_crawler.py # OpenAlex 语义搜索（替代S2）
-│   ├── author_crawler.py  # S2 Author API + ORCID 辅助查找
-│   ├── enhance.py         # AI 增强 (GLM)
-│   ├── models.py          # Paper dataclass
-│   └── subs_store.py      # 订阅持久化（含 Author dataclass）
-├── ai/
-│   ├── .env               # API key (gitignored)
-│   ├── enhance.py         # 统一 AI 增强入口
-│   ├── keyword_expander.py # LLM 关键词扩展
-│   ├── quick_filter.py    # 快速相关性预筛
-│   ├── structure.py       # LangChain 输出结构
-│   ├── digest.py          # 每日综述生成
-│   ├── system.txt         # AI 系统提示
-│   └── template.txt       # AI 用户提示模板
-├── js/
-│   ├── app.js             # 入口 + 事件绑定 (ES module)
-│   ├── state.js           # 共享状态 + 主题 + 侧边栏状态
-│   ├── api.js             # API 调用封装
-│   ├── filters.js         # 侧边栏筛选/排序逻辑
-│   ├── render.js          # 论文卡片渲染 + 分页
-│   ├── modal.js           # 论文详情/个人资料模态框
-│   ├── subscriptions.js   # 订阅管理 UI（含作者搜索）
-│   ├── ccf-data.js        # CCF 第七版数据
-│   └── crossref-search.js # 期刊搜索
-├── css/
-│   ├── styles.css         # 4套主题变量 + 组件样式
-│   ├── sidebar.css        # 侧边栏筛选面板样式
-│   └── subscriptions.css  # 订阅面板样式
-├── index.html             # SPA 入口
-└── data/                  # SQLite DB (gitignored)
-```
+## ⚙️ 配置
 
-## 已知限制
+| 文件 | 说明 |
+|:-----|:-----|
+| `ai/.env` | GLM API Key / endpoint / 模型名（**gitignored**） |
+| `research_profile.json` | 研究方向 + 关键词 + liked/disliked 主题（反馈沉淀） |
+| `subscriptions.json` | 订阅配置（arXiv 分类 / 期刊 / 会议 / 作者 / 搜索关键词） |
+| `data/papers.db` | SQLite 数据库（自动创建 + 迁移，gitignored） |
 
-- S2 Author API 无 key 时会 429 rate limit（仅影响作者订阅功能）
-- DBLP 论文摘要依赖 OpenAlex，部分论文可能无 DOI
-- 通知 tab 为预留 UI，后端未实现
-- ES module (app.js) 与普通 script (subscriptions.js) 通过 window. 桥接
+运行时设置（凌晨起始小时、错峰分钟、启动即跑、DBLP/OpenAlex 轮换天数、本地预筛开关）
+支持环境变量与前端设置面板双通道，热生效（调度器自动重排）。
 
-## 设计决策：subscriptions 保留 JSON 文件（不迁 SQLite）
+## 🗄 存储层
 
-`subscriptions` 表建了但**有意不用**：单用户场景下 JSON 文件经原子写（tmp+rename）、
-并发写锁、git 版本管理三重加固后已无实际痛点；迁移只引入风险不解决疼痛。
-若未来出现多进程写入或多人共享需求，再迁移（表结构已就绪）。
+SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果、反馈、书签、简报、趋势报告、忽略池、知识卡片等。
+关键设计：
 
-## 测试
+- **批量写队列**：后台线程每 50 条或 100ms 刷盘，爬虫不阻塞
+- **自动迁移**：启动时检测旧 JSONL 数据自动导入
+- **常用索引**：source / published_date / recommendation / relevance_score
+
+## 🔌 API（44 个端点）
+
+主要资源（完整列表见 `api.py`）：
+
+| 分组 | 端点示例 |
+|:-----|:-----|
+| 论文 | `GET /api/papers`（分页/筛选/排序，最高 5 万条轻量模式）、`GET /api/paper/<id>`（全文深读） |
+| 订阅与画像 | `GET/PUT /api/subscriptions`、`GET/PUT /api/profile`（PUT 合并保存）、`POST /api/extract-keywords` |
+| 反馈 | `POST /api/feedback`（字段级更新）、书签/已读、`POST /api/feedback/note`（评语学术化） |
+| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`、`GET /api/stats`（含版本一致性） |
+| 趋势与导出 | `GET /api/trend-radars`（周/月）、`POST /api/export/bibtex`、`GET /api/digest/<date>` |
+
+## 🧪 测试与运维
 
 ```bash
-tests/*.py  # 9 个回归测试：路由黑名单/LLM故障不误杀/本地预筛/聚类回退/
-            # 收藏后端化+digest窗口/关键词扩展/提取端点/调度器/OpenAlex节流
+# 21 个回归测试（Mock LLM，不消耗 API 配额）
+for t in tests/test_*.py; do python3 "$t"; done
+
+# 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
+python3 scripts/audit_discovery.py --sample 20
+
+# 其他：scripts/backfill_code_urls.py · clean_topics.py · verify_feedback_loop.py
 ```
 
-## 后续方向
+工程细节：OpenAlex 共享节流客户端（全局最小间隔 + 429 退避，区分"余额熔断"与"Cloudflare 抖动"）；
+GLM 全局速率限制（并发信号量 + 间隔 + 指数退避）；arXiv 停机 ≥2 天自动按提交日期区间回补。
 
-- 通知系统（邮件/微信/Telegram）
-- 收藏/已读后端持久化（SQLite feedback 表已就绪）
-- 论文笔记功能
-- subscriptions.json 迁移到 SQLite subscriptions 表
-- 移动端手势支持
+## 📁 项目结构
+
+```
+├── daemon.py                # 入口：argparse + app factory + Scheduler
+├── api.py                   # Flask 路由（44 端点）
+├── db.py                    # SQLite + 写队列 + schema/迁移 + 运行时设置
+├── jobs.py                  # BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
+├── paper_store.py           # SQLite CRUD
+├── crawler/                 # 6 个爬虫 + models + subs_store
+├── ai/                      # LLM 工厂(限流) / 快筛 / 增强 / 全文抓取+深读 /
+│                            # 关键词扩展 / 趋势分析 / 知识聚类 / 简报 / idea 检查
+├── js/                      # ES modules：app/render/modal/filters/graph/trend/
+│                            # digest/compare/subscriptions/state/api/ccf-data
+├── css/                     # tokens(4 主题) + base + components + utilities
+├── scripts/                 # 审计 / 回填 / 主题清理 / 反馈闭环验证
+├── tests/                   # 21 个回归测试
+└── index.html               # SPA 入口
+```
+
+## 🧭 设计决策与已知限制
+
+- `subscriptions` 表建而不用：单用户场景下 JSON（原子写 + 并发锁 + git 版本化）无实际痛点，迁移只引入风险；表结构已就绪，多人共享需求出现时再迁移
+- S2 Author API 无 key 时会限流（仅影响作者订阅频率，重试+退避兜底）
+- DBLP 论文摘要依赖 OpenAlex 回填，部分论文可能缺摘要
+- 通知推送（邮件/微信/Telegram）在 Roadmap 中，UI 预留入口
+
+## 🗺 Roadmap
+
+- [ ] 通知推送（邮件 / 微信 / Telegram）
+- [ ] 非 arXiv 论文全文（Unpaywall PDF）
+- [ ] Related-work 草稿生成（基于收藏与必读集）
+- [ ] 阅读统计面板
+- [ ] Semantic Scholar API key 二级源
+
+## 🙏 致谢与衍生说明
+
+本项目初始架构（arXiv 抓取 + AI 中文摘要 + 网页展示）的灵感来自
+[dw-dengwei/daily-arXiv-ai-enhanced](https://github.com/dw-dengwei/daily-arXiv-ai-enhanced)，在此致谢。
+当前版本已在其思路上完全重构与扩展：Flask 守护进程 + SQLite 存储、六大发现源、引文顺藤摸瓜、
+AI 评分与用户反馈闭环、周/月趋势雷达、知识图谱聚类、全文深读等均为本项目的独立实现。
