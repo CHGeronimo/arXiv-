@@ -87,12 +87,15 @@ skeleton loading, and code-version observability (page vs disk).
 | 🎛 Task models | default model + per-task overrides for 10 tasks (empty = follow default), with provider-aware suggestions | immediately, no restart |
 | 🌐 Listen address | bind IP (127.0.0.1 / 0.0.0.0 / specific IPv4) and port, with a LAN security warning | on daemon restart (panel shows "⟳ pending restart") |
 
-The 🔄 menu also triggers any source on demand (full crawl, AI enhancement,
-knowledge extraction, trend, digest), outside the night window — plus a **🧪 system
-self-test**: 21 lightweight smoke checks — one request per network source, a real
+The top bar splits actions by responsibility:
+
+- **🔄 Crawl**: trigger any of the five sources individually (with status counts) or all at once, outside the night window
+- **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis / daily digest
+- **⚙️ System settings**: the four config sections above + the **🧪 system
+self-test** — 21 lightweight smoke checks: one request per network source, a real
 smoke run of **every LLM task** (quick filter / keywords / note academicization /
 clustering / scoring / knowledge cards / fulltext / trend / digest / idea check),
-plus SQLite / scheduler / code-version / frontend assets
+plus SQLite / scheduler / code-version / frontend assets,
 shown in a grouped ✓/⚠/✗ report, never a full crawl.
 
 ## 🚀 Quick Start

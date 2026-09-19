@@ -407,13 +407,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!wasOpen) dd.classList.add('open');
         });
     });
-    document.getElementById('panel-crawl').addEventListener('click', (e) => {
+    const _onCrawlMenuClick = (e) => {
         const item = e.target.closest('[data-crawl]');
         if (item) {
             if (item.dataset.crawl === 'settings') { openSettingsModal(); }
             else triggerCrawl(item.dataset.crawl, { loadPapers });
             item.closest('.dropdown')?.classList.remove('open');
         }
+    };
+    document.getElementById('panel-crawl').addEventListener('click', _onCrawlMenuClick);
+    document.getElementById('panel-ai')?.addEventListener('click', _onCrawlMenuClick);
+
+    // ⚙️ 系统设置入口 + 🧪 自检（设置弹窗内）
+    document.getElementById('btn-settings')?.addEventListener('click', () => openSettingsModal());
+    document.getElementById('btn-run-selftest')?.addEventListener('click', () => {
+        document.getElementById('settings-modal')?.classList.remove('active');
+        triggerCrawl('selftest', { loadPapers });
     });
 
     // Paper modal

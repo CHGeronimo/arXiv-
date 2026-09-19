@@ -32,23 +32,25 @@
         <div class="header-right">
             <span id="paper-count" class="badge badge--secondary"></span>
             <div class="dropdown" id="dd-crawl">
-                <button class="btn btn--icon" data-dropdown="crawl" title="手动爬取">🔄</button>
-                <div class="dropdown-panel" id="panel-crawl" style="min-width:160px;right:0;left:auto">
+                <button class="btn btn--icon" data-dropdown="crawl" title="手动抓取">🔄</button>
+                <div class="dropdown-panel" id="panel-crawl" style="min-width:150px;right:0;left:auto">
                     <div class="dropdown-option" data-crawl="arxiv"><span>arXiv</span><span class="count" id="crawl-arxiv">—</span></div>
                     <div class="dropdown-option" data-crawl="crossref"><span>期刊</span><span class="count" id="crawl-crossref">—</span></div>
                     <div class="dropdown-option" data-crawl="dblp"><span>DBLP</span><span class="count" id="crawl-dblp">—</span></div>
                     <div class="dropdown-option" data-crawl="s2"><span>S2 搜索</span><span class="count" id="crawl-s2">—</span></div>
                     <div class="dropdown-option" data-crawl="citations"><span>引文追踪</span><span class="count" id="crawl-citations">—</span></div>
                     <hr style="border-color:var(--border);margin:4px 0">
-                    <div class="dropdown-option" data-crawl="all"><span>全部爬取</span></div>
+                    <div class="dropdown-option" data-crawl="all"><span>全部抓取</span></div>
+                </div>
+            </div>
+            <div class="dropdown" id="dd-ai">
+                <button class="btn btn--icon" data-dropdown="ai" title="AI 处理">🤖</button>
+                <div class="dropdown-panel" id="panel-ai" style="min-width:150px;right:0;left:auto">
                     <div class="dropdown-option" data-crawl="enhance"><span>补 AI 增强</span></div>
                     <div class="dropdown-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
-                    <div class="dropdown-option" data-crawl="selftest"><span>🧪 系统自检（轻量）</span></div>
-                    <hr style="border-color:var(--border);margin:4px 0">
-                    <div class="dropdown-option" data-crawl="settings"><span>⚙️ 抓取设置…</span></div>
-                    <div class="dropdown-option" data-crawl="digest"><span>生成今日简报</span></div>
                     <div class="dropdown-option" data-crawl="clustering"><span>重跑图谱聚类</span></div>
                     <div class="dropdown-option" data-crawl="fulltext"><span>补全文分析</span></div>
+                    <div class="dropdown-option" data-crawl="digest"><span>生成今日简报</span></div>
                 </div>
             </div>
             <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
@@ -57,7 +59,8 @@
             <button id="btn-trend" class="btn btn--icon" title="趋势雷达">📡</button>
             <button id="btn-idea" class="btn btn--icon" title="想法检查">💡</button>
             <button id="btn-theme" class="btn btn--icon" title="切换主题（深色/浅色/学术/暖色）">🌙</button>
-            <button id="btn-subs" class="btn btn--icon" title="订阅管理">⚙️</button>
+            <button id="btn-subs" class="btn btn--icon" title="订阅管理">📋</button>
+            <button id="btn-settings" class="btn btn--icon" title="系统设置（调度 / AI 供应商 / 任务模型 / 监听地址 / 自检）">⚙️</button>
             <button id="sidebar-toggle" class="btn btn--icon" title="筛选面板">☰</button>
         </div>
     </header>
@@ -190,8 +193,8 @@
     <div id="settings-modal" class="modal">
         <div class="modal-content" style="max-width:520px">
             <button class="close-btn" id="close-settings-modal">&times;</button>
-            <h2 style="margin:0 0 4px">⚙️ 抓取设置</h2>
-            <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 14px">保存后立即重排时间表（标 ⟳ 的需重启 daemon 生效）</p>
+            <h2 style="margin:0 0 4px">⚙️ 系统设置</h2>
+            <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 14px">抓取调度 / AI 供应商 / 任务模型 / 监听地址；标 ⟳ 的需重启 daemon 生效</p>
             <div id="settings-form"></div>
             <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -233,6 +236,10 @@
                     <button id="btn-bind-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">保存</button>
                 </div>
                 <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">⟳ 重启 daemon 后生效；0.0.0.0 会把服务（含 AI 供应商配置接口）暴露给局域网，公用网络慎用</p>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px">
+                <button id="btn-run-selftest" class="btn btn--secondary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">🧪 运行系统自检</button>
+                <span style="font-size:0.7rem;color:var(--text-3)">21 项轻量冒烟（六个网络源 + 全部 10 类 LLM 任务），绝不触发全量抓取</span>
             </div>
             <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
             <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>
