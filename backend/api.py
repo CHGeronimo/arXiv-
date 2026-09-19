@@ -324,8 +324,19 @@ def extract_keywords():
 
 # ── Jobs / Triggers ───────────────────────────────────────────────
 
+@app.route("/api/selftest", methods=["GET"])
+def get_selftest_report():
+    """最近一次 🧪 系统自检报告（未跑过返回 404）。"""
+    from backend.selfcheck import get_last_report
+    report = get_last_report()
+    if not report:
+        return jsonify({"error": "尚未运行过自检"}), 404
+    return jsonify(report)
+
+
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
+    from backend.selfcheck import run_selftest_job
     job_funcs = {
         "arxiv": run_arxiv_job,
         "crossref": run_crossref_job,
@@ -333,6 +344,7 @@ def trigger_job(job: str):
         "s2": run_s2_job,
         "author": run_author_job,
         "citations": run_citations_job,
+        "selftest": run_selftest_job,
     }
     if job not in job_funcs:
         return jsonify({"error": "unknown job"}), 400

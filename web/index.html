@@ -43,6 +43,7 @@
                     <div class="dropdown-option" data-crawl="all"><span>全部爬取</span></div>
                     <div class="dropdown-option" data-crawl="enhance"><span>补 AI 增强</span></div>
                     <div class="dropdown-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
+                    <div class="dropdown-option" data-crawl="selftest"><span>🧪 系统自检（轻量）</span></div>
                     <hr style="border-color:var(--border);margin:4px 0">
                     <div class="dropdown-option" data-crawl="settings"><span>⚙️ 抓取设置…</span></div>
                     <div class="dropdown-option" data-crawl="digest"><span>生成今日简报</span></div>
@@ -235,6 +236,16 @@
             </div>
             <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
             <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>
+        </div>
+    </div>
+
+    <!-- Selftest Report Modal（🧪 系统自检） -->
+    <div id="selftest-modal" class="modal">
+        <div class="modal-content" style="max-width:560px">
+            <button class="close-btn" id="close-selftest-modal">&times;</button>
+            <h2 style="margin:0 0 4px">🧪 系统自检</h2>
+            <p id="selftest-summary" style="font-size:0.78rem;color:var(--text-3);margin:0 0 10px"></p>
+            <div id="selftest-content" style="max-height:56vh;overflow-y:auto;font-size:0.8rem"></div>
         </div>
     </div>
 

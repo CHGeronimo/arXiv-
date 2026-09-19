@@ -9,7 +9,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI兼容-3859FF)
-![Tests](https://img.shields.io/badge/tests-25/25-brightgreen)
+![Tests](https://img.shields.io/badge/tests-26/26-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱 · 前端全配置
@@ -79,7 +79,7 @@ CCF 第七版分级标签（130+ 会议 / 80+ 期刊，A/B/C 彩色标识）、
 | 🎛 任务模型 | 默认模型 + 10 类任务逐个覆盖（留空跟随默认），带当前供应商的模型建议下拉 | 即时生效，无需重启 |
 | 🌐 监听地址 | 绑定 IP（127.0.0.1 仅本机 / 0.0.0.0 局域网 / 具体 IPv4）与端口，选 0.0.0.0 有安全警告 | 重启 daemon 生效（面板显示「⟳ 待重启」） |
 
-另外 🔄 菜单支持任意数据源**立即手动触发**（含全量、补 AI 增强、知识卡片、趋势、简报），不受凌晨窗口限制。
+另外 🔄 菜单支持任意数据源**立即手动触发**（含全量、补 AI 增强、知识卡片、趋势、简报），不受凌晨窗口限制；还有 **🧪 系统自检**——12 项轻量冒烟（六个网络源各 1 条请求、LLM ping + 快筛冒烟、SQLite/调度/版本一致性/前端资源），分组弹窗展示 ✓/⚠/✗ 与耗时，绝不触发全量爬取。
 
 ## 🧠 系统流水线
 
@@ -153,7 +153,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 - **常用索引**：source / published_date / recommendation / relevance_score
 - **运行时设置 KV**：环境变量之上叠加，前端保存即写库，60s 缓存 + 调度器自动重排
 
-## 🔌 API（52 个端点）
+## 🔌 API（53 个端点）
 
 主要资源（完整列表见 `backend/api.py`）：
 
@@ -163,13 +163,13 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 | 订阅与画像 | `GET/PUT /api/subscriptions`、`GET/PUT /api/profile`（PUT 合并保存）、`POST /api/extract-keywords`、`GET /api/author/search` |
 | 反馈 | `POST /api/feedback`（字段级更新）、书签/已读、评语学术化改写、主题提取与去重 |
 | AI 配置 | `GET/PUT /api/llm-config`（供应商切换，验证→写 .env→即时生效）、`GET/PUT /api/llm-models`（10 类任务逐个模型）、`GET/PUT /api/llm-key`（Key 修改，只回脱敏掩码） |
-| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报）、`GET /api/jobs`（含计划时间）、`GET /api/stats`（含版本一致性）、`GET/PUT /api/bind`（监听地址） |
+| 触发与观测 | `POST /api/trigger/<job>`（6 源 + 增强 + 知识提取 + 趋势 + 简报 + 自检）、`GET /api/jobs`（含计划时间）、`GET /api/selftest`（自检报告）、`GET /api/stats`（含版本一致性）、`GET/PUT /api/bind`（监听地址） |
 | 趋势与导出 | `GET /api/trend-radars`（周/月 + 历史）、`POST /api/export/bibtex`、`GET /api/digest/<date>`、`GET /api/digests` |
 
 ## 🧪 测试与运维
 
 ```bash
-# 25 个回归测试（全部 Mock LLM，不消耗 API 配额）
+# 26 个回归测试（全部 Mock LLM，不消耗 API 配额）
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 
 # 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
@@ -193,7 +193,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── daemon.py               # 入口薄壳（python daemon.py 用法不变），主体在 backend/
 ├── backend/                # 后端 Python 包
 │   ├── daemon.py           #   入口主体：绑定解析 + app factory + Scheduler
-│   ├── api.py              #   Flask 路由（52 端点）
+│   ├── api.py              #   Flask 路由（53 端点）
 │   ├── db.py               #   SQLite + 写队列 + schema/迁移 + 运行时设置
 │   ├── jobs.py             #   BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
 │   ├── paper_store.py      #   SQLite CRUD
@@ -204,7 +204,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── web/                    # 前端（SPA）
 │   ├── index.html  js/  css/(4主题)  vendor/
 ├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
-├── tests/                  # 25 个回归测试
+├── tests/                  # 26 个回归测试
 └── docs/                   # 设计文档
 ```
 

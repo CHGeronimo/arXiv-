@@ -92,6 +92,29 @@ export async function triggerCrawl(job, { loadPapers }) {
         } catch { showToast('启动失败'); }
         return;
     }
+    if (job === 'selftest') {
+        try {
+            const resp = await fetch('/api/trigger/selftest', { method: 'POST' });
+            if (!resp.ok) { showToast('启动失败'); return; }
+            showToast('🧪 自检运行中（每源仅 1 条轻量请求，约 10-30 秒）…');
+            const t0 = Date.now();
+            const timer = setInterval(async () => {
+                try {
+                    const st = await (await fetch('/api/jobs')).json();
+                    const s = st.selftest;
+                    if (!s || s.status === 'running') {
+                        if (Date.now() - t0 > 90000) { clearInterval(timer); showToast('自检超时，稍后重试'); }
+                        return;
+                    }
+                    clearInterval(timer);
+                    const r = await (await fetch('/api/selftest')).json();
+                    if (typeof window.showSelftestReport === 'function') window.showSelftestReport(r);
+                    else showToast(`自检完成: ${s.message || ''}`);
+                } catch { /* 轮询瞬时失败继续等 */ }
+            }, 2000);
+        } catch { showToast('启动失败'); }
+        return;
+    }
     const jobs = job === 'all' ? ['arxiv', 'crossref', 'dblp', 's2', 'citations'] : [job];
     for (const j of jobs) {
         const el = document.getElementById(`crawl-${j}`);

@@ -366,6 +366,37 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { btn.disabled = false; }
     });
 
+    // 🧪 系统自检报告弹窗（api.js 轮询完成后调用）
+    window.showSelftestReport = (report) => {
+        const modal = document.getElementById('selftest-modal');
+        const summary = document.getElementById('selftest-summary');
+        const box = document.getElementById('selftest-content');
+        if (!modal || !report) return;
+        const icon = { ok: '✓', warn: '⚠', fail: '✗' };
+        const color = { ok: 'var(--success)', warn: 'var(--warning)', fail: 'var(--danger)' };
+        summary.textContent = `${report.ok} 通过 · ${report.warn} 警告 · ${report.fail} 失败 / 共 ${report.total} 项`;
+        const groups = {};
+        (report.checks || []).forEach(c => { (groups[c.group] = groups[c.group] || []).push(c); });
+        box.innerHTML = Object.entries(groups).map(([g, items]) => `
+            <div style="margin-bottom:10px">
+                <div style="font-weight:600;color:var(--text-1);margin:6px 0 4px">${g}</div>
+                ${items.map(c => `
+                    <div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px dashed var(--border)">
+                        <span style="color:${color[c.status]};font-weight:700;flex:none">${icon[c.status]}</span>
+                        <span style="flex:none;color:var(--text-1)">${c.name}</span>
+                        <span title="${(c.detail || '').replace(/"/g, '&quot;')}" style="color:var(--text-3);font-size:0.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.detail || ''}</span>
+                        <span style="color:var(--text-3);font-size:0.7rem;font-family:var(--font-mono);flex:none">${c.ms}ms</span>
+                    </div>`).join('')}
+            </div>`).join('');
+        modal.classList.add('active');
+    };
+    document.getElementById('close-selftest-modal')?.addEventListener('click', () => {
+        document.getElementById('selftest-modal').classList.remove('active');
+    });
+    document.getElementById('selftest-modal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+    });
+
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
     document.querySelectorAll('[data-dropdown]').forEach(btn => {
         btn.addEventListener('click', (e) => {
