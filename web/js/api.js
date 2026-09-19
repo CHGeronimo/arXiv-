@@ -96,7 +96,7 @@ export async function triggerCrawl(job, { loadPapers }) {
         try {
             const resp = await fetch('/api/trigger/selftest', { method: 'POST' });
             if (!resp.ok) { showToast('启动失败'); return; }
-            showToast('🧪 自检运行中（每源仅 1 条轻量请求，约 10-30 秒）…');
+            showToast('🧪 自检运行中（21 项：网络源 + 全部 10 类 LLM 任务逐条冒烟，约 1-3 分钟）…');
             const t0 = Date.now();
             const timer = setInterval(async () => {
                 try {

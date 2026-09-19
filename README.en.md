@@ -89,8 +89,10 @@ skeleton loading, and code-version observability (page vs disk).
 
 The 🔄 menu also triggers any source on demand (full crawl, AI enhancement,
 knowledge extraction, trend, digest), outside the night window — plus a **🧪 system
-self-test**: 12 lightweight smoke checks (one request per network source, an LLM
-ping + quick-filter smoke, SQLite / scheduler / code-version / frontend assets)
+self-test**: 21 lightweight smoke checks — one request per network source, a real
+smoke run of **every LLM task** (quick filter / keywords / note academicization /
+clustering / scoring / knowledge cards / fulltext / trend / digest / idea check),
+plus SQLite / scheduler / code-version / frontend assets
 shown in a grouped ✓/⚠/✗ report, never a full crawl.
 
 ## 🚀 Quick Start

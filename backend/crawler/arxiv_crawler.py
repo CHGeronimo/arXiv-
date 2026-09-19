@@ -159,7 +159,8 @@ class ArxivCrawler:
                 search = arxiv.Search(
                     query=f"cat:{cat} AND submittedDate:[{start}0000 TO {today}2359]",
                     max_results=400,
-                    sort_by=arxiv.SortCriterion.SubmittedDateDescending,
+                    sort_by=arxiv.SortCriterion.SubmittedDate,
+                    sort_order=arxiv.SortOrder.Descending,
                 )
                 for result in self.client.results(search):
                     raw = result.entry_id.split("/")[-1]

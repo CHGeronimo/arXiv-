@@ -90,7 +90,8 @@ def run_selftest() -> dict:
         raise RuntimeError(f"HTTP {resp.status_code}")
     _check(checks, "网络", "ar5iv 全文镜像", _ar5iv)
 
-    # ── LLM 组：ping + 快筛冒烟（各 1 次最小调用）──────────────
+    # ── LLM 流水线组：每类任务一条真实链路冒烟 ─────────────────
+    # （各 1 次最小调用；全部选用无写库/无缓存副作用的入口）
     def _llm_ping():
         from backend.ai.llm import build_chat, task_model
         model = task_model("enhance")
@@ -110,7 +111,119 @@ def run_selftest() -> dict:
             {"direction": "multi-agent reinforcement learning", "keywords": ["MARL", "POMDP"]},
         )
         return f"判定={'相关' if keep else '不相关'} · 解析链路正常"
-    _check(checks, "LLM", "快筛冒烟", _quick_smoke)
+    _check(checks, "LLM", "快筛（分类预筛）", _quick_smoke)
+
+    def _keyword_smoke():
+        from backend.ai.keyword_expander import extract_keywords_strict
+        kws = extract_keywords_strict(
+            "multi-agent reinforcement learning under partial observability",
+            ["MARL"], quality_criteria="novel mechanism",
+        )
+        if not kws or len(kws) < 3:
+            raise RuntimeError(f"返回关键词过少: {kws}")
+        return f"提取 {len(kws)} 条检索词"
+    _check(checks, "LLM", "关键词提取", _keyword_smoke)
+
+    def _topic_smoke():
+        from backend.api import _academicize_note
+        out = _academicize_note("这篇多智能体信用分配的做法很新颖，值得跟进", "useful")
+        if not out or len(out) < 8:
+            raise RuntimeError("学术化输出异常")
+        return f"{len(out)} 字规范表述"
+    _check(checks, "LLM", "评语学术化（主题）", _topic_smoke)
+
+    def _cluster_smoke():
+        from collections import Counter as _C
+        from backend.ai.knowledge_clustering import _extract_themes
+        kws = ["multi-agent reinforcement learning", "POMDP", "mechanism design",
+               "credit assignment", "game theory", "vital sign monitoring",
+               "adversarial robustness", "diffusion policy"]
+        themes = _extract_themes(kws, _C(kws * 2))
+        if not themes or len(themes) < 3:
+            raise RuntimeError(f"主题数过少: {themes}")
+        return f"归纳 {len(themes)} 个主题"
+    _check(checks, "LLM", "主题聚类", _cluster_smoke)
+
+    def _enhance_smoke():
+        from backend.ai.llm import task_model
+        from backend.ai.enhance import build_chain, enhance_single
+        chain = build_chain(task_model("enhance"))
+        result = enhance_single(
+            {"id": "selftest-smoke", "title": "Cooperative Multi-Agent Planning",
+             "summary": "We propose a communication protocol improving coordination."},
+            chain, {"direction": "MARL", "keywords": ["MARL"], "quality_criteria": ""}, "Chinese",
+        )
+        ai = result.get("AI", {})
+        if ai.get("_llm_failed"):
+            raise RuntimeError("增强标记 _llm_failed")
+        if not ai.get("tldr"):
+            raise RuntimeError("TLDR 缺失")
+        return f"推荐={ai.get('recommendation')} 相关度={ai.get('relevance_score')}"
+    _check(checks, "LLM", "深度评分（增强）", _enhance_smoke)
+
+    def _knowledge_smoke():
+        from backend.ai.knowledge_extractor import extract_knowledge_card_dict
+        card = extract_knowledge_card_dict(
+            {"id": "selftest-card", "title": "Opponent Modeling in Stackelberg Games",
+             "summary": "We learn opponent behavior models for security games.",
+             "AI": {"tldr": "学习对手行为模型用于安全博弈", "method": "层级强化学习对手建模"}},
+            {"direction": "multi-agent reinforcement learning", "keywords": ["MARL"]})
+        if not card:
+            raise RuntimeError("知识卡片为空")
+        return "problem/method/keywords 提取正常"
+    _check(checks, "LLM", "知识卡片", _knowledge_smoke)
+
+    def _tpl_vars(prompt: str) -> dict:
+        import string
+        out = {}
+        for _, field, _, _ in string.Formatter().parse(prompt):
+            if field:
+                out[field] = {"count": "3", "scale_hint": "月度"}.get(
+                    field, "多智能体强化学习测试" if "direction" in field or "keyword" in field else "测试样本")
+        return out
+
+    def _fulltext_smoke():
+        from backend.ai import fulltext_analyzer as fa
+        chain = fa._get_chain()
+        from backend.ai.fulltext_analyzer import _FULLTEXT_PROMPT
+        resp = chain.invoke(_tpl_vars(_FULLTEXT_PROMPT))
+        parsed = fa._parse_analysis(resp.content if hasattr(resp, "content") else str(resp))
+        if parsed is None:
+            raise RuntimeError("全文分析解析为空")
+        return "六字段解析链路正常"
+    _check(checks, "LLM", "全文深读", _fulltext_smoke)
+
+    def _trend_smoke():
+        import json as _json
+        from backend.ai import trend_analyzer as ta
+        from backend.ai.trend_analyzer import _TREND_PROMPT
+        resp = ta._get_raw_chain().invoke(_tpl_vars(_TREND_PROMPT))
+        data = _json.loads((resp.content if hasattr(resp, "content") else str(resp)).strip())
+        if not isinstance(data, dict):
+            raise RuntimeError("趋势 JSON 结构异常")
+        return f"JSON 报告结构正常（{len(data)} 个键）"
+    _check(checks, "LLM", "趋势雷达", _trend_smoke)
+
+    def _digest_smoke():
+        # 简报生成链路的同款配置（thinking on + temperature 0.3）最小调用
+        from backend.ai.llm import build_chat, task_model
+        out = build_chat(task_model("digest"), thinking=True, temperature=0.3, timeout=60).invoke(
+            "用一句话中文总结：多智能体强化学习近期进展活跃。")
+        text = out.content if hasattr(out, "content") else str(out)
+        if len(text.strip()) < 8:
+            raise RuntimeError("简报链路输出异常")
+        return f"{len(text.strip())} 字输出正常"
+    _check(checks, "LLM", "简报链路", _digest_smoke)
+
+    def _idea_smoke():
+        from backend.ai.idea_checker import _get_chain, _parse_idea, _IDEA_PROMPT
+        resp = _get_chain().invoke(_tpl_vars(_IDEA_PROMPT))
+        analysis = _parse_idea(resp)
+        if analysis is None:
+            raise RuntimeError("想法查重解析为空")
+        return "容错解析链路正常"
+    _check(checks, "LLM", "想法查重", _idea_smoke)
+
 
     # ── 存储与调度组：只读不写 ─────────────────────────────────
     def _db():

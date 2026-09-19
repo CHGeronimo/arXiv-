@@ -47,9 +47,47 @@ def _get_chain():
     global _CHAIN
     if _CHAIN is None:
         model_name = task_model("knowledge")
-        llm = build_chat(model_name, thinking=False).with_structured_output(KnowledgeCard, method="json_mode")
+        # 不用 with_structured_output：GLM 偶发返回 {"answer": {...}} 信封，
+        # pydantic 严格校验直接抛错丢整张卡（2026-09-19 自检实锤）——裸链+容错解析
+        llm = build_chat(model_name, thinking=False)
         _CHAIN = ChatPromptTemplate.from_template(_EXTRACT_PROMPT) | llm
     return _CHAIN
+
+
+def _parse_card(content) -> KnowledgeCard | None:
+    """容错解析：正则取 JSON + answer 信封解包 + keywords 列表拍平；失败返回 None。"""
+    import re as _re
+    text = content if isinstance(content, str) else getattr(content, "content", str(content))
+    data: dict = {}
+    m = _re.search(r"\{.*\}", text, _re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group())
+        except json.JSONDecodeError:
+            data = {}
+    if isinstance(data, dict) and isinstance(data.get("answer"), dict):
+        data = data["answer"]
+    if not isinstance(data, dict):
+        return None
+
+    def _s(key: str) -> str:
+        v = data.get(key)
+        return v if isinstance(v, str) else (json.dumps(v, ensure_ascii=False) if v is not None else "")
+
+    kws = data.get("keywords", [])
+    if isinstance(kws, str):
+        try:
+            kws = json.loads(kws)
+        except json.JSONDecodeError:
+            kws = [k.strip() for k in re.split(r"[,，;；]", kws) if k.strip()]
+    if not isinstance(kws, list):
+        kws = []
+    return KnowledgeCard(
+        problem=_s("problem"), method_extracted=_s("method_extracted"),
+        result_extracted=_s("result_extracted"),
+        keywords=[str(k) for k in kws],
+        relation_to_profile=_s("relation_to_profile"),
+    )
 
 
 def extract_knowledge_card(paper: dict, profile: dict | None = None) -> dict | None:
@@ -71,7 +109,7 @@ def extract_knowledge_card(paper: dict, profile: dict | None = None) -> dict | N
     chain = _get_chain()
 
     try:
-        card: KnowledgeCard = chain.invoke({
+        card = _parse_card(chain.invoke({
             "title": paper.get("title", ""),
             "abstract": paper.get("summary", ""),
             "tldr": ai.get("tldr", ""),
@@ -80,7 +118,10 @@ def extract_knowledge_card(paper: dict, profile: dict | None = None) -> dict | N
             "result": ai.get("result", ""),
             "conclusion": ai.get("conclusion", ""),
             "research_direction": profile.get("direction", ""),
-        })
+        }))
+        if card is None:
+            logger.warning(f"知识卡片解析失败 {paper.get('id')}：输出无 JSON")
+            return None
     except Exception as e:
         logger.error(f"知识卡片抽取失败 {paper.get('id')}: {e}")
         return None

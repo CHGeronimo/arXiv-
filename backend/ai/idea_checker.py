@@ -48,9 +48,46 @@ def _get_chain():
     global _CHAIN
     if _CHAIN is None:
         model_name = task_model("idea")
-        llm = build_chat(model_name, thinking=True).with_structured_output(IdeaAnalysis, method="json_mode")
+        # 不用 with_structured_output：GLM 思考模式偶发输出信封/围栏/嵌套值，
+        # pydantic 严格校验直接抛 OutputParserException（2026-09-19 自检实锤）——
+        # 改为裸调用 + _parse_idea 容错解析，与全文分析同款策略
+        llm = build_chat(model_name, thinking=True)
         _CHAIN = ChatPromptTemplate.from_template(_IDEA_PROMPT) | llm
     return _CHAIN
+
+
+def _parse_idea(content) -> IdeaAnalysis:
+    """容错解析：正则取 JSON + answer 信封解包 + 标量拍平，失败返回空字段对象。"""
+    import json as _json
+    import re as _re
+    text = content if isinstance(content, str) else getattr(content, "content", str(content))
+    data: dict = {}
+    m = _re.search(r"\{.*\}", text, _re.DOTALL)
+    if m:
+        try:
+            data = _json.loads(m.group())
+        except _json.JSONDecodeError:
+            data = {}
+    if isinstance(data, dict) and isinstance(data.get("answer"), dict):
+        data = data["answer"]
+    if not isinstance(data, dict):
+        data = {}
+
+    def _s(key: str) -> str:
+        v = data.get(key)
+        if isinstance(v, (str, int, float)):
+            return str(v)
+        if isinstance(v, dict):
+            return "；".join(f"{k}: {x}" for k, x in v.items())
+        if isinstance(v, list):
+            return "；".join(str(x) for x in v)
+        return ""
+
+    return IdeaAnalysis(
+        feasibility=_s("feasibility"), novelty=_s("novelty"),
+        related_work=_s("related_work"), differentiation=_s("differentiation"),
+        risks=_s("risks"),
+    )
 
 
 def check_idea(idea: str) -> dict | None:
@@ -78,11 +115,12 @@ def check_idea(idea: str) -> dict | None:
     profile = load_research_profile()
 
     try:
-        analysis: IdeaAnalysis = _get_chain().invoke({
+        resp = _get_chain().invoke({
             "idea": idea,
             "research_direction": profile.get("direction", ""),
             "relevant_papers": relevant,
         })
+        analysis = _parse_idea(resp)
     except Exception as e:
         logger.error(f"想法可行性检查失败: {e}")
         return None

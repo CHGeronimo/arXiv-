@@ -9,7 +9,9 @@ Two-phase approach:
 import json
 import logging
 import os
+import re
 from collections import Counter, defaultdict
+from difflib import get_close_matches
 
 from backend.db import get_conn
 
@@ -17,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 MIN_CLUSTER_SIZE = 3
 MAX_CLUSTERS = 30
+
+
+def _norm_theme(s: str) -> str:
+    """主题名归一化（大小写/空白/连字符/逗号），供精确匹配。"""
+    return re.sub(r"[\s\-_,，、]+", "", s.lower())
 
 
 def _extract_themes(all_keywords: list[str], kw_counter: Counter) -> list[str]:
@@ -60,13 +67,38 @@ def _extract_themes(all_keywords: list[str], kw_counter: Counter) -> list[str]:
     return [kw for kw, _ in kw_counter.most_common(MAX_CLUSTERS) if kw_counter[kw] >= 2]
 
 
+def _resolve_theme(t: str, themes: list[str], norm_map: dict[str, str]) -> str | None:
+    """LLM 返回的主题名 → 主题表里的规范名。
+
+    2026-09-19 实锤：旧版只接受与主题表完全相等的字符串，LLM 轻微改写
+    （大小写/冠词/标点）就被判无效 → 整篇掉进"其他"，87% 论文堆积。
+    先归一化精确匹配，再 difflib 模糊救回（cutoff 0.75），仍不中才算真不匹配。
+    """
+    if not isinstance(t, str) or not t.strip():
+        return None
+    exact = norm_map.get(_norm_theme(t))
+    if exact:
+        return exact
+    if t == "其他":
+        return "其他"
+    close = get_close_matches(t, themes, n=1, cutoff=0.75)
+    return close[0] if close else None
+
+
 def _assign_papers_to_themes_llm(
     paper_kw: dict[str, list[str]],
     themes: list[str],
     kw_counter: Counter,
-    batch_size: int = 200,
+    batch_size: int = 50,
 ) -> dict[str, list[str]]:
-    """Assign papers to themes using LLM for semantic matching."""
+    """Assign papers to themes using LLM for semantic matching.
+
+    防御性设计（2026-09-19 修复，此前 87% 论文掉进"其他"）：
+    - 小批次（50 篇/批）避免长输出被截断导致整批 JSON 解析失败；
+    - 单批解析失败只把该批送去关键词救援，不再整批判"其他"；
+    - 主题名校验走归一化+模糊匹配，轻微改写可救回；
+    - LLM 判"其他"或未返回的论文，再走一遍关键词宽匹配兜底。
+    """
     try:
         from .llm import build_chat, task_model
         llm = build_chat(
@@ -75,37 +107,61 @@ def _assign_papers_to_themes_llm(
         )
 
         theme_list_str = json.dumps(themes, ensure_ascii=False)
+        norm_map = {_norm_theme(t): t for t in themes}
         all_assignments: dict[str, list[str]] = {}
+        rescue_pids: list[str] = []  # LLM 未给出有效主题的，走关键词救援
         pids = list(paper_kw.keys())
 
         for i in range(0, len(pids), batch_size):
             batch = pids[i:i + batch_size]
             paper_data = {pid: paper_kw[pid][:8] for pid in batch}  # limit keywords per paper
             prompt = (
-                "You are a CS research taxonomy expert. Given a list of research themes and papers (with keywords), "
-                "assign each paper to 1-2 most relevant themes. If no theme fits well, assign '其他'.\n\n"
+                "You are a CS research taxonomy expert. Assign each paper to the 1-2 most relevant themes "
+                "from the given theme list. Return each theme EXACTLY as written in the list "
+                "(do not paraphrase, translate, abbreviate or merge themes).\n"
+                "Use '其他' ONLY when a paper truly matches none of the themes — "
+                "this should apply to fewer than 10% of papers.\n\n"
                 f"Themes: {theme_list_str}\n\n"
                 f"Papers: {json.dumps(paper_data, ensure_ascii=False)}\n\n"
                 "Return ONLY a JSON object mapping paper_id to an array of theme strings. No explanation."
             )
-            resp = llm.invoke(prompt)
-            content = resp.content.strip()
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                batch_result = json.loads(json_match.group())
-                for pid in batch:
-                    assigned = batch_result.get(pid, [])
-                    if isinstance(assigned, list) and assigned:
-                        # Validate themes exist
-                        valid = [t for t in assigned if t in themes or t == "其他"]
-                        all_assignments[pid] = valid if valid else ["其他"]
-                    else:
-                        all_assignments[pid] = ["其他"]
-            else:
-                for pid in batch:
-                    all_assignments[pid] = ["其他"]
+            batch_result: dict = {}
+            try:
+                resp = llm.invoke(prompt)
+                content = resp.content.strip()
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                    if isinstance(parsed, dict):
+                        batch_result = parsed
+            except Exception as e:
+                logger.warning(f"批次 {i // batch_size + 1} 解析失败（{len(batch)} 篇转关键词救援）: {e}")
 
+            for pid in batch:
+                assigned = batch_result.get(pid, [])
+                if not isinstance(assigned, list):
+                    assigned = []
+                valid: list[str] = []
+                for t in assigned:
+                    r = _resolve_theme(t, themes, norm_map)
+                    if r and r not in valid:
+                        valid.append(r)
+                if valid:
+                    all_assignments[pid] = valid[:2]
+                else:
+                    rescue_pids.append(pid)
+
+        # 救援通道：LLM 判"其他"/未返回的论文 → 关键词宽匹配（真不相关才会留在"其他"）
+        if rescue_pids:
+            logger.info(f"关键词救援 {len(rescue_pids)} 篇（LLM 未给出有效主题）")
+            rescued = _assign_papers_to_themes_kw(
+                {pid: paper_kw[pid] for pid in rescue_pids}, themes, kw_counter,
+            )
+            for pid, theme_list in rescued.items():
+                all_assignments[pid] = theme_list
+
+        other_n = sum(1 for v in all_assignments.values() if v == ["其他"])
+        logger.info(f"主题分配完成：{len(all_assignments)} 篇，其中'其他' {other_n} 篇（{other_n * 100 // max(1, len(all_assignments))}%）")
         return all_assignments
 
     except Exception as e:
@@ -279,9 +335,12 @@ def compute_clusters() -> list[dict]:
     # Sort by size descending
     clusters.sort(key=lambda c: -len(json.loads(c["paper_ids"])))
 
-    # 问题域标注（单个 LLM 调用，失败保持空数组）
-    domains = _label_problem_domains([c["cluster_name"] for c in clusters])
+    # 问题域标注（单个 LLM 调用，失败保持空数组；"其他"聚类直接标注不走 LLM）
+    domains = _label_problem_domains([c["cluster_name"] for c in clusters if c["cluster_name"] != "其他"])
     for c in clusters:
+        if c["cluster_name"] == "其他":
+            c["problem_domains"] = json.dumps(["其他"], ensure_ascii=False)
+            continue
         domain = domains.get(c["cluster_name"], "")
         c["problem_domains"] = json.dumps([domain] if domain else [], ensure_ascii=False)
 
