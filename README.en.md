@@ -55,10 +55,12 @@ local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
   model for deep reading; empty = follow the default
 - **Adaptive thinking flag**: the GLM-specific `thinking` parameter is only sent
   to bigmodel endpoints; DeepSeek and other OpenAI-compatible APIs skip it
-- **Global rate limiting + priority slot**: concurrency 6 + min interval + exponential
-  backoff on 429/1302 (measured: 4 fully clean / 6 ~11% absorbed by backoff / 8 degrades);
-  one slot is reserved for interactive single-shot jobs (digest / trend / idea / keyword
-  extraction) so they never queue behind a crawl storm
+- **Time-aware dynamic rate limiting + priority slot**: daytime concurrency 6 (measured)
+  with jittered exponential backoff and SDK retries disabled; **automatically relaxed in
+  the off-peak night window** (default 00:00–08:00: concurrency 9, halved interval —
+  window and both tiers adjustable in the ⚙️ panel, effective live without restart);
+  one slot is reserved for interactive single-shot jobs (digest / trend / idea) so they
+  never queue behind a crawl storm
 
 ### 🔁 Feedback loop — it learns your direction
 
@@ -87,7 +89,7 @@ skeleton loading, and code-version observability (page vs disk).
 
 | Section | What you can change | Takes effect |
 |:-----|:-----|:-----|
-| Crawl schedule | daily start hour (any 0-23), task staggering, run-on-start, DBLP/S2 rotation, local pre-filter | immediately (scheduler replans) |
+| Schedule & rate limits | daily start hour (any 0-23), LLM night window / two concurrency tiers, task staggering, run-on-start, DBLP/S2 rotation, local pre-filter | immediately (scheduler replans) |
 | 🔑 AI provider | GLM coding plan / GLM pay-as-you-go / DeepSeek / custom OpenAI-compatible endpoint; validated with a live test call before saving; per-provider key memory; stale per-task model overrides auto-cleared on switch | immediately, no restart |
 | 🎛 Task models | default model + per-task overrides for 10 tasks (empty = follow default), with provider-aware suggestions | immediately, no restart |
 | 🌐 Listen address | bind IP (127.0.0.1 / 0.0.0.0 / specific IPv4) and port, with a LAN security warning | on daemon restart (panel shows "⟳ pending restart") |
