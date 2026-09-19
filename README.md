@@ -2,6 +2,10 @@
 
 多源学术论文订阅守护进程——"arXiv 每日电讯"，集成 AI 深度筛选。支持 arXiv、Crossref 期刊、DBLP 会议、OpenAlex 搜索、S2 Author 五大数据源，AI 自动生成中文解读、质量评分和推荐等级，前端提供侧边栏筛选、4 套主题和 CCF 分级展示。
 
+## 致谢与衍生说明
+
+本项目初始架构（arXiv 抓取 + AI 中文摘要 + 网页展示）的灵感来自 [dw-dengwei/daily-arXiv-ai-enhanced](https://github.com/dw-dengwei/daily-arXiv-ai-enhanced)，在此致谢。当前版本已在其思路上完全重构与扩展：Flask 守护进程 + SQLite 存储、五大数据源（arXiv / Crossref 期刊 / DBLP 会议 / OpenAlex / Semantic Scholar）、引文顺藤摸瓜、AI 评分与用户反馈闭环、周/月趋势雷达、知识图谱聚类等均为本项目的独立实现。
+
 ## Quick Start
 
 ```bash

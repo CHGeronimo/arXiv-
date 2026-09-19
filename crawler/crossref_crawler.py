@@ -14,7 +14,7 @@ from crawler.subs_store import Journal
 logger = logging.getLogger(__name__)
 
 CROSSREF_BASE = "https://api.crossref.org"
-MAILTO = "mailto=daily-arxiv@proton.me"
+MAILTO = "mailto=CHGeronimo@users.noreply.github.com"
 
 
 class CrossrefCrawler:

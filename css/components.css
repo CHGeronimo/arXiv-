@@ -1010,6 +1010,20 @@
    design system section above does NOT cover.
    ============================================ */
 
+/* --- Brand mark (header logo, matches favicon) --- */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+}
+
 /* --- Header h1 (old: color: var(--accent-primary)) --- */
 header h1 {
   font-family: var(--font-display);
