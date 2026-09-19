@@ -424,6 +424,10 @@ _SETTINGS_META = {
     "DBLP_ROTATE_DAYS": {"label": "DBLP 会议轮换天数（1=每天全量）", "type": "int", "min": 1, "max": 30, "restart": False},
     "S2_ROTATE_DAYS": {"label": "S2 关键词轮换天数（1=每天全量）", "type": "int", "min": 1, "max": 30, "restart": False},
     "LOCAL_FILTER": {"label": "本地零成本预筛（省 LLM 配额）", "type": "bool", "restart": False},
+    "LLM_NIGHT_START": {"label": "LLM 凌晨放宽起始小时（0-23）", "type": "int", "min": 0, "max": 23, "restart": False},
+    "LLM_NIGHT_END": {"label": "LLM 凌晨放宽结束小时（0-23）", "type": "int", "min": 0, "max": 23, "restart": False},
+    "LLM_DAY_CONCURRENCY": {"label": "LLM 白天并发（实测安全 6）", "type": "int", "min": 1, "max": 12, "restart": False},
+    "LLM_NIGHT_CONCURRENCY": {"label": "LLM 凌晨并发（低峰可放宽，如 9）", "type": "int", "min": 1, "max": 12, "restart": False},
 }
 
 

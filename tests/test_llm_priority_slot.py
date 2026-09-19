@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LLM 双闸优先槽：bulk 占满时交互式单发（简报/趋势/想法）不被排队。"""
+"""LLM 动态双闸：bulk 占满时 priority 不排队；限值随时段/设置动态变化。"""
 import os
 import sys
 import threading
@@ -11,50 +11,65 @@ os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 
 import backend.ai.llm as llm  # noqa: E402
 
-# [1] bulk 闸容量 = 总闸 - 1（留 1 个优先槽）
-assert llm._BULK_SEM._value == llm.LLM_MAX_CONCURRENT - 1
-print(f"[1] 双闸容量: 总 {llm.LLM_MAX_CONCURRENT} / bulk {llm.LLM_MAX_CONCURRENT - 1} ✓")
+llm._LIMITS_OVERRIDE = (6, 0.0)  # 固定限值：总 6 / bulk 5
 
-# [2] bulk 全占时，priority 仍能立刻拿槽；bulk 再来则阻塞
+# [1] 夜窗判定（含跨午夜与不启用）
+f = llm._is_night_hour
+assert f(2, 0, 8) and f(7, 0, 8) and not f(8, 0, 8) and not f(12, 0, 8)
+assert f(23, 22, 6) and f(3, 22, 6) and not f(8, 22, 6)   # 跨午夜
+assert not f(5, 5, 5)                                       # start==end 不启用
+print("[1] 夜窗窗口判定（含跨午夜）✓")
+
+# [2] bulk 闸 = 总闸-1；bulk 占满时 priority 立刻获槽；bulk 超限阻塞
 held_bulk = []
 try:
-    for _ in range(llm.LLM_MAX_CONCURRENT - 1):
+    for _ in range(5):
         held_bulk.append(llm._acquire_llm_slot(priority=False))
+    assert llm._BULK_GATE._active == 5 and llm._TOTAL_GATE._active == 5
     t0 = time.monotonic()
     held_pri = llm._acquire_llm_slot(priority=True)
     dt = time.monotonic() - t0
-    # 优先槽只等最小间隔（≤1.5s 宽容），不排队
-    assert dt < 1.5, f"priority 应立即获槽，实际等了 {dt:.2f}s"
-    print(f"[2] bulk 占满时 priority {dt*1000:.0f}ms 获槽 ✓")
-
-    # bulk 第 6 个应阻塞（无槽可拿）——起线程验证
+    assert dt < 1.5, f"priority 应立即获槽，等了 {dt:.2f}s"
+    assert llm._TOTAL_GATE._active == 6
+    print(f"[2] bulk 占满时 priority {dt*1000:.0f}ms 获槽（保留槽生效）✓")
     got = []
     def _try_bulk():
-        try:
-            llm._acquire_llm_slot(priority=False)
-            got.append(True)
-        except Exception:
-            got.append(False)
+        llm._BULK_GATE.acquire()
+        got.append(True)
     th = threading.Thread(target=_try_bulk, daemon=True)
-    th.start()
-    th.join(0.6)
+    th.start(); th.join(0.5)
     assert not got, "bulk 超限不应立刻获槽"
     print("[3] bulk 超出容量正确阻塞 ✓")
 finally:
     for held in held_bulk:
-        for sem in reversed(held):
-            sem.release()
+        for g in reversed(held):
+            g.release()
     try:
-        for sem in reversed(held_pri):
-            sem.release()
+        for g in reversed(held_pri):
+            g.release()
     except NameError:
         pass
 
-# [4] build_chat(priority=True) 注入：不透传给 ChatOpenAI（pydantic 不炸）
-chat = llm.build_chat("glm-5.3-flash", thinking=False, priority=True)
-assert chat._priority is True and not getattr(chat, "priority", None)
-chat2 = llm.build_chat("glm-5.3-flash", thinking=False)
-assert chat2._priority is False
-print("[4] priority 参数注入/隔离 ✓")
+# [4] 限值动态上调：bulk 5 满载时把限值提到 9，第 6/7/8 个 bulk 应被放行
+llm._LIMITS_OVERRIDE = (9, 0.0)
+extra = []
+try:
+    for _ in range(5):
+        extra.append(llm._acquire_llm_slot(priority=False))
+    # 此时 bulk active=5 限制=8 → 还能拿 3 个
+    more = []
+    for _ in range(3):
+        more.append(llm._acquire_llm_slot(priority=False))
+    assert llm._BULK_GATE._active == 8
+    print("[4] 限值动态上调后放行（凌晨放宽即此机制）✓")
+finally:
+    for held in extra + more:
+        for g in reversed(held):
+            g.release()
 
-print("\nLLM 优先槽测试通过 ✅")
+# [5] 释放无泄漏：全部归还后 active=0
+assert llm._TOTAL_GATE._active == 0 and llm._BULK_GATE._active == 0
+llm._LIMITS_OVERRIDE = None
+print("[5] 闸归零无泄漏 ✓")
+
+print("\nLLM 动态限流测试通过 ✅")

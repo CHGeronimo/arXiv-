@@ -15,9 +15,8 @@ import os
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-dummy")
 os.environ.setdefault("OPENAI_BASE_URL", "https://api.test.local/v1")
 
-# 测试用小参数
-L.LLM_MIN_INTERVAL = 0.15
-L._LLM_SEM = threading.Semaphore(2)
+# 测试用小参数（动态限流覆盖钩子：并发2 / 间隔0.15）
+L._LIMITS_OVERRIDE = (2, 0.15)
 
 class _Msg:
     def __init__(self, content): self.content = content

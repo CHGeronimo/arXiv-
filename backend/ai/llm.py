@@ -29,17 +29,68 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
-# ── 全局频率控制 ─────────────────────────────────────────────
-# 双闸设计：总闸 = LLM_MAX_CONCURRENT（实测安全边界），bulk 闸 = 总数-1。
-# 批量爬取任务（快筛/增强/聚类…）走 bulk 闸；简报/趋势/想法/关键词提取
-# 这类用户点一下就等结果的"交互式单发"走 priority——不与爬取风暴排队
-# （2026-09-19 实锤：两抓取任务并行时简报单发调用排在 10 个 worker 队尾）。
-LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "6"))
+# ── 全局频率控制（分时段动态限流） ─────────────────────────────
+# 双闸设计：总闸 + bulk 闸（总数-1，留 1 槽给交互式单发——简报/趋势/想法
+# 不与爬取风暴排队）。凌晨低峰期（GLM 配额更宽）自动放宽并发/间隔，
+# 时段与两档并发均可在 ⚙️ 设置面板调整（LLM_NIGHT_* / LLM_DAY_CONCURRENCY）。
+# 实测标定（白天）：并发4全绿 / 6约11%撞线由退避吸收 / 8恶化。
+LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "6"))   # 白天默认（保留供 env 覆盖）
 LLM_MIN_INTERVAL = float(os.environ.get("LLM_MIN_INTERVAL", "0.8"))
-_LLM_SEM = threading.Semaphore(LLM_MAX_CONCURRENT)
-_BULK_SEM = threading.Semaphore(max(1, LLM_MAX_CONCURRENT - 1))
+_LIMITS_OVERRIDE: tuple | None = None  # 测试钩子：(concurrency, interval)
 _llm_lock = threading.Lock()
 _llm_last = 0.0
+
+
+def _is_night_hour(h: int, start: int, end: int) -> bool:
+    """凌晨窗口判定；start==end 视为不启用。支持跨午夜（如 22→6）。"""
+    if start == end:
+        return False
+    if start < end:
+        return start <= h < end
+    return h >= start or h < end
+
+
+def _llm_limits() -> tuple:
+    """当前 (并发上限, 最小间隔)。凌晨档走夜窗设置，间隔减半。"""
+    if _LIMITS_OVERRIDE is not None:
+        return _LIMITS_OVERRIDE
+    conc, interval = LLM_MAX_CONCURRENT, LLM_MIN_INTERVAL
+    try:
+        from backend.db import get_runtime_settings
+        s = get_runtime_settings()
+        h = __import__("datetime").datetime.now().hour
+        if _is_night_hour(h, int(s.get("LLM_NIGHT_START", 0)), int(s.get("LLM_NIGHT_END", 8))):
+            conc = int(s.get("LLM_NIGHT_CONCURRENCY", 9))
+            interval = min(interval, 0.5)
+        else:
+            conc = int(s.get("LLM_DAY_CONCURRENCY", conc))
+    except Exception:
+        pass  # db 未就绪（早期导入）→ 用模块默认
+    return max(1, conc), max(0.0, interval)
+
+
+class _DynGate:
+    """动态闸：限值随时段/设置变化（线程安全，限值上调后等待者自动放行）。"""
+
+    def __init__(self, limit_fn):
+        self._cond = threading.Condition()
+        self._active = 0
+        self._limit_fn = limit_fn
+
+    def acquire(self) -> None:
+        with self._cond:
+            while self._active >= self._limit_fn():
+                self._cond.wait(5.0)  # 限值上调后最多 5s 内被唤醒/重查
+            self._active += 1
+
+    def release(self) -> None:
+        with self._cond:
+            self._active -= 1
+            self._cond.notify_all()
+
+
+_TOTAL_GATE = _DynGate(lambda: _llm_limits()[0])
+_BULK_GATE = _DynGate(lambda: max(1, _llm_limits()[0] - 1))
 
 _RATE_LIMIT_MARKERS = ("1302", "429", "速率限制", "rate limit", "Rate limit")
 
@@ -77,12 +128,12 @@ def _acquire_llm_slot(priority: bool = False) -> list:
     held = []
     try:
         if not priority:
-            _BULK_SEM.acquire()
-            held.append(_BULK_SEM)
-        _LLM_SEM.acquire()
-        held.append(_LLM_SEM)
+            _BULK_GATE.acquire()
+            held.append(_BULK_GATE)
+        _TOTAL_GATE.acquire()
+        held.append(_TOTAL_GATE)
         with _llm_lock:
-            wait = _llm_last + LLM_MIN_INTERVAL - time.monotonic()
+            wait = _llm_last + _llm_limits()[1] - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
             _llm_last = time.monotonic()

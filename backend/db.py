@@ -400,6 +400,8 @@ _SETTING_DEFAULTS = {
     "DBLP_ROTATE_DAYS": 7,     # DBLP 会议轮换天数
     "S2_ROTATE_DAYS": 3,       # S2 关键词轮换天数
     "LOCAL_FILTER": True,      # 本地零成本预筛
+    "LLM_NIGHT_START": 0, "LLM_NIGHT_END": 8,          # LLM 凌晨放宽窗口
+    "LLM_DAY_CONCURRENCY": 6, "LLM_NIGHT_CONCURRENCY": 9,  # 两档并发（白天实测安全6）
 }
 
 
