@@ -8,14 +8,16 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
-![LLM](https://img.shields.io/badge/LLM-GLM_(Zhipu)-3859FF)
-![Tests](https://img.shields.io/badge/tests-22/22-brightgreen)
+![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
+![Tests](https://img.shields.io/badge/tests-25/25-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
 are crawled automatically every night, a tiered LLM pipeline filters and deeply
 annotates them in Chinese, your likes / dislikes / notes feed back into scoring
 and retrieval, and a weekly/monthly trend radar plus knowledge graph show you
-what is happening in your field.
+what is happening in your field — with the AI provider, per-task models,
+schedules and listen address all configurable from the web UI.
 
 </div>
 
@@ -23,59 +25,70 @@ what is happening in your field.
 
 ## ✨ Highlights
 
-- **Six discovery sources** — arXiv category subscriptions, Crossref journals, DBLP (55 CCF venues), OpenAlex keyword search (LLM-expanded to 40–90 queries), Semantic Scholar author tracking, and citation tracing (anchors = must-read ∪ liked papers)
-- **Tiered AI pipeline** — free local pre-filter → GLM quick filter (thinking off) → deep enhancement (thinking on: Chinese TLDR, motivation/method/result breakdown, relevance × quality scores, four-level recommendation with reasons) → optional full-text deep reading (ar5iv, budget-capped)
-- **Feedback loop** — like/dislike/note on any paper; notes are academicized and distilled into liked/disliked topics that are injected into scoring prompts and keyword mining. The system learns your direction as you use it
-- **Trend radar** — weekly/monthly Chinese trend reports (emerging methods, opportunities, field migration) with a browsable archive
-- **Knowledge graph** — knowledge cards clustered with a d3 force layout, L1/L2/L3 level navigation
-- **Idea workbench** — submit a research idea; the AI retrieves prior work and analyzes differentiation
-- **Daily digest** — auto-generated markdown briefing with GFM tables and a morning-reading preset
-- **Self-hosted & single-machine** — Flask + SQLite (WAL), no external services; crawl schedule, staggering and rotation are configurable in the web UI with instant triggers
+### 🔎 Discovery — six sources, staggered nightly
 
-## 🧠 Pipeline
+- **arXiv** category subscriptions (auto backfill after ≥2-day downtime)
+- **Crossref** journal subscriptions (research articles only)
+- **DBLP** 55 CCF venues (rotated coverage)
+- **OpenAlex** keyword search — an LLM two-stage expander turns your research
+  direction into 40–90 queries (concept mining + abbreviation/subfield variants);
+  liked topics are folded in, disliked ones excluded
+- **Semantic Scholar** author tracking (name / ORCID)
+- **Citation tracing** — follows citations in and out of "must-read ∪ liked"
+  anchor papers, rotating anchors across days (free OpenAlex quota)
 
-```mermaid
-flowchart TB
-    subgraph SRC["Six sources (staggered nightly)"]
-        direction LR
-        A["arXiv<br/>categories"]
-        B["Crossref<br/>journals"]
-        C["DBLP<br/>55 CCF venues"]
-        D["OpenAlex<br/>LLM-expanded keywords"]
-        E["S2 Author<br/>tracking"]
-        F["Citations<br/>must-read ∪ liked anchors"]
-    end
-    SRC --> P{"Local pre-filter<br/>(free rules)"}
-    P -->|relevant| Q["quick_filter<br/>GLM · thinking off"]
-    P -->|irrelevant| IG["ignored archive"]
-    Q -->|pass| H["Deep enhancement<br/>GLM · thinking on<br/>recent feedback injected"]
-    Q -->|reject| IG
-    H --> FT["Full-text deep read (optional)<br/>ar5iv"]
-    H --> DB[("SQLite WAL<br/>data/papers.db")]
-    FT --> DB
-    DB --> UI["Five pages<br/>daily / graph / trend / idea / digest"]
-    UI -->|"like · dislike · note"| PR["research_profile<br/>liked / disliked topics"]
-    PR -.->|injected into scoring prompts| H
-    PR -.->|folded into keyword mining| D
+### 🧠 Tiered AI pipeline (cheap where possible, deep where it matters)
+
+```
+local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
+  → deep enhancement (thinking on: Chinese TLDR / motivation / method / result
+    / conclusion, relevance × quality scores, 4-level recommendation reasons)
+  → optional full-text deep reading (ar5iv fetch, budget-capped)
 ```
 
-## 🖥 Frontend
+- **Per-task models**: 10 pipeline tasks (quick filter / keywords / topics /
+  clustering / enhancement / fulltext / trend / digest / knowledge cards / idea
+  check) can each pin its own model — flash for volume tasks, the strongest
+  model for deep reading; empty = follow the default
+- **Adaptive thinking flag**: the GLM-specific `thinking` parameter is only sent
+  to bigmodel endpoints; DeepSeek and other OpenAI-compatible APIs skip it
+- **Global rate limiting**: concurrency semaphore + min interval + exponential
+  backoff on 429/1302
+
+### 🔁 Feedback loop — it learns your direction
+
+- Like / dislike / note on any paper; notes are automatically academicized and
+  distilled into liked/disliked topics
+- Topics are injected into scoring prompts and keyword mining; your recent
+  notes enter the scoring context at highest priority
+- Topic dedup is LLM-based with a safety guard (never wipes the topic list);
+  a scoring×feedback confusion matrix is auditable
+
+### 📊 Five frontend pages
 
 | Page | Features |
 |:-----|:-----|
-| Daily papers | three-level cards, four-level recommendation labels, morning-reading / must-read / starred presets, side-by-side compare, batch BibTeX export, ignored-papers review, code links |
+| Daily papers | three-level cards, 4-level recommendation labels with reasons, morning-reading / must-read / starred presets, side-by-side compare, batch BibTeX export, ignored-papers review, code links |
 | Knowledge graph | knowledge cards, d3 force clustering, L1/L2/L3 navigation |
-| Trend radar | weekly/monthly reports + historical archive |
+| Trend radar | weekly/monthly Chinese reports (emerging methods / opportunities / field migration) + browsable archive |
 | Idea workbench | submit an idea → AI retrieves prior work and analyzes differentiation |
-| Daily digest | markdown briefing rendered with GFM tables |
+| Daily digest | markdown briefing with GFM tables and a morning preset |
 
 Also: grouped sidebar filters + search + 7 sort orders, CCF catalog labels
 (130+ venues / 80+ journals), 4 themes, keyboard shortcuts (`j`/`k`, `f`, `/`, `?`),
-a settings panel (schedule / staggering / rotation + instant triggers), and the
-LLM provider — GLM (coding plan or pay-as-you-go), DeepSeek, or any
-OpenAI-compatible endpoint — can be switched right in the web UI: validated
-first, written back to `backend/ai/.env`, applied without a restart, with per-provider
-key memory.
+skeleton loading, and code-version observability (page vs disk).
+
+### 🎛 Everything configurable in the web UI
+
+| Section | What you can change | Takes effect |
+|:-----|:-----|:-----|
+| Crawl schedule | night start hour, task staggering, run-on-start, DBLP/S2 rotation, local pre-filter | immediately (scheduler replans) |
+| 🔑 AI provider | GLM coding plan / GLM pay-as-you-go / DeepSeek / custom OpenAI-compatible endpoint; validated with a live test call before saving; per-provider key memory; stale per-task model overrides auto-cleared on switch | immediately, no restart |
+| 🎛 Task models | default model + per-task overrides for 10 tasks (empty = follow default), with provider-aware suggestions | immediately, no restart |
+| 🌐 Listen address | bind IP (127.0.0.1 / 0.0.0.0 / specific IPv4) and port, with a LAN security warning | on daemon restart (panel shows "⟳ pending restart") |
+
+The 🔄 menu also triggers any source on demand (full crawl, AI enhancement,
+knowledge extraction, trend, digest), outside the night window.
 
 ## 🚀 Quick Start
 
@@ -86,22 +99,24 @@ pip install -r requirements.txt
 
 cp backend/ai/.env.example backend/ai/.env
 # edit backend/ai/.env with your GLM API key (free at https://open.bigmodel.cn)
+# (or leave it and paste the key in the ⚙️ settings panel after startup)
 
 python3 daemon.py --port 8080
 # open http://localhost:8080
 ```
 
 Personal runtime files (`research_profile.json`, `subscriptions.json`,
-`data/papers.db`) are auto-generated on first run and never committed.
+`data/papers.db`, `backend/ai/.env`) are auto-generated / gitignored — never committed.
+Bind precedence: `--host/--port` CLI args > panel settings (`DAEMON_HOST/PORT` in
+`.env`) > default 127.0.0.1:8080.
 
 ## 🔌 API (52 endpoints)
 
-Full list in `api.py` — papers (paginated, up to 50k lightweight), subscriptions
-& profile, field-level feedback with note academicization, manual triggers for
-every job, jobs/stats observability, weekly/monthly trend radars, BibTeX export,
-daily digests, provider switching (GLM / DeepSeek / custom OpenAI-compatible),
-per-task model overrides for 10 pipeline tasks, masked LLM-key management, and
-listen host/port configuration (applied on daemon restart).
+Full list in `backend/api.py` — papers (up to 50k lightweight), subscriptions &
+profile, field-level feedback with note academicization, provider switching
+(`llm-config`), per-task models (`llm-models`), masked key management
+(`llm-key`), listen address (`bind`), manual triggers for every job,
+jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 
 ## 🧪 Tests
 
@@ -109,7 +124,19 @@ listen host/port configuration (applied on daemon restart).
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-25 regression scripts, fully mocked (no API quota consumed).
+25 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+`scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
+feedback-loop verification.
+
+## 📁 Structure
+
+```
+daemon.py            # thin entry (python daemon.py unchanged)
+backend/             # Python package: daemon/api/db/jobs/paper_store/ccf_map
+                     #   + ai/ (LLM pipeline) + crawler/ (six sources)
+web/                 # SPA: index.html + js/ + css/ (4 themes) + vendor/
+scripts/  tests/  docs/
+```
 
 ## 📄 License & Citation
 
@@ -122,5 +149,5 @@ The initial architecture (arXiv crawling + AI summaries + web display) was
 inspired by [dw-dengwei/daily-arXiv-ai-enhanced](https://github.com/dw-dengwei/daily-arXiv-ai-enhanced).
 The current version is a complete rebuild: Flask daemon + SQLite storage, six
 discovery sources, citation tracing, the scoring/feedback loop, trend radar,
-knowledge graph and full-text deep reading are all original implementations.
-See the [Chinese README](README.md) for full documentation.
+knowledge graph, full-text deep reading and full web-UI configurability are all
+original implementations. See the [Chinese README](README.md) for full docs.
