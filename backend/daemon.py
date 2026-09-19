@@ -90,9 +90,9 @@ def main():
     stagger = os.environ.get("STAGGER_MINUTES", "30")
     from backend.db import get_runtime_settings
     if get_runtime_settings()["RUN_ON_START"]:
-        logger.info(f"调度器已启动: 全部任务立即执行一次，此后每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行")
+        logger.info(f"调度器已启动: 全部任务立即执行一次，此后每天 {night_start} 点起、每 {stagger} 分钟一个错峰运行")
     else:
-        logger.info(f"调度器已启动: 自动任务每天凌晨 {night_start} 点起、每 {stagger} 分钟一个错峰运行（手动触发随时可用）")
+        logger.info(f"调度器已启动: 自动任务每天 {night_start} 点起、每 {stagger} 分钟一个错峰运行（手动触发随时可用）")
 
     host, port = resolve_bind(args.host, args.port)
     # 实际绑定值暴露给 API（前端用来提示“改了但未重启”）

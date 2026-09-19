@@ -623,8 +623,8 @@ JOB_FUNCS = {
 class Scheduler:
     """Nightly job scheduler.
 
-    Automatic runs happen only in the early-morning window starting at
-    NIGHT_START (default 02:00), with jobs spread STAGGER_MINUTES apart
+    Automatic runs start daily at NIGHT_START (default 02:00, any hour
+    0-23 allowed), with jobs spread STAGGER_MINUTES apart
     (default 30) so the long arxiv analysis chain and the OpenAlex-heavy
     DBLP/S2 crawls never collide. Manual triggers via /api/trigger/* bypass
     the scheduler entirely and run immediately at any time (their OpenAlex
@@ -644,7 +644,7 @@ class Scheduler:
         from backend.db import get_runtime_settings
         self._running = True
         if get_runtime_settings()["RUN_ON_START"]:
-            logger.info("[调度器] RUN_ON_START=1，启动时立即执行全部任务（此后仍按凌晨计划）")
+            logger.info("[调度器] RUN_ON_START=1，启动时立即执行全部任务（此后仍按每日计划）")
             for job_name in JOB_FUNCS:
                 self._run_and_schedule_next(job_name)
         else:

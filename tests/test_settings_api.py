@@ -26,7 +26,9 @@ try:
     print("[1] GET /api/settings ✓")
 
     # [2] PUT 校验：越界/类型错误拒绝；合法保存
-    assert c.put("/api/settings", json={"NIGHT_START": 9}).status_code == 400
+    assert c.put("/api/settings", json={"NIGHT_START": 24}).status_code == 400  # 0-23 任意时段
+    r9 = c.put("/api/settings", json={"NIGHT_START": 9}).get_json()  # 白天时段合法
+    assert r9["settings"]["NIGHT_START"] == 9
     assert c.put("/api/settings", json={"STAGGER_MINUTES": "abc"}).status_code == 400
     assert c.put("/api/settings", json={"UNKNOWN_KEY": 1}).status_code == 400
     r2 = c.put("/api/settings", json={"NIGHT_START": 4, "STAGGER_MINUTES": 45, "LOCAL_FILTER": False}).get_json()

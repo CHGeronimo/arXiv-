@@ -375,7 +375,7 @@ def get_jobs():
 # ── Runtime Settings（前端可改的抓取/调度配置）────────────────────
 
 _SETTINGS_META = {
-    "NIGHT_START": {"label": "凌晨起始小时（0-6）", "type": "int", "min": 0, "max": 6, "restart": False},
+    "NIGHT_START": {"label": "每日起始小时（0-23，默认2=凌晨）", "type": "int", "min": 0, "max": 23, "restart": False},
     "STAGGER_MINUTES": {"label": "任务错峰间隔分钟（5-120）", "type": "int", "min": 5, "max": 120, "restart": False},
     "RUN_ON_START": {"label": "daemon 启动立即全量跑一轮", "type": "bool", "restart": True},
     "DBLP_ROTATE_DAYS": {"label": "DBLP 会议轮换天数（1=每天全量）", "type": "int", "min": 1, "max": 30, "restart": False},

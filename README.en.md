@@ -82,7 +82,7 @@ skeleton loading, and code-version observability (page vs disk).
 
 | Section | What you can change | Takes effect |
 |:-----|:-----|:-----|
-| Crawl schedule | night start hour, task staggering, run-on-start, DBLP/S2 rotation, local pre-filter | immediately (scheduler replans) |
+| Crawl schedule | daily start hour (any 0-23), task staggering, run-on-start, DBLP/S2 rotation, local pre-filter | immediately (scheduler replans) |
 | 🔑 AI provider | GLM coding plan / GLM pay-as-you-go / DeepSeek / custom OpenAI-compatible endpoint; validated with a live test call before saving; per-provider key memory; stale per-task model overrides auto-cleared on switch | immediately, no restart |
 | 🎛 Task models | default model + per-task overrides for 10 tasks (empty = follow default), with provider-aware suggestions | immediately, no restart |
 | 🌐 Listen address | bind IP (127.0.0.1 / 0.0.0.0 / specific IPv4) and port, with a LAN security warning | on daemon restart (panel shows "⟳ pending restart") |

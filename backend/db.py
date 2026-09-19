@@ -389,7 +389,7 @@ def stop_writer() -> None:
 
 _SETTINGS_CACHE: dict = {"data": None, "checked": 0.0}
 _SETTING_DEFAULTS = {
-    "NIGHT_START": 2,          # 凌晨窗口起始小时
+    "NIGHT_START": 2,          # 每日起始小时（0-23，默认 2=凌晨，可任意时段）
     "STAGGER_MINUTES": 30,     # 夜间任务错峰间隔（分钟）
     "RUN_ON_START": False,     # daemon 启动立即全量跑一轮（需重启生效）
     "DBLP_ROTATE_DAYS": 7,     # DBLP 会议轮换天数
