@@ -1161,6 +1161,14 @@ def cluster_papers(cluster_name: str):
     return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 
 
+@app.route("/api/trigger/enhance-rerun", methods=["POST"])
+def trigger_enhance_rerun():
+    """重跑旧流程 AI 结果（按 PIPELINE_VERSION 识别；中断可续）。"""
+    from backend.jobs import run_stale_rerun
+    threading.Thread(target=run_stale_rerun, daemon=True).start()
+    return jsonify({"status": "triggered", "job": "enhance_rerun"})
+
+
 @app.route("/api/trigger/clustering", methods=["POST"])
 def trigger_clustering():
     threading.Thread(target=_run_clustering_job, daemon=True).start()

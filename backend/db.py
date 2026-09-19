@@ -205,6 +205,9 @@ def init_db() -> None:
     ignored_cols = {r[1] for r in conn.execute("PRAGMA table_info(ignored_papers)")}
     if "reason_detail" not in ignored_cols:
         conn.execute("ALTER TABLE ignored_papers ADD COLUMN reason_detail TEXT")
+    ai_cols = {r[1] for r in conn.execute("PRAGMA table_info(ai_results)")}
+    if "pipeline_version" not in ai_cols:
+        conn.execute("ALTER TABLE ai_results ADD COLUMN pipeline_version TEXT")
     trend_cols = {r[1] for r in conn.execute("PRAGMA table_info(trend_reports)")}
     if "period_type" not in trend_cols:
         conn.execute("ALTER TABLE trend_reports ADD COLUMN period_type TEXT DEFAULT 'weekly'")

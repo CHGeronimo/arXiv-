@@ -11,7 +11,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
-![Tests](https://img.shields.io/badge/tests-33/33-brightgreen)
+![Tests](https://img.shields.io/badge/tests-34/34-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
@@ -95,7 +95,7 @@ skeleton loading, and code-version observability (page vs disk).
 The top bar splits actions by responsibility:
 
 - **🔄 Crawl**: trigger any of the five sources individually (with status counts) or all at once, outside the night window
-- **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis
+- **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis / ♻️ re-run stale pipeline results (identified by PIPELINE_VERSION, resumable)
 - **⚙️ System settings**: the four config sections above + the **🧪 system
 self-test** — 21 lightweight smoke checks: one request per network source, a real
 smoke run of **every LLM task** (quick filter / keywords / note academicization /
@@ -137,7 +137,7 @@ jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-33 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+34 regression scripts, fully mocked (no API quota consumed). Ops scripts in
 `scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
 feedback-loop verification.
 

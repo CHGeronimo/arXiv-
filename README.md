@@ -11,7 +11,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI兼容-3859FF)
-![Tests](https://img.shields.io/badge/tests-33/33-brightgreen)
+![Tests](https://img.shields.io/badge/tests-34/34-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱 · 前端全配置
@@ -86,7 +86,7 @@ CCF 第七版分级标签（130+ 会议 / 80+ 期刊，A/B/C 彩色标识）、
 顶栏功能按职责分为三个入口，互不掺杂：
 
 - **🔄 手动抓取**：五个数据源逐个触发（带状态计数）或全部抓取，不受凌晨窗口限制
-- **🤖 AI 处理**：补 AI 增强 / 知识卡片提取 / 重跑图谱聚类 / 补全文分析
+- **🤖 AI 处理**：补 AI 增强 / 知识卡片提取 / 重跑图谱聚类 / 补全文分析 / ♻️ 重跑旧流程结果（按 PIPELINE_VERSION 识别旧版 AI 结果逐篇重评+重提卡片，可中断续跑）
 - **⚙️ 系统设置**：上述四块配置 + **🧪 系统自检**——21 项轻量冒烟（六个网络源各 1 条请求 + **全部 10 类 LLM 任务逐条真实链路冒烟**：快筛/关键词/评语学术化/聚类/评分/知识卡片/全文深读/趋势/简报/想法查重 + SQLite/调度/版本一致性/前端资源），分组弹窗展示 ✓/⚠/✗ 与耗时，绝不触发全量爬取
 
 ## 🧠 系统流水线
@@ -177,7 +177,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 ## 🧪 测试与运维
 
 ```bash
-# 33 个回归测试（全部 Mock LLM，不消耗 API 配额）
+# 34 个回归测试（全部 Mock LLM，不消耗 API 配额）
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 
 # 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
@@ -215,7 +215,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── web/                    # 前端（SPA）
 │   ├── index.html  js/  css/(4主题)  vendor/
 ├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
-├── tests/                  # 33 个回归测试
+├── tests/                  # 34 个回归测试
 └── docs/                   # 设计文档
 ```
 

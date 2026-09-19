@@ -20,6 +20,11 @@ from .structure import Structure
 
 logger = logging.getLogger(__name__)
 
+# 流程版本戳：提示词/解析逻辑有实质改进时递增（YYYY-MM-DD[.n]）。
+# 旧结果通过 🤖「重跑旧流程结果」按此识别重跑；中断续跑天然支持
+# （重跑过的会被打上新版本，再次触发只补剩余）。
+PIPELINE_VERSION = "2026-09-19"
+
 _AI_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _env_path = os.path.join(_AI_DIR, '.env')

@@ -148,7 +148,7 @@ AI_COLS = [
     "tldr", "motivation", "method", "result", "conclusion",
     "title_zh", "summary_zh",
     "quality_score", "relevance_score",
-    "recommendation", "skip_reason",
+    "recommendation", "skip_reason", "pipeline_version",
 ]
 
 # 列表页轻字段：去掉 motivation/method/result/conclusion/summary_zh 等长文本，
@@ -296,6 +296,9 @@ def _insert_ai_row(paper_id: str, ai: dict) -> None:
     row: dict = {"paper_id": paper_id}
     for col in AI_COLS[1:]:  # skip paper_id, already set
         row[col] = ai.get(col)
+
+    from backend.ai.enhance import PIPELINE_VERSION  # 惰性导入避免环
+    row["pipeline_version"] = PIPELINE_VERSION
 
     # Auto-downgrade low-relevance reference to ignore
     if row.get("recommendation") == "reference" and (row.get("relevance_score") or 0) <= 5:

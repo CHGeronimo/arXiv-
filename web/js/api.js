@@ -108,6 +108,27 @@ export async function triggerCrawl(job, { loadPapers }) {
         } catch { showToast('启动失败'); }
         return;
     }
+    if (job === 'enhance-rerun') {
+        try {
+            const resp = await fetch('/api/trigger/enhance-rerun', { method: 'POST' });
+            if (!resp.ok) { showToast('启动失败'); return; }
+            showToast('♻️ 重跑旧流程结果启动（逐篇重新评分+知识卡片，可中断，再次触发只补剩余）…');
+            const t0 = Date.now();
+            const timer = setInterval(async () => {
+                try {
+                    const st = await (await fetch('/api/jobs')).json();
+                    const s = st.enhance_rerun;
+                    if (!s || s.status === 'running') {
+                        if (Date.now() - t0 > 3600000) { clearInterval(timer); showToast('重跑仍在进行，进度见日志/状态'); }
+                        return;
+                    }
+                    clearInterval(timer);
+                    showToast(s.status === 'done' ? `✓ ${s.message}` : `重跑失败：${s.message || s.status}`);
+                } catch { /* 轮询瞬时失败继续 */ }
+            }, 10000);
+        } catch { showToast('启动失败'); }
+        return;
+    }
     if (job === 'selftest') {
         try {
             const resp = await fetch('/api/trigger/selftest', { method: 'POST' });

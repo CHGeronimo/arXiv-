@@ -31,12 +31,13 @@ from backend.crawler.dblp_crawler import DblpCrawler
 from backend.crawler.openalex_crawler import OpenAlexCrawler
 from backend.crawler.subs_store import Subscriptions
 
-from backend.db import get_conn
+from backend.db import get_conn, sync_write
 from backend.paper_store import (
     AI_LANGUAGE,
     append_paper,
     get_ai_chain,
     _insert_ai_row,
+    _insert_knowledge_card,
 )
 
 logger = logging.getLogger("jobs")
@@ -650,6 +651,100 @@ def run_retro_enhance():
 # ---------------------------------------------------------------------------
 # Digest job (unchanged — digest.py will be updated separately)
 # ---------------------------------------------------------------------------
+
+def run_stale_rerun():
+    """重跑旧流程处理过的论文：按 PIPELINE_VERSION 识别落后结果，逐篇重新
+    增强 + 知识卡片。中断续跑天然支持——重跑过的已打新版本，再次触发只补剩余。"""
+    from backend.ai.enhance import PIPELINE_VERSION
+    _set_job_status("enhance_rerun", "running", "扫描旧流程结果…")
+    logger.info(f"[rerun] ▶ 开始（目标版本 {PIPELINE_VERSION}）")
+    try:
+        chain, profile = get_ai_chain()
+        conn = get_conn()
+        rows = conn.execute(
+            """SELECT p.id, p.title, p.summary, p.authors, p.categories,
+                      p.doi, p.published_date, p.url, p.pdf, p.venue,
+                      p.citation_count, p.source
+               FROM papers p JOIN ai_results a ON p.id = a.paper_id
+               WHERE a.pipeline_version IS NULL OR a.pipeline_version != ?
+               ORDER BY p.created_at DESC""",
+            (PIPELINE_VERSION,),
+        ).fetchall()
+        total = len(rows)
+        if not total:
+            _set_job_status("enhance_rerun", "done", "无旧流程结果，全部最新")
+            logger.info("[rerun] ⊘ 无需重跑")
+            return
+        logger.info(f"[rerun] {total} 篇旧流程结果待重跑（约 {total * 15 // 60 // 5}–{total * 25 // 60 // 5} 分钟）")
+
+        done = [0]
+        redo = [0]
+        lock = threading.Lock()
+        last_log_t = [time.monotonic()]
+        start_time = time.monotonic()
+
+        def _rerun_one(row):
+            paper = dict(row)
+            if isinstance(paper.get("authors"), str):
+                try:
+                    paper["authors"] = json.loads(paper["authors"])
+                except json.JSONDecodeError:
+                    paper["authors"] = []
+            if isinstance(paper.get("categories"), str):
+                try:
+                    paper["categories"] = json.loads(paper["categories"])
+                except json.JSONDecodeError:
+                    paper["categories"] = []
+            enhanced = enhance_single(paper, chain, profile, os.environ.get("LANGUAGE", "Chinese"))
+            ai = (enhanced or {}).get("AI", {})
+            if not ai.get("_llm_failed") and ai.get("tldr"):
+                _insert_ai_row(paper["id"], ai)  # 写入时自动打上 PIPELINE_VERSION
+                try:
+                    _insert_knowledge_card(paper["id"], {**paper, "AI": ai})
+                except Exception as e:
+                    logger.warning(f"[rerun] 知识卡片失败 {paper['id']}: {e}")
+                if ai.get("recommendation") == "ignore":
+                    conn_local = get_conn()
+                    conn_local.execute(
+                        "INSERT OR REPLACE INTO ignored_papers (paper_id, reason) VALUES (?,?)",
+                        (paper["id"], "ai_ignore"))
+                    conn_local.commit()
+                with lock:
+                    redo[0] += 1
+            with lock:
+                done[0] += 1
+                n = done[0]
+                now = time.monotonic()
+                if n % 10 == 0 or n == total:
+                    if now - last_log_t[0] >= 3 or n == total:
+                        last_log_t[0] = now
+                        elapsed = now - start_time
+                        speed = n / max(0.001, elapsed)
+                        eta = (total - n) / max(0.0001, speed)
+                        msg = f"{n}/{total} · {speed * 60:.1f}篇/分 · ETA {eta / 60:.0f}分（成功重跑 {redo[0]}）"
+                        logger.info(f"[rerun] {msg}")
+                        _set_job_status("enhance_rerun", "running", msg)
+
+        with ThreadPoolExecutor(max_workers=_ai_max_workers) as ex:
+            futures = [ex.submit(_rerun_one, r) for r in rows]
+            for f in as_completed(futures):
+                if _shutdown:
+                    ex.shutdown(wait=False, cancel_futures=True)
+                    break
+                try:
+                    f.result()
+                except Exception as e:
+                    with lock:
+                        done[0] += 0
+                    logger.warning(f"[rerun] 处理异常: {e}")
+        sync_write("SELECT 1")
+        _set_job_status("enhance_rerun", "done",
+                        f"重跑完成 {redo[0]}/{total}（中断可续：再次触发只补剩余）")
+        logger.info(f"[rerun] ✔ 完成: {redo[0]}/{total} 重跑成功")
+    except Exception as e:
+        logger.error(f"[rerun] ✖ 失败: {e}", exc_info=True)
+        _set_job_status("enhance_rerun", "error", str(e)[:160])
+
 
 def run_digest_job():
     logger.info("[digest] ▶ 开始")
