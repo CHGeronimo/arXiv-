@@ -30,9 +30,14 @@ from langchain_openai import ChatOpenAI
 logger = logging.getLogger(__name__)
 
 # ── 全局频率控制 ─────────────────────────────────────────────
+# 双闸设计：总闸 = LLM_MAX_CONCURRENT（实测安全边界），bulk 闸 = 总数-1。
+# 批量爬取任务（快筛/增强/聚类…）走 bulk 闸；简报/趋势/想法/关键词提取
+# 这类用户点一下就等结果的"交互式单发"走 priority——不与爬取风暴排队
+# （2026-09-19 实锤：两抓取任务并行时简报单发调用排在 10 个 worker 队尾）。
 LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "6"))
 LLM_MIN_INTERVAL = float(os.environ.get("LLM_MIN_INTERVAL", "0.8"))
 _LLM_SEM = threading.Semaphore(LLM_MAX_CONCURRENT)
+_BULK_SEM = threading.Semaphore(max(1, LLM_MAX_CONCURRENT - 1))
 _llm_lock = threading.Lock()
 _llm_last = 0.0
 
@@ -62,19 +67,30 @@ def task_model(task: str) -> str:
             or "glm-5.3-flash")
 
 
-def _acquire_llm_slot() -> None:
-    """占一个并发槽并对请求起点做全局最小间隔（所有 LLM 调用共享）。"""
+def _acquire_llm_slot(priority: bool = False) -> list:
+    """占并发槽并对请求起点做全局最小间隔。返回持有的闸（供释放）。
+
+    priority=True 只占总闸不占 bulk 闸——爬取风暴占满 bulk 时，
+    交互式单发（简报/趋势/想法）仍有 1 个保留槽可用。
+    """
     global _llm_last
-    _LLM_SEM.acquire()
+    held = []
     try:
+        if not priority:
+            _BULK_SEM.acquire()
+            held.append(_BULK_SEM)
+        _LLM_SEM.acquire()
+        held.append(_LLM_SEM)
         with _llm_lock:
             wait = _llm_last + LLM_MIN_INTERVAL - time.monotonic()
             if wait > 0:
                 time.sleep(wait)
             _llm_last = time.monotonic()
-    except Exception:
-        _LLM_SEM.release()
+    except BaseException:
+        for sem in held:
+            sem.release()
         raise
+    return held
 
 
 def _is_rate_limit_error(e: Exception) -> bool:
@@ -85,10 +101,12 @@ def _is_rate_limit_error(e: Exception) -> bool:
 class _RateLimitedChat(ChatOpenAI):
     """invoke 级节流 + 429/1302 指数退避重试（3/6/9s，共3次）。"""
 
+    _priority: bool = False  # build_chat(priority=True) 注入
+
     def invoke(self, input, *args, **kwargs):  # noqa: A002
         last_err: Exception | None = None
         for attempt in range(4):
-            _acquire_llm_slot()
+            held = _acquire_llm_slot(priority=self._priority)
             try:
                 return super().invoke(input, *args, **kwargs)
             except Exception as e:
@@ -100,7 +118,8 @@ class _RateLimitedChat(ChatOpenAI):
                     continue
                 raise
             finally:
-                _LLM_SEM.release()
+                for sem in reversed(held):
+                    sem.release()
         raise last_err  # pragma: no cover — 4次全限流
 
 
@@ -126,5 +145,8 @@ def build_chat(
         params["extra_body"] = {"thinking": {"type": "enabled" if thinking else "disabled"}}
     if temperature is not None:
         params["temperature"] = temperature
+    priority = bool(kwargs.pop("priority", False))
     params.update(kwargs)
-    return _RateLimitedChat(model=model, **params)
+    chat = _RateLimitedChat(model=model, **params)
+    chat._priority = priority
+    return chat

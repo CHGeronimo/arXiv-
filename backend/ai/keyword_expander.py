@@ -98,7 +98,7 @@ MAX_QUERIES = 90
 
 def _get_llm():
     model_name = task_model("keyword")
-    return build_chat(model_name, thinking=False, temperature=0.3)
+    return build_chat(model_name, thinking=False, temperature=0.3, priority=True)
 
 
 def _llm_json(llm, system: str, template: str, inputs: dict, list_field: str, retries: int = 2):

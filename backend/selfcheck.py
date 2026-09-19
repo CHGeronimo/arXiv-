@@ -95,7 +95,7 @@ def run_selftest() -> dict:
     def _llm_ping():
         from backend.ai.llm import build_chat, task_model
         model = task_model("enhance")
-        chat = build_chat(model, thinking=False, timeout=20)
+        chat = build_chat(model, thinking=False, timeout=20, priority=True)
         chat.invoke("ping")
         base = __import__("os").environ.get("OPENAI_BASE_URL", "")
         return f"{model} @ {base.split('//')[-1].split('/')[0]}"
@@ -207,7 +207,7 @@ def run_selftest() -> dict:
     def _digest_smoke():
         # 简报生成链路的同款配置（thinking on + temperature 0.3）最小调用
         from backend.ai.llm import build_chat, task_model
-        out = build_chat(task_model("digest"), thinking=True, temperature=0.3, timeout=60).invoke(
+        out = build_chat(task_model("digest"), thinking=True, temperature=0.3, timeout=60, priority=True).invoke(
             "用一句话中文总结：多智能体强化学习近期进展活跃。")
         text = out.content if hasattr(out, "content") else str(out)
         if len(text.strip()) < 8:

@@ -51,7 +51,7 @@ def _get_chain():
         # 不用 with_structured_output：GLM 思考模式偶发输出信封/围栏/嵌套值，
         # pydantic 严格校验直接抛 OutputParserException（2026-09-19 自检实锤）——
         # 改为裸调用 + _parse_idea 容错解析，与全文分析同款策略
-        llm = build_chat(model_name, thinking=True)
+        llm = build_chat(model_name, thinking=True, priority=True)
         _CHAIN = ChatPromptTemplate.from_template(_IDEA_PROMPT) | llm
     return _CHAIN
 

@@ -41,7 +41,7 @@ def _get_raw_chain():
     if _RAW_CHAIN is None:
         model_name = task_model("trend")
         # 思考模式 + 50篇论文长prompt：默认120s超时不够（实测 Request timed out）
-        llm = build_chat(model_name, thinking=True, timeout=300,
+        llm = build_chat(model_name, thinking=True, timeout=300, priority=True,
                          model_kwargs={"response_format": {"type": "json_object"}})
         _RAW_CHAIN = ChatPromptTemplate.from_template(_TREND_PROMPT) | llm
     return _RAW_CHAIN

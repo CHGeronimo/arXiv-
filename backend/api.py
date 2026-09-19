@@ -1376,7 +1376,7 @@ Select categories that would contain papers relevant to this researcher."""
 
     try:
         model_name = task_model("keyword")
-        llm = build_chat(model_name, thinking=False).with_structured_output(CategoryRecommendation, method="json_mode")
+        llm = build_chat(model_name, thinking=False, priority=True).with_structured_output(CategoryRecommendation, method="json_mode")
         from langchain_core.prompts import ChatPromptTemplate
         chain = ChatPromptTemplate.from_template(prompt) | llm
         try:

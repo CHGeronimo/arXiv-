@@ -11,7 +11,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI兼容-3859FF)
-![Tests](https://img.shields.io/badge/tests-31/31-brightgreen)
+![Tests](https://img.shields.io/badge/tests-32/32-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱 · 前端全配置
@@ -48,7 +48,7 @@
 
 - **按任务模型**：10 类任务（快筛/关键词/主题/聚类/增强/全文/趋势/简报/知识卡片/想法查重）可各自指定模型——快筛用 flash 省配额、全文用最强模型，留空跟随默认
 - **GLM 专属思考开关自适应**：`thinking` 参数只在 GLM 端点发送，DeepSeek 等 OpenAI 兼容端点自动跳过
-- **全局速率限制**：并发 6 + 最小间隔 + 429/1302 指数退避（实测标定：并发 4 全绿 / 6 撞线 ~11% 由退避吸收 / 8 恶化，详见 `backend/ai/llm.py`）
+- **全局速率限制 + 优先槽**：并发 6 + 最小间隔 + 429/1302 指数退避（实测标定：4 全绿 / 6 撞线 ~11% 由退避吸收 / 8 恶化）；其中 1 槽保留给交互式单发任务（简报/趋势/想法/关键词提取）——爬取风暴占满批量槽时点简报也不用排队
 
 ### 🔁 反馈闭环：越用越懂你
 
@@ -177,7 +177,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 ## 🧪 测试与运维
 
 ```bash
-# 31 个回归测试（全部 Mock LLM，不消耗 API 配额）
+# 32 个回归测试（全部 Mock LLM，不消耗 API 配额）
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 
 # 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
@@ -215,7 +215,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── web/                    # 前端（SPA）
 │   ├── index.html  js/  css/(4主题)  vendor/
 ├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
-├── tests/                  # 31 个回归测试
+├── tests/                  # 32 个回归测试
 └── docs/                   # 设计文档
 ```
 
