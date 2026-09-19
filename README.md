@@ -75,8 +75,8 @@ flowchart TB
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/CHGeronimo/arXiv-.git
-cd arXiv-
+git clone https://github.com/CHGeronimo/arxivSCI-daily.git
+cd arxivSCI-daily
 pip install -r requirements.txt
 
 cp ai/.env.example ai/.env
