@@ -86,6 +86,7 @@ export async function loadDigest(dateStr) {
 }
 
 export async function initDigestPage() {
+    _bindGenerateButton();
     const sel = document.getElementById('digest-date-select');
     if (!sel || sel.dataset.bound === '1') { if (sel?.value) loadDigest(sel.value); return; }
     sel.dataset.bound = '1';
@@ -95,7 +96,7 @@ export async function initDigestPage() {
         const { digests } = await resp.json();
         if (!digests?.length) {
             document.getElementById('digest-empty').innerHTML =
-                '<p>暂无简报</p><p class="hint">简报每天凌晨随自动跑批生成</p>';
+                '<p>暂无简报</p><p class="hint">点击上方「生成今日简报」立即生成</p>';
             return;
         }
         sel.innerHTML = digests.map(d => `<option value="${d}">${d}</option>`).join('');
@@ -103,4 +104,44 @@ export async function initDigestPage() {
     } catch {
         document.getElementById('digest-empty').innerHTML = '<p>加载日期列表失败</p>';
     }
+}
+
+/** 「生成今日简报」按钮：触发后台任务，轮询日期列表出现新日期即加载。
+ * digest 任务不写 /api/jobs 状态，按"新生成日期出现"判定完成更稳。 */
+function _bindGenerateButton() {
+    const btn = document.getElementById('btn-gen-digest');
+    if (!btn || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+        const before = new Set();
+        try {
+            const r = await fetch('/api/digests');
+            (await r.json()).digests?.forEach(d => before.add(d));
+        } catch { /* 起点拿不到也能工作（任何日期出现都算新） */ }
+        try {
+            const resp = await fetch('/api/trigger/digest', { method: 'POST' });
+            if (!resp.ok) return;
+        } catch { return; }
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = '生成中…（约1-2分钟）';
+        const t0 = Date.now();
+        const timer = setInterval(async () => {
+            try {
+                const r = await fetch('/api/digests');
+                const list = (await r.json()).digests || [];
+                const fresh = list.filter(d => !before.has(d));
+                if (fresh.length || Date.now() - t0 > 180000) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.textContent = original;
+                    if (!fresh.length) return;
+                    const sel = document.getElementById('digest-date-select');
+                    sel.innerHTML = list.map(d => `<option value="${d}">${d}</option>`).join('');
+                    sel.value = fresh[0];
+                    loadDigest(fresh[0]);
+                }
+            } catch { /* 瞬时失败继续轮询 */ }
+        }, 3000);
+    });
 }

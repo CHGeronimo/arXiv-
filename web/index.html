@@ -50,7 +50,6 @@
                     <div class="dropdown-option" data-crawl="knowledge-extract"><span>知识卡片提取</span></div>
                     <div class="dropdown-option" data-crawl="clustering"><span>重跑图谱聚类</span></div>
                     <div class="dropdown-option" data-crawl="fulltext"><span>补全文分析</span></div>
-                    <div class="dropdown-option" data-crawl="digest"><span>生成今日简报</span></div>
                 </div>
             </div>
             <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
@@ -119,11 +118,12 @@
         <p class="page-subtitle">AI 按主题分组整理的新论文简报，含必读推荐与亮点</p>
         <div class="page-toolbar page-toolbar--top">
             <select id="digest-date-select" style="padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-0);color:var(--text-0);font-size:0.85rem"></select>
+            <button id="btn-gen-digest" class="btn btn--primary" style="font-size:0.82rem;padding:4px 14px">生成今日简报</button>
             <button class="btn btn--secondary btn-back-papers">返回论文</button>
         </div>
         <div id="digest-empty" class="page-empty-state">
             <p>暂无简报</p>
-            <p class="hint">简报每天凌晨随自动跑批生成；也可在爬取菜单触发后稍等</p>
+            <p class="hint">简报每天凌晨随自动跑批生成，也可点击上方「生成今日简报」立即生成</p>
         </div>
         <div id="digest-content" class="digest-content" style="display:none"></div>
     </div>

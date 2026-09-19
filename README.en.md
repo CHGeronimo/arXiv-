@@ -72,7 +72,7 @@ local rule pre-filter (zero tokens) → quick_filter (thinking off, seconds)
 | Knowledge graph | knowledge cards, d3 force clustering, L1/L2/L3 navigation |
 | Trend radar | weekly/monthly Chinese reports (emerging methods / opportunities / field migration) + browsable archive |
 | Idea workbench | submit an idea → AI retrieves prior work and analyzes differentiation |
-| Daily digest | markdown briefing with GFM tables and a morning preset |
+| Daily digest | markdown briefing with GFM tables, a morning preset, and an in-page generate button (auto-loads when done) |
 
 Also: grouped sidebar filters + search + 7 sort orders, CCF catalog labels
 (130+ venues / 80+ journals), 4 themes, keyboard shortcuts (`j`/`k`, `f`, `/`, `?`),
@@ -90,7 +90,7 @@ skeleton loading, and code-version observability (page vs disk).
 The top bar splits actions by responsibility:
 
 - **🔄 Crawl**: trigger any of the five sources individually (with status counts) or all at once, outside the night window
-- **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis / daily digest
+- **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis
 - **⚙️ System settings**: the four config sections above + the **🧪 system
 self-test** — 21 lightweight smoke checks: one request per network source, a real
 smoke run of **every LLM task** (quick filter / keywords / note academicization /
