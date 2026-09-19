@@ -4,6 +4,7 @@
 
 **arxivSCI-daily · Personalized Research Intelligence Daemon**
 
+[![English](https://img.shields.io/badge/README-English-blue)](README.en.md)
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
@@ -173,6 +174,10 @@ GLM 全局速率限制（并发信号量 + 间隔 + 指数退避）；arXiv 停�
 - [ ] Related-work 草稿生成（基于收藏与必读集）
 - [ ] 阅读统计面板
 - [ ] Semantic Scholar API key 二级源
+
+## 📄 许可与引用
+
+MIT — 见 [LICENSE](LICENSE)。如对研究有帮助，可通过仓库页「Cite this repository」按钮一键引用（[CITATION.cff](CITATION.cff)）。
 
 ## 🙏 致谢与衍生说明
 

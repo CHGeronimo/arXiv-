@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "如果您在研究中使用了 arXiv 每日电讯，请按以下信息引用。If you use this software in your research, please cite it as below."
+title: "arXiv 每日电讯 (arxivSCI-daily): 多源学术论文个性化订阅与 AI 深度筛选系统"
+type: software
+authors:
+  - name: CHGeronimo
+repository-code: "https://github.com/CHGeronimo/arxivSCI-daily"
+abstract: "Self-hosted research intelligence daemon: six discovery sources (arXiv categories, Crossref journals, DBLP CCF venues, OpenAlex keyword search, Semantic Scholar authors, citation tracking), a tiered GLM pipeline with user-feedback loop, weekly/monthly trend radar, knowledge graph clustering, and full-text deep reading."
+keywords:
+  - arxiv
+  - paper-recommendation
+  - literature-review
+  - llm
+  - glm
+  - flask
+  - sqlite
+  - research-assistant
+license: MIT
+version: 0.1.0
+date-released: "2026-09-19"
