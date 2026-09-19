@@ -11,7 +11,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
-![Tests](https://img.shields.io/badge/tests-34/34-brightgreen)
+![Tests](https://img.shields.io/badge/tests-33/33-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
@@ -123,7 +123,7 @@ Personal runtime files (`research_profile.json`, `subscriptions.json`,
 Bind precedence: `--host/--port` CLI args > panel settings (`DAEMON_HOST/PORT` in
 `.env`) > default 127.0.0.1:8080.
 
-## 🔌 API (54 endpoints)
+## 🔌 API (55 endpoints)
 
 Full list in `backend/api.py` — papers (up to 50k lightweight), subscriptions &
 profile, field-level feedback with note academicization, provider switching
@@ -137,7 +137,7 @@ jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-34 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+33 regression scripts, fully mocked (no API quota consumed). Ops scripts in
 `scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
 feedback-loop verification.
 
