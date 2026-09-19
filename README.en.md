@@ -9,11 +9,12 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/Storage-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI--compatible-3859FF)
-![Tests](https://img.shields.io/badge/tests-30/30-brightgreen)
+![Tests](https://img.shields.io/badge/tests-31/31-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A self-hosted research literature intelligence station: six discovery sources
-are crawled automatically every night, a tiered LLM pipeline filters and deeply
+are crawled automatically every night (pipelined: papers stream into AI
+analysis as they are fetched), a tiered LLM pipeline filters and deeply
 annotates them in Chinese, your likes / dislikes / notes feed back into scoring
 and retrieval, and a weekly/monthly trend radar plus knowledge graph show you
 what is happening in your field — with the AI provider, per-task models,
@@ -132,7 +133,7 @@ jobs/stats observability, weekly/monthly trend radars, BibTeX export, digests.
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 ```
 
-30 regression scripts, fully mocked (no API quota consumed). Ops scripts in
+31 regression scripts, fully mocked (no API quota consumed). Ops scripts in
 `scripts/`: discovery-quality audit, code-URL backfill, topic cleanup,
 feedback-loop verification.
 

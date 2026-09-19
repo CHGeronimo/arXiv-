@@ -9,12 +9,12 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI兼容-3859FF)
-![Tests](https://img.shields.io/badge/tests-30/30-brightgreen)
+![Tests](https://img.shields.io/badge/tests-31/31-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱 · 前端全配置
 
-一个自托管的个人研究文献智能调度站：六大发现源每日定时自动汇集论文，
+一个自托管的个人研究文献智能调度站：六大发现源每日定时自动汇集论文（流水线模式：边抓边分析，不等整批），
 分级 LLM 流水线完成相关性快筛与深度解读，你的点赞/点踩/评语持续回流影响后续评分与检索，
 趋势雷达与知识图谱帮你看见领域正在发生什么——AI 供应商、逐任务模型、调度、监听地址
 全部可以在网页设置面板里改，改完即生效。
@@ -175,7 +175,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 ## 🧪 测试与运维
 
 ```bash
-# 30 个回归测试（全部 Mock LLM，不消耗 API 配额）
+# 31 个回归测试（全部 Mock LLM，不消耗 API 配额）
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 
 # 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
@@ -211,7 +211,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── web/                    # 前端（SPA）
 │   ├── index.html  js/  css/(4主题)  vendor/
 ├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
-├── tests/                  # 30 个回归测试
+├── tests/                  # 31 个回归测试
 └── docs/                   # 设计文档
 ```
 

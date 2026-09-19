@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import queue
 import threading
 import time
 from abc import ABC, abstractmethod
@@ -124,12 +125,11 @@ class BaseCrawlerJob(ABC):
                 _set_job_status(self.name, "skipped", reason)
                 return
 
-            # Phase 1: Collect all papers (sequential — crawler is rate-limited)
-            all_papers = list(crawler.crawl_iter())
-            fetched = len(all_papers)
-            logger.info(f"[{self.name}] 爬取完成, {fetched} 篇待处理, 并行处理 (workers={_ai_max_workers})")
-
-            # Phase 2: Parallel AI processing
+            # 流水线：抓取生产者与 AI 消费者并行——边抓边分析，不再等全部抓完
+            # （背压队列 maxsize=50：抓取过快时生产者自然等待，内存有界）
+            paper_q: "queue.Queue" = queue.Queue(maxsize=50)
+            fetched_box = [0]
+            producer_done = threading.Event()
             written = 0
             skipped = {"exists": 0, "ignored": 0, "filter_reject": 0, "ai_reject": 0, "error": 0}
             fetched_info = self._init_fetched_info()
@@ -139,9 +139,25 @@ class BaseCrawlerJob(ABC):
             samples = [(time.monotonic(), 0)]  # (t, n) 采样，近 3 分钟窗口算即时速度
             start_time = time.monotonic()
 
+            def _produce():
+                try:
+                    for paper in crawler.crawl_iter():
+                        paper_q.put(paper)
+                except Exception as e:
+                    logger.error(f"[{self.name}] 爬取阶段异常（已抓取部分继续处理）: {e}", exc_info=True)
+                finally:
+                    producer_done.set()
+                    logger.info(f"[{self.name}] 抓取完成, 共 {fetched_box[0]} 篇")
+                    for _ in range(_ai_max_workers):
+                        paper_q.put(None)
+
+            def _track(paper):
+                self._track_fetched(fetched_info, paper)
+                with lock:
+                    fetched_box[0] += 1
+
             def _process_one(paper):
                 nonlocal written
-                self._track_fetched(fetched_info, paper)
                 result = append_paper(paper, enhance=True)
                 with lock:
                     done_count[0] += 1
@@ -151,9 +167,11 @@ class BaseCrawlerJob(ABC):
                         skipped[result] = skipped.get(result, 0) + 1
                     n = done_count[0]
                     # 每 10 篇一条 + 至少间隔 3s 节流；速度用近 3 分钟窗口（全程均值
-                    # 会被早期慢段带偏，显示 0.0/s、ETA 数千秒）；进度同步任务状态
+                    # 会被早期慢段带偏）；进度同步任务状态，🔄 菜单实时可见
                     now = time.monotonic()
-                    if (n % 10 == 0 or n == fetched) and (now - last_log_t[0] >= 3 or n == fetched):
+                    fetched_now = fetched_box[0]
+                    is_final = producer_done.is_set() and n == fetched_now and paper_q.empty()
+                    if (n % 10 == 0 or is_final) and (now - last_log_t[0] >= 3 or is_final):
                         last_log_t[0] = now
                         samples.append((now, n))
                         while len(samples) > 2 and samples[1][0] < now - 180:
@@ -163,7 +181,7 @@ class BaseCrawlerJob(ABC):
                             recent = (n - samples[0][1]) / dt  # 篇/秒（近窗口）
                         else:
                             recent = n / max(0.001, now - start_time)
-                        eta = (fetched - n) / recent if recent > 0 else 0
+                        eta = (fetched_now - n) / recent if recent > 0 else 0
                         elapsed = now - start_time
                         parts = [f"{written} 接受"]
                         if skipped.get("filter_reject"):
@@ -178,27 +196,46 @@ class BaseCrawlerJob(ABC):
                                   if k != self.name and isinstance(v, dict) and v.get("status") == "running"]
                         if others:
                             parts.append(f"与 {','.join(others)} 并行抢LLM限额")
-                        prog = (f"{n}/{fetched} · {recent * 60:.1f}篇/分 · ETA {eta / 60:.0f}分"
-                                f" · 已用 {int(elapsed // 60)}:{int(elapsed % 60):02d}")
+                        if producer_done.is_set() and fetched_now:
+                            prog = (f"{n}/{fetched_now} · {recent * 60:.1f}篇/分 · ETA {eta / 60:.0f}分"
+                                    f" · 已用 {int(elapsed // 60)}:{int(elapsed % 60):02d}")
+                        else:
+                            prog = f"已处理 {n}（抓取中，已得 {fetched_now} 篇）"
                         logger.info(f"[{self.name}] {prog} │ {' │ '.join(parts)}")
                         _set_job_status(self.name, "running", f"{prog} │ {' │ '.join(parts)}")
                 return result
 
-            with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
-                futures = {executor.submit(_process_one, p): p for p in all_papers}
-                for future in as_completed(futures):
-                    if _shutdown:
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+            def _worker():
+                while not _shutdown:
+                    paper = paper_q.get()
                     try:
-                        future.result()
-                    except Exception as e:
-                        p = futures[future]
-                        with lock:
-                            skipped["error"] = skipped.get("error", 0) + 1
-                        logger.warning(f"[{self.name}] 处理异常 {getattr(p, 'id', '?')}: {e}")
+                        if paper is None:
+                            return
+                        _track(paper)
+                        try:
+                            _process_one(paper)
+                        except Exception as e:
+                            with lock:
+                                skipped["error"] = skipped.get("error", 0) + 1
+                            logger.warning(f"[{self.name}] 处理异常 {getattr(paper, 'id', '?')}: {e}")
+                    finally:
+                        paper_q.task_done()
+
+            logger.info(f"[{self.name}] ▶ 开始（流水线：边抓边分析, workers={_ai_max_workers}）")
+            producer = threading.Thread(target=_produce, daemon=True, name=f"{self.name}-crawl")
+            producer.start()
+            workers = [threading.Thread(target=_worker, daemon=True, name=f"{self.name}-ai-{i}")
+                       for i in range(_ai_max_workers)]
+            for t in workers:
+                t.start()
+            for t in workers:
+                t.join()
+            if _shutdown:
+                logger.info(f"[{self.name}] ⊘ 收到停机信号，提前结束")
+                return
 
             self._post_run(subs, fetched_info)
+            fetched = fetched_box[0]
             total_rejected = fetched - written
             msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
             try:
