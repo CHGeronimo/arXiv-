@@ -9,7 +9,7 @@
 ![Flask](https://img.shields.io/badge/Web-Flask-000000?logo=flask)
 ![SQLite](https://img.shields.io/badge/存储-SQLite_WAL-003B57?logo=sqlite&logoColor=white)
 ![LLM](https://img.shields.io/badge/LLM-GLM_·_DeepSeek_·_OpenAI兼容-3859FF)
-![Tests](https://img.shields.io/badge/tests-27/27-brightgreen)
+![Tests](https://img.shields.io/badge/tests-29/29-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 多源聚合 · AI 深读 · 反馈闭环 · 趋势雷达 · 知识图谱 · 前端全配置
@@ -33,6 +33,7 @@
 - **OpenAlex** 关键词搜索——LLM 两阶段把研究方向扩展为 40–90 条检索查询（概念穷举 + 缩写/全称/子方向变体），liked 主题纳入挖掘、disliked 主题排除
 - **Semantic Scholar** 作者订阅（姓名 / ORCID 辅助查找）
 - **引文顺藤摸瓜**：以「必读 ∪ 点赞」论文为锚点追引用与被引（锚点轮换，OpenAlex 免费额度）
+- **跨源去重**：同一论文从不同源进来（arXiv id / DOI / W-id / 大小写差异）在入库时自动相认合并（只补空缺字段不重跑 AI）；`scripts/merge_duplicates.py` 可合并存量重复
 
 ### 🧠 分级 AI 流水线（省钱且保质）
 
@@ -51,6 +52,7 @@
 
 - 每篇论文可 **点赞 / 点踩 / 写评语**，评语自动**学术化改写**后沉淀为 liked/disliked 主题
 - 主题注入后续**评分提示词**与**关键词挖掘**，近期的评语原文以最高优先级进入评分上下文
+- 偏好主题可在订阅面板**查看/删除/手动添加**（手动添加=直接告诉系统你的方向）；论文详情显示**评分归因**——「匹配了你的偏好主题：xxx」，让推荐理由透明可查
 - 主题库带 LLM 语义去重（带保底守卫，绝不清空）；评分与反馈的混淆矩阵可审计
 
 ### 📊 前端五页
@@ -58,7 +60,7 @@
 | 页面 | 功能 |
 |:-----|:-----|
 | 论文日报 | 卡片三级层次（标题→TLDR→元信息）、四级推荐标签与推荐理由、晨读/必读/收藏预设、论文对比视图、BibTeX 批量导出、忽略论文复核、代码链接 |
-| 知识图谱 | 知识卡片 d3 力导向聚类，L1/L2/L3 层级导航 |
+| 知识图谱 | 知识卡片 d3 力导向聚类，L1/L2/L3 层级导航；点击聚类节点下钻该主题论文列表，一键进详情 |
 | 趋势雷达 | 周/月双粒度中文报告（新方法涌现/机会点/领域迁移）+ 历史归档回看 |
 | 研究想法 | 提交 idea → AI 检索已有工作、分析差异化与可行性 |
 | 今日简报 | 每日 digest Markdown 渲染（GFM 表格、链接协议白名单），晨读预设一键过滤；页内「生成今日简报」按钮一键生成/重生成，完成后自动加载 |
@@ -173,7 +175,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 ## 🧪 测试与运维
 
 ```bash
-# 27 个回归测试（全部 Mock LLM，不消耗 API 配额）
+# 29 个回归测试（全部 Mock LLM，不消耗 API 配额）
 for t in tests/test_*.py; do LOG_DIR=/tmp python3 "$t"; done
 
 # 发现质量审计：漏斗结构 / 评分×反馈混淆矩阵 / 引文锚点池
@@ -187,6 +189,7 @@ python3 scripts/audit_discovery.py --sample 20
 
 - **OpenAlex 计费时代适配**：共享节流客户端（全局最小间隔）；429 时读响应体区分「余额真熔断」（暂停到 UTC 重置）与「Cloudflare 抖动」（短退避重试）
 - **爬取层去重**：已入库/已忽略的 DOI 直接跳过，不为已知论文烧 OpenAlex 配额
+- **DOI 路径修复**：含 `/` 的 DOI 形式论文 id 此前无法打开详情/知识卡/正文（路由不匹配），已全部改 `path` 转换器
 - **任务互斥网关**：同一时刻只跑一个重任务，冲突自动顺延，避免夜间风暴
 - **供应商切换自愈**：切换 AI 供应商时自动清理指向旧供应商的按任务模型覆盖
 - **静态目录黑名单**：`backend/` `scripts/` `tests/` `data/` 整目录 403，源码与数据不可被下载
@@ -208,7 +211,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── web/                    # 前端（SPA）
 │   ├── index.html  js/  css/(4主题)  vendor/
 ├── scripts/                # 审计 / 回填 / 主题清理 / 反馈闭环验证 / 一次性迁移
-├── tests/                  # 27 个回归测试
+├── tests/                  # 29 个回归测试
 └── docs/                   # 设计文档
 ```
 

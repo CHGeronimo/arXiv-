@@ -246,6 +246,16 @@
         </div>
     </div>
 
+    <!-- Cluster Papers Modal（图谱聚类下钻） -->
+    <div id="cluster-modal" class="modal">
+        <div class="modal-content" style="max-width:640px">
+            <button class="close-btn" id="close-cluster-modal">&times;</button>
+            <h2 id="cluster-title" style="margin:0 0 4px;font-size:1.05rem"></h2>
+            <p id="cluster-subtitle" style="font-size:0.78rem;color:var(--text-3);margin:0 0 10px"></p>
+            <div id="cluster-list" style="max-height:58vh;overflow-y:auto"></div>
+        </div>
+    </div>
+
     <!-- Selftest Report Modal（🧪 系统自检） -->
     <div id="selftest-modal" class="modal">
         <div class="modal-content" style="max-width:560px">
@@ -381,13 +391,20 @@
                 <p id="keyword-chips-hint" style="font-size:0.72rem;color:var(--text-3);margin:0 0 8px"></p>
                 <div id="profile-topics-section" style="display:none">
                     <details style="margin-bottom:6px">
-                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">✅ 系统学到的偏好（点赞提取，点 ✕ 删除）</summary>
-                        <div id="liked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">✅ 系统学到的偏好（点赞提取；点 ✕ 删除，右侧可手动添加）</summary>
+                        <div style="display:flex;gap:4px;align-items:flex-start;margin-top:6px">
+                            <div id="liked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;flex:1"></div>
+                            <input id="add-liked-topic" placeholder="+ 主题" style="width:86px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.75rem">
+                        </div>
                     </details>
                     <details>
-                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">🚫 学到的负偏好（点踩提取，点 ✕ 删除）</summary>
-                        <div id="disliked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+                        <summary style="font-size:0.8rem;color:var(--text-2);cursor:pointer">🚫 学到的负偏好（点踩提取；点 ✕ 删除，右侧可手动添加）</summary>
+                        <div style="display:flex;gap:4px;align-items:flex-start;margin-top:6px">
+                            <div id="disliked-topics-chips" style="display:flex;flex-wrap:wrap;gap:4px;flex:1"></div>
+                            <input id="add-disliked-topic" placeholder="+ 主题" style="width:86px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.75rem">
+                        </div>
                     </details>
+                    <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 8px">偏好主题会注入 AI 评分与关键词挖掘——手动添加可直接告诉系统你的方向</p>
                 </div>
                 <div id="custom-keywords-section" style="display:none">
                     <div style="display:flex;gap:6px;align-items:center">

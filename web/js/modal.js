@@ -62,6 +62,14 @@ export async function openPaperDetail(paper, navIdx) {
 
     const codeUrl = paper.code_url || '';
 
+    // 🎯 评分归因：为什么推荐（匹配了哪些反馈学到的偏好主题）
+    const pref = paper.preference || {};
+    const prefHtml = ((pref.liked || []).length || (pref.disliked || []).length) ? `
+        <div style="margin:0 0 12px;padding:8px 12px;background:var(--accent-muted);border-radius:8px;font-size:0.8rem">
+            ${(pref.liked || []).length ? `<div style="color:var(--success)">🎯 匹配你的偏好主题：${(pref.liked || []).join('、')} <span style="color:var(--text-3)">（来自你的点赞/手动添加，正在影响评分）</span></div>` : ''}
+            ${(pref.disliked || []).length ? `<div style="color:var(--danger);margin-top:4px">⊘ 命中你的负偏好：${(pref.disliked || []).join('、')}</div>` : ''}
+        </div>` : '';
+
 
     const fb = getFeedbackForPaper(paper.id);
     const userRating = fb.rating || '';
@@ -86,6 +94,7 @@ export async function openPaperDetail(paper, navIdx) {
             ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`).join(', ')}
         </p>
         ${citeInfo}
+        ${prefHtml}
         ${sections.join('')}
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
             ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn--secondary">论文链接</a>` : ''}

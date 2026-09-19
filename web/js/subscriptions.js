@@ -674,6 +674,28 @@ function renderTopicChips() {
         '<span style="font-size:0.75rem;color:var(--text-3)">（暂无）</span>';
 }
 
+async function addTopic(kind) {
+    const input = document.getElementById(kind === 'liked' ? 'add-liked-topic' : 'add-disliked-topic');
+    const topic = (input.value || '').trim();
+    if (!topic) return;
+    const arr = kind === 'liked' ? _profileLiked : _profileDisliked;
+    if (arr.includes(topic)) { if (showToast) showToast('该主题已存在'); input.value = ''; return; }
+    arr.push(topic);
+    try {
+        const body = kind === 'liked' ? { liked_topics: arr } : { disliked_topics: arr };
+        await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (showToast) showToast('已添加偏好主题（将注入评分与关键词挖掘）');
+    } catch {
+        if (showToast) showToast('保存失败');
+    }
+    input.value = '';
+    renderTopicChips();
+}
+
 async function removeTopic(kind, topic) {
     const arr = kind === 'liked' ? _profileLiked : _profileDisliked;
     const idx = arr.indexOf(topic);
@@ -1008,10 +1030,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-add-keyword')?.addEventListener('click', addKeywords);
     document.getElementById('use-profile-keywords')?.addEventListener('change', toggleCustomKeywords);
     document.getElementById('btn-extract-keywords')?.addEventListener('click', autoExtractKeywords);
-    // 删除学到的偏好主题（liked/disliked chips）
+    // 删除/添加学到的偏好主题（liked/disliked chips + 输入框回车）
     document.getElementById('sub-tab-search')?.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-remove-topic]');
         if (btn) removeTopic(btn.dataset.removeTopic, btn.dataset.topic);
+    });
+    document.getElementById('add-liked-topic')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addTopic('liked'); }
+    });
+    document.getElementById('add-disliked-topic')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); addTopic('disliked'); }
     });
     document.getElementById('custom-keywords')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); addKeywords(); }

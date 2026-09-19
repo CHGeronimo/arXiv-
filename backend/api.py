@@ -160,13 +160,56 @@ def get_papers():
     })
 
 
-@app.route("/api/paper/<paper_id>", methods=["GET"])
+@app.route("/api/paper/<path:paper_id>", methods=["GET"])
 def get_paper(paper_id: str):
     """Full paper record incl. all AI text fields (detail-modal lazy load)."""
     paper = find_paper_by_id(paper_id)
     if paper is None:
         return jsonify({"error": "not found"}), 404
+    # 评分归因：论文文本 ↔ 反馈学到的偏好主题匹配（详情页"为什么推荐"）
+    try:
+        profile = json.loads(Path(_PROFILE_PATH).read_text(encoding="utf-8")) \
+            if Path(_PROFILE_PATH).exists() else {}
+    except (OSError, json.JSONDecodeError):
+        profile = {}
+    card = get_conn().execute(
+        "SELECT keywords FROM knowledge_cards WHERE paper_id = ?", (paper_id,)).fetchone()
+    card_kw = ""
+    if card and card[0]:
+        try:
+            kws = json.loads(card[0]) if isinstance(card[0], str) else card[0]
+            card_kw = " ".join(kws) if isinstance(kws, list) else str(kws)
+        except (json.JSONDecodeError, TypeError):
+            card_kw = str(card[0])
+    text = " ".join([
+        str(paper.get("title", "")), str(paper.get("summary", ""))[:500],
+        str(paper.get("categories", "")), card_kw,
+    ])
+    paper["preference"] = {
+        "liked": _match_preference_topics(profile.get("liked_topics", []), text),
+        "disliked": _match_preference_topics(profile.get("disliked_topics", []), text),
+    }
     return jsonify(paper)
+
+
+def _match_preference_topics(topics: list, text: str) -> list:
+    """主题 ↔ 论文文本宽松匹配：主题整体为子串，或主题词项几乎全部出现。"""
+    text_l = (text or "").lower()
+    if not text_l:
+        return []
+    hits = []
+    for t in topics:
+        t = str(t or "").strip()
+        if not t:
+            continue
+        tl = t.lower()
+        if tl in text_l:
+            hits.append(t)
+            continue
+        toks = [w for w in re.split(r"[^a-z0-9\u4e00-\u9fff]+", tl) if len(w) >= 4]
+        if toks and sum(1 for w in toks if w in text_l) >= max(1, len(toks) - 1):
+            hits.append(t)
+    return hits
 
 
 @app.route("/api/stats")
@@ -953,7 +996,7 @@ def get_knowledge_cards():
     return jsonify({"cards": cards[start:start + per_page], "total": total, "page": page})
 
 
-@app.route("/api/paper/<paper_id>/card", methods=["GET"])
+@app.route("/api/paper/<path:paper_id>/card", methods=["GET"])
 def get_paper_card(paper_id: str):
     conn = get_conn()
     row = conn.execute("SELECT * FROM knowledge_cards WHERE paper_id = ?", (paper_id,)).fetchone()
@@ -1065,7 +1108,7 @@ def _retro_fulltext_analyze():
     logger.info(f"正文深度分析完成: {analyzed}/{len(rows)}")
 
 
-@app.route("/api/paper/<paper_id>/fulltext", methods=["GET"])
+@app.route("/api/paper/<path:paper_id>/fulltext", methods=["GET"])
 def get_paper_fulltext(paper_id: str):
     conn = get_conn()
     row = conn.execute("SELECT * FROM fulltext_analysis WHERE paper_id = ?", (paper_id,)).fetchone()
@@ -1099,6 +1142,23 @@ def get_knowledge_graph():
             if shared:
                 edges.append({"source": i, "target": j, "weight": len(shared), "keywords": sorted(shared)})
     return jsonify({"nodes": nodes, "edges": edges})
+
+
+@app.route("/api/cluster/<cluster_name>/papers", methods=["GET"])
+def cluster_papers(cluster_name: str):
+    """某个聚类的论文列表（图谱下钻：点节点 → 弹窗列表 → 点开详情）。"""
+    row = get_conn().execute(
+        "SELECT paper_ids FROM knowledge_clusters WHERE cluster_name = ?",
+        (cluster_name,)).fetchone()
+    if not row:
+        return jsonify({"error": "cluster not found"}), 404
+    try:
+        ids = set(json.loads(row[0]) if isinstance(row[0], str) else row[0])
+    except (json.JSONDecodeError, TypeError):
+        ids = set()
+    papers = [p for p in load_all_papers(light=True) if p.get("id") in ids]
+    papers.sort(key=lambda p: (p.get("published_date") or ""), reverse=True)
+    return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 
 
 @app.route("/api/trigger/clustering", methods=["POST"])
@@ -1592,7 +1652,7 @@ def export_bibtex():
 
 # ── Paper deletion ───────────────────────────────────────────────
 
-@app.route("/api/paper/<paper_id>", methods=["DELETE"])
+@app.route("/api/paper/<path:paper_id>", methods=["DELETE"])
 def delete_paper(paper_id: str):
     """Delete a single paper and all related data (CASCADE). Records as ignored."""
     conn = get_conn()

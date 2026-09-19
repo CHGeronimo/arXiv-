@@ -366,6 +366,50 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { btn.disabled = false; }
     });
 
+    // 🕸️ 图谱聚类下钻：点节点/详情按钮 → 该聚类论文列表 → 点开详情
+    window._openClusterPapers = async (name) => {
+        const modal = document.getElementById('cluster-modal');
+        const list = document.getElementById('cluster-list');
+        if (!modal) return;
+        document.getElementById('cluster-title').textContent = name;
+        document.getElementById('cluster-subtitle').textContent = '加载中…';
+        modal.classList.add('active');
+        list.innerHTML = '<div class="spinner"></div>';
+        try {
+            const resp = await fetch(`/api/cluster/${encodeURIComponent(name)}/papers`);
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.error || 'not found');
+            const papers = data.papers || [];
+            document.getElementById('cluster-subtitle').textContent = `${papers.length} 篇 · 点击查看详情`;
+            const REC_LABEL = { 'must-read': ['必读', 'var(--rec-must)'], 'recommended': ['推荐', 'var(--rec-recommend)'], 'reference': ['参考', 'var(--rec-reference)'] };
+            list.innerHTML = papers.map(p => {
+                const rec = p.AI?.recommendation || '';
+                const [rl, rc] = REC_LABEL[rec] || ['', 'var(--text-3)'];
+                return `<div class="cluster-paper-row" data-cp-id="${p.id}" style="padding:8px 10px;border-bottom:1px dashed var(--border);cursor:pointer;display:flex;gap:8px;align-items:baseline">
+                    <span style="flex:1;min-width:0;font-size:0.85rem;color:var(--text-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title_zh || p.title || p.id}</span>
+                    ${rl ? `<span style="flex:none;font-size:0.72rem;color:${rc};font-weight:600">${rl}</span>` : ''}
+                    <span style="flex:none;font-size:0.7rem;color:var(--text-3);font-family:var(--font-mono)">${(p.published_date || '').slice(0, 7)}</span>
+                </div>`;
+            }).join('') || '<p style="color:var(--text-3);font-size:0.85rem">该聚类暂无论文（可能已被合并或删除）</p>';
+            list.querySelectorAll('[data-cp-id]').forEach(row => {
+                row.addEventListener('click', () => {
+                    modal.classList.remove('active');
+                    const lp = papers.find(x => x.id === row.dataset.cpId);
+                    if (lp) openPaperDetail(lp);
+                });
+            });
+        } catch {
+            document.getElementById('cluster-subtitle').textContent = '加载失败';
+            list.innerHTML = '<p style="color:var(--text-3)">请稍后重试</p>';
+        }
+    };
+    document.getElementById('close-cluster-modal')?.addEventListener('click', () => {
+        document.getElementById('cluster-modal').classList.remove('active');
+    });
+    document.getElementById('cluster-modal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+    });
+
     // 🧪 系统自检报告弹窗（api.js 轮询完成后调用）
     window.showSelftestReport = (report) => {
         const modal = document.getElementById('selftest-modal');

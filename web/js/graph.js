@@ -146,6 +146,9 @@ function renderGraph(nodes, edges) {
       .attr('stroke-width', d => Math.min(d.weight * 0.8, 4));
     node.attr('opacity', 1);
     _hideDetail();
+  }).on('click', (e, d) => {
+    e.stopPropagation();
+    window._openClusterPapers?.(d.name);
   });
 
   // Simulation
@@ -188,7 +191,11 @@ function _showDetail(d) {
         ${d.keywords.map(k => `<span class="graph-detail-kw-tag">${k}</span>`).join('')}
       </div>
     </div>` : ''}
+    <button class="btn btn--primary" style="margin-top:12px;width:100%;font-size:0.78rem;padding:5px 0"
+      data-cluster-drill="${String(d.name).replace(/"/g, '&quot;').replace(/</g, '&lt;')}">📄 查看论文列表（${d.size} 篇）</button>
   `;
+  const drill = el.querySelector('[data-cluster-drill]');
+  if (drill) drill.addEventListener('click', () => window._openClusterPapers?.(d.name));
 }
 
 function _hideDetail() {

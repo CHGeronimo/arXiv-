@@ -159,8 +159,90 @@ _JSON_FIELDS = {"authors", "categories", "issn"}
 
 
 # ---------------------------------------------------------------------------
-# Existence checks
+# Existence checks & cross-source identity resolution
 # ---------------------------------------------------------------------------
+
+# arXiv id in pdf/abs URLs，如 arxiv.org/pdf/2601.12345v2 → 2601.12345
+_ARXIV_ID_RE = re.compile(
+    r"arxiv\.org/(?:pdf|abs)/([0-9]{4}\.[0-9]{4,5})(?:v\d+)?", re.IGNORECASE)
+
+
+def _paper_aliases(paper: Paper) -> set[str]:
+    """跨源身份别名：id 本身、DOI（小写）、arXiv id（从 pdf/url/DOI 提取）。
+
+    同一篇论文从不同源进来时 id 不同（arXiv 用 arXiv id、Crossref 用 DOI、
+    OpenAlex 可能用 W-id）——别名集合让它们在入库时相认。
+    """
+    out = set()
+    if paper.id:
+        out.add(paper.id.strip())
+    doi = (paper.doi or "").strip().lower()
+    if doi:
+        out.add(doi)
+        if doi.startswith("10.48550/arxiv."):  # arXiv DOI 形式 → arXiv id
+            out.add(doi.split("arxiv.", 1)[1].lower())
+    for u in (paper.pdf or "", paper.url or ""):
+        m = _ARXIV_ID_RE.search(u)
+        if m:
+            out.add(m.group(1).lower())
+    out.discard("")
+    return out
+
+
+def _norm_title(t: str) -> str:
+    """标题归一（小写去非字母数字）——同篇论文跨源标点/空格差异消掉。"""
+    return re.sub(r"[^a-z0-9]", "", (t or "").lower())
+
+
+def _find_duplicate(paper: Paper) -> tuple[str, str] | None:
+    """跨源重复检测。返回 (已有论文id 或 已忽略id, 方式)；无重复返回 None。
+
+    方式: alias=别名直命中（含 ignored 表）/ doi=DOI 命中 /
+          title=标题+发布日期归一命中。
+    """
+    conn = get_conn()
+    aliases = _paper_aliases(paper)
+    if aliases:
+        ph = ",".join("?" * len(aliases))
+        row = conn.execute(
+            f"SELECT id FROM papers WHERE id IN ({ph})", tuple(aliases)).fetchone()
+        if row:
+            return row[0], "alias"
+        row = conn.execute(
+            f"SELECT paper_id FROM ignored_papers WHERE paper_id IN ({ph})",
+            tuple(aliases)).fetchone()
+        if row:
+            return row[0], "ignored"
+    doi = (paper.doi or "").strip().lower()
+    if doi:
+        row = conn.execute(
+            "SELECT id FROM papers WHERE LOWER(doi) = ?", (doi,)).fetchone()
+        if row:
+            return row[0], "doi"
+    nt, pd = _norm_title(paper.title), (paper.published_date or "")
+    if nt and pd:
+        for row in conn.execute(
+                "SELECT id, title FROM papers WHERE published_date = ?", (pd,)):
+            if _norm_title(row[1]) == nt:
+                return row[0], "title"
+    return None
+
+
+def _backfill_existing(existing_id: str, paper: Paper) -> None:
+    """重复论文并入已有行：只补空缺字段（pdf/doi/venue），引用数取大。不重跑 AI。"""
+    d = json.loads(paper.to_jsonl())
+    conn = get_conn()
+    conn.execute(
+        """UPDATE papers SET
+             pdf = CASE WHEN (pdf IS NULL OR pdf='') AND ?1 != '' THEN ?1 ELSE pdf END,
+             doi = CASE WHEN (doi IS NULL OR doi='') AND ?2 != '' THEN ?2 ELSE doi END,
+             venue = CASE WHEN (venue IS NULL OR venue='') AND ?3 != '' THEN ?3 ELSE venue END,
+             citation_count = MAX(COALESCE(citation_count, 0), COALESCE(?4, 0))
+           WHERE id = ?5""",
+        (d.get("pdf", "") or "", d.get("doi", "") or "", d.get("venue", "") or "",
+         int(d.get("citation_count") or 0), existing_id))
+    conn.commit()
+
 
 def _paper_exists(paper_id: str) -> bool:
     """Return True if a paper with the given id already exists."""
@@ -267,10 +349,14 @@ def append_paper(paper: Paper, enhance: bool = False) -> str | None:
         "written" if inserted, or the rejection reason string:
         "exists", "ignored", "filter_reject", "ai_reject", "error".
     """
-    if _paper_exists(paper.id):
+    # 跨源去重：别名（id/DOI/arXiv）/ DOI / 标题+日期 命中即并入已有行
+    dup = _find_duplicate(paper)
+    if dup:
+        existing_id, how = dup
+        if how == "ignored":
+            return "ignored"
+        _backfill_existing(existing_id, paper)
         return "exists"
-    if is_ignored(paper.id):
-        return "ignored"
 
     paper_dict = json.loads(paper.to_jsonl())
 
