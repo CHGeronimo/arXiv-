@@ -135,6 +135,7 @@ class BaseCrawlerJob(ABC):
             fetched_info = self._init_fetched_info()
             lock = threading.Lock()
             done_count = [0]
+            last_log_t = [time.monotonic()]
             start_time = time.monotonic()
 
             def _process_one(paper):
@@ -148,8 +149,12 @@ class BaseCrawlerJob(ABC):
                     else:
                         skipped[result] = skipped.get(result, 0) + 1
                     n = done_count[0]
-                    if n % 20 == 0 or n == fetched:
-                        elapsed = time.monotonic() - start_time
+                    # 每 10 篇一条 + 至少间隔 3s 节流（本地预筛秒过阶段不刷屏）；
+                    # 进度同时写入任务状态，🔄 菜单计数器实时可见
+                    now = time.monotonic()
+                    if (n % 10 == 0 or n == fetched) and (now - last_log_t[0] >= 3 or n == fetched):
+                        last_log_t[0] = now
+                        elapsed = now - start_time
                         speed = n / elapsed if elapsed > 0 else 0
                         eta = (fetched - n) / speed if speed > 0 else 0
                         parts = [f"{written} 接受"]
@@ -160,9 +165,9 @@ class BaseCrawlerJob(ABC):
                         ignored_total = sum(v for k, v in skipped.items() if k not in ("exists",))
                         if ignored_total:
                             parts.append(f"{ignored_total} 拒绝")
-                        logger.info(
-                            f"[{self.name}] {n}/{fetched} ({speed:.1f}/s, ETA {eta:.0f}s) │ {' │ '.join(parts)}"
-                        )
+                        prog = f"{n}/{fetched} ({speed:.1f}/s, ETA {eta:.0f}s)"
+                        logger.info(f"[{self.name}] {prog} │ {' │ '.join(parts)}")
+                        _set_job_status(self.name, "running", f"{prog} │ {' │ '.join(parts)}")
                 return result
 
             with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
