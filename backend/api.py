@@ -486,6 +486,8 @@ _SETTINGS_META = {
     "LLM_NIGHT_END": {"label": "LLM 凌晨放宽结束小时（0-23）", "type": "int", "min": 0, "max": 23, "restart": False},
     "LLM_DAY_CONCURRENCY": {"label": "LLM 白天并发（实测安全 6）", "type": "int", "min": 1, "max": 12, "restart": False},
     "LLM_NIGHT_CONCURRENCY": {"label": "LLM 凌晨并发（低峰可放宽，如 9）", "type": "int", "min": 1, "max": 12, "restart": False},
+    "CONVERGE_PCT": {"label": "夜间收敛百分比（每轮处理旧版量%，1-50）", "type": "int", "min": 1, "max": 50, "restart": False},
+    "CONVERGE_MAX_MIN": {"label": "夜间收敛时间上限分钟（5-120）", "type": "int", "min": 5, "max": 120, "restart": False},
 }
 
 

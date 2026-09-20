@@ -537,7 +537,7 @@ def run_arxiv_job():
     JOBS["arxiv"].run()
     # 抓取批完成后渐进收敛旧版本（每次最多 50 篇，不独占时间窗）
     try:
-        run_auto_convergence(batch_size=50)
+        run_auto_convergence()
     except Exception as e:
         logger.warning(f"自动收敛跳过: {e}")
 
@@ -841,7 +841,7 @@ def _stale_counts() -> dict:
     return {"enhance": enhance, "card": card}
 
 
-def run_card_rerun(batch_limit: int = 0):
+def run_card_rerun(batch_limit: int = 0, deadline: float | None = None):
     """组件级重跑：只重提知识卡片（关思考 ~3s/篇，不动增强结果）。"""
     from backend.ai.enhance import CARD_VER
     _set_job_status("card_rerun", "running", "扫描卡片旧版本…")
@@ -870,6 +870,9 @@ def run_card_rerun(batch_limit: int = 0):
             return
         done = [0]
         for i, row in enumerate(rows):
+            if deadline and time.monotonic() > deadline:
+                logger.info(f"[card-rerun] ⏰ 到点，{done[0]}/{total} 后提前停止")
+                break
             paper = {"id": row["paper_id"], "title": row["title"], "summary": row["summary"],
                      "AI": {"tldr": row["tldr"], "motivation": row["motivation"],
                             "method": row["method"], "result": row["result"], "conclusion": row["conclusion"]}}
@@ -895,52 +898,59 @@ def run_card_rerun(batch_limit: int = 0):
         _set_job_status("card_rerun", "error", str(e)[:160])
 
 
-def run_auto_convergence(batch_size: int = 50):
-    """夜间自动收敛：抓取批完后调用，每次最多补 batch_size 篇旧版——
-    渐进收敛而非一次性全量重跑。优先级：卡片重提（快）> 增强重跑（慢）。
+def run_auto_convergence():
+    """夜间自动收敛：抓取批完后调用。
+
+    依据百分比+时间上限渐进收敛，不固定篇数：
+    - 批量 = max(1, 旧版量 × CONVERGE_PCT%)——积压大时起步快（几何收敛），
+      接近清零时自然放慢
+    - 单轮时间 ≤ CONVERGE_MAX_MIN 分钟，到点即停（不挤占其他任务配额）
+    优先级：卡片重提（3s/篇）→ 增强重跑（15-25s/篇）。
     """
     try:
+        from backend.db import get_runtime_settings
+        st = get_runtime_settings()
+        pct = max(1, min(50, int(st.get("CONVERGE_PCT", 10))))
+        max_min = max(5, min(120, int(st.get("CONVERGE_MAX_MIN", 30))))
+        deadline = time.monotonic() + max_min * 60
         stale = _stale_counts()
+
         if stale["card"]:
-            n = min(stale["card"], batch_size)
-            logger.info(f"[收敛] 卡片旧版 {stale['card']} 篇，本轮补 {n}")
-            run_card_rerun(batch_limit=n)
+            batch = max(1, stale["card"] * pct // 100)
+            logger.info(f"[收敛] 卡片旧版 {stale['card']} 篇 × {pct}% → 本轮 ≤{batch} 篇，限时 {max_min}分")
+            run_card_rerun(batch_limit=batch, deadline=deadline)
             return
+
         if stale["enhance"]:
-            n = min(stale["enhance"], batch_size)
-            logger.info(f"[收敛] 增强旧版 {stale['enhance']} 篇，本轮补 {n}")
+            batch = max(1, stale["enhance"] * pct // 100)
+            logger.info(f"[收敛] 增强旧版 {stale['enhance']} 篇 × {pct}% → 本轮 ≤{batch} 篇，限时 {max_min}分")
+            from backend.ai.enhance import PIPELINE_VERSION
             conn = get_conn()
-            from backend.db import get_runtime_settings
-            conv_enabled = get_runtime_settings().get("AUTO_CONVERGE", True)
-            if conv_enabled:
-                # 复用现有重跑（限制批量：只选前 n 篇）
-                from backend.ai.enhance import PIPELINE_VERSION
-                rows = conn.execute("""
-                    SELECT p.id FROM papers p
-                    JOIN ai_results a ON p.id = a.paper_id
-                    LEFT JOIN ignored_papers ig ON ig.paper_id = p.id
-                    WHERE (a.pipeline_version IS NULL OR a.pipeline_version != ?)
-                      AND ig.paper_id IS NULL AND COALESCE(a.recommendation,'') != 'ignore'
-                    ORDER BY CASE a.recommendation WHEN 'must-read' THEN 0
-                             WHEN 'recommended' THEN 1 ELSE 2 END, p.created_at DESC
-                    LIMIT ?
-                """, (PIPELINE_VERSION, n)).fetchall()
-                if rows:
-                    logger.info(f"[收敛] 增强补跑 {len(rows)} 篇（必读/推荐优先）")
-                    # 借道 run_stale_rerun 的逻辑但限量——直接调用内部实现
-                    # 简化：触发完整重跑（选择器天然只选旧版，量已由 LIMIT 控制
-                    # 不适用——改为直接跑这批）
-                    _converge_enhance([r["id"] for r in rows])
+            rows = conn.execute("""
+                SELECT p.id FROM papers p
+                JOIN ai_results a ON p.id = a.paper_id
+                LEFT JOIN ignored_papers ig ON ig.paper_id = p.id
+                WHERE (a.pipeline_version IS NULL OR a.pipeline_version != ?)
+                  AND ig.paper_id IS NULL AND COALESCE(a.recommendation,'') != 'ignore'
+                ORDER BY CASE a.recommendation WHEN 'must-read' THEN 0
+                         WHEN 'recommended' THEN 1 ELSE 2 END, p.created_at DESC
+                LIMIT ?
+            """, (PIPELINE_VERSION, batch)).fetchall()
+            if rows:
+                _converge_enhance([r["id"] for r in rows], deadline=deadline)
     except Exception as e:
         logger.warning(f"[收敛] 跳过: {e}")
 
 
-def _converge_enhance(pids: list):
-    """增强收敛的限量执行。"""
-    from backend.ai.enhance import PIPELINE_VERSION
+def _converge_enhance(pids: list, deadline: float | None = None):
+    """增强收敛的限量执行（deadline 到点即停）。"""
     chain, profile = get_ai_chain()
     conn = get_conn()
+    _done = 0
     for pid in pids:
+        if deadline and time.monotonic() > deadline:
+            logger.info(f"[收敛] ⏰ 时间到点，{_done}/{len(pids)} 后提前停止")
+            break
         row = conn.execute("SELECT id, title, summary, authors, categories FROM papers WHERE id=?", (pid,)).fetchone()
         if not row:
             continue
@@ -959,8 +969,9 @@ def _converge_enhance(pids: list):
                 _insert_knowledge_card(pid, {**paper, "AI": ai})
             except Exception:
                 pass
+        _done += 1
     sync_write("SELECT 1")
-    logger.info(f"[收敛] 增强补跑 {len(pids)} 篇完成")
+    logger.info(f"[收敛] 增强补跑 {_done}/{len(pids)} 篇完成")
 
 
 def run_digest_job():
