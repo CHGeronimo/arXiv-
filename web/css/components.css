@@ -591,7 +591,8 @@
   font-size: var(--text-sm);
   font-weight: 500;
   box-shadow: var(--shadow-lg);
-  z-index: 300;
+  /* 弹窗(.modal z=1000)内保存时 toast 也要可见——置于一切之上 */
+  z-index: 10000;
   max-width: 400px;
   opacity: 0;
   transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
