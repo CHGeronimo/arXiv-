@@ -48,7 +48,16 @@ async function loadPapers() {
         const papers = await fetchPapers();
         setAllPapers(papers);
     } catch (e) {
-        console.error('Failed to load papers:', e);
+        console.error('加载论文失败:', e);
+        // 区分"服务不可达"与"筛选为空"：错误卡而非误导性的筛选提示（审计 P1）
+        const c = document.getElementById('paper-container');
+        if (c && !allPapers.length) {
+            c.innerHTML = `<div style="padding:40px;text-align:center;color:var(--danger)">
+                <div style="font-size:1.4rem;margin-bottom:8px">⚠️ 无法连接服务</div>
+                <div style="font-size:0.85rem;color:var(--text-3);margin-bottom:16px">请确认 daemon 正在运行（python daemon.py）</div>
+                <button class="btn btn--primary" onclick="location.reload()">重试</button>
+            </div>`;
+        }
     }
     buildFilterOptions();
     renderPapers();
@@ -173,7 +182,14 @@ document.addEventListener('DOMContentLoaded', () => {
         form.innerHTML = '<div class="spinner"></div>';
         try {
             const resp = await fetch('/api/settings');
-            const { settings, meta, scheduled } = await resp.json();
+            const { settings, meta, scheduled, lan_access_token } = await resp.json();
+            if (lan_access_token) window._lanToken = lan_access_token;
+            const tokEl = document.getElementById('lan-token-row');
+            if (tokEl) {
+                tokEl.style.display = lan_access_token ? '' : 'none';
+                const v = document.getElementById('lan-token-value');
+                if (v && lan_access_token) v.textContent = lan_access_token;
+            }
             form.innerHTML = Object.entries(meta).map(([key, m]) => {
                 const val = settings[key];
                 if (m.type === 'bool') {
@@ -241,6 +257,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // 🌐 监听地址（重启 daemon 生效）
+    // LAN token 注入：所有 /api fetch 自动带头（token 由设置接口下发）
+    window._lanToken = "";
+    const _origFetch = window.fetch;
+    window.fetch = (url, opts = {}) => {
+        if (typeof url === "string" && url.startsWith("/api") && window._lanToken) {
+            opts.headers = { ...(opts.headers || {}), "X-Access-Token": window._lanToken };
+        }
+        return _origFetch(url, opts);
+    };
+
     const _loadBind = async () => {
         try {
             const r = await fetch('/api/bind');
@@ -628,7 +654,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const first = fp[(cp - 1) * ps] || fp[0];  // 当前页第一篇，而非全列表第 N 篇
             if (first) { tb(first.id); renderPapers(); }
         }
-        else if (e.key === '/') { e.preventDefault(); document.getElementById('sidebar-search-input')?.focus(); }
+        else if (e.key === '/') {
+            e.preventDefault();
+            // 侧栏收起时先展开，否则焦点落到视口外的输入框（审计 P3）
+            const sb = document.getElementById('filter-sidebar');
+            if (sb && !sb.classList.contains('open')) setSidebarOpen(true);
+            document.getElementById('sidebar-search-input')?.focus();
+        }
         else if (e.key === '?') { showToast('j/k 翻页 | f 收藏首篇 | / 搜索 | ? 帮助', 3000); }
     });
 
@@ -642,12 +674,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function showPage(pageId) {
         document.getElementById('paper-container').style.display = 'none';
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
+        // 预设条只服务论文列表——切页隐藏，避免"点了预设却看不到效果"（审计 P2）
+        const presetBar = document.getElementById('preset-bar');
+        if (presetBar) presetBar.style.display = 'none';
         const page = document.getElementById(pageId);
         if (page) page.style.display = 'block';
     }
     function hidePages() {
         document.querySelectorAll('.page-section').forEach(el => el.style.display = 'none');
         document.getElementById('paper-container').style.display = '';
+        const presetBar = document.getElementById('preset-bar');
+        if (presetBar) presetBar.style.display = '';
     }
     function applyHash() {
         const key = location.hash.replace(/^#\/?/, '');
@@ -724,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const novelColor = gaugeColors[analysis.novelty] || 'var(--text-3)';
             const feasBg = gaugeBg[analysis.feasibility] || 'var(--surface-2)';
             const novelBg = gaugeBg[analysis.novelty] || 'var(--surface-2)';
-            const feasLabel = {high: '高', medium: '中', low: '低'}[analysis.feasibility] || analysis.feasibility;
+            const feasLabel = {high: '高', medium: '中', low: '低'}[analysis.feasibility] || escAttr(analysis.feasibility);
             const novelLabel = {high: '高', medium: '中', low: '低'}[analysis.novelty] || analysis.novelty;
             el.innerHTML = `
                 <div class="idea-gauges">
@@ -739,15 +776,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="idea-section">
                     <div class="idea-section-title">相关工作</div>
-                    <div class="idea-section-body">${analysis.related_work || ''}</div>
+                    <div class="idea-section-body">${escAttr(analysis.related_work || '')}</div>
                 </div>
                 <div class="idea-section">
                     <div class="idea-section-title">差异化建议</div>
-                    <div class="idea-section-body">${analysis.differentiation || ''}</div>
+                    <div class="idea-section-body">${escAttr(analysis.differentiation || '')}</div>
                 </div>
                 <div class="idea-section">
                     <div class="idea-section-title">风险</div>
-                    <div class="idea-section-body">${analysis.risks || ''}</div>
+                    <div class="idea-section-body">${escAttr(analysis.risks || '')}</div>
                 </div>`;
         } catch {
             el.innerHTML = '';

@@ -23,12 +23,16 @@ export async function loadGraph() {
   if (emptyEl) emptyEl.style.display = '';
   if (layoutEl) layoutEl.style.display = 'none';
 
-  const resp = await fetch('/api/knowledge-graph');
-  if (!resp.ok) {
-    if (emptyEl) emptyEl.innerHTML = '<p>加载失败</p><p class="hint">请稍后重试</p>';
+  let resp, data;
+  try {
+    resp = await fetch('/api/knowledge-graph');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    data = await resp.json();
+  } catch {
+    if (emptyEl) emptyEl.innerHTML = '<p>加载失败</p><p class="hint">网络或服务异常，刷新重试</p>';
     return;
   }
-  const { nodes, edges } = await resp.json();
+  const { nodes, edges } = data;
 
   if (!nodes || nodes.length === 0) {
     if (emptyEl) {

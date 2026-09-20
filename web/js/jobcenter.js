@@ -84,14 +84,10 @@ export function initJobCenter() {
     const dd = document.getElementById('dd-jobs');
     const panel = document.getElementById('panel-jobs');
     if (!dd || !panel) return;
-    dd.querySelector('[data-dropdown]')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const wasOpen = dd.classList.contains('open');
-        document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
-        if (!wasOpen) dd.classList.add('open');
-        _panelOpen = !wasOpen;
-    });
+    // 开合切换统一走 app.js 的通用 [data-dropdown] 绑定（此处曾双绑定互相抵消，
+    // 面板永远打不开——多视角审计 P0）；本模块只做打开态同步与点击截断
     panel.addEventListener('click', (e) => e.stopPropagation());
+    dd.addEventListener('click', () => { _panelOpen = dd.classList.contains('open'); });
 
     const poll = async () => {
         try {

@@ -100,6 +100,12 @@ def main():
     os.environ["DAEMON_PORT_ACTUAL"] = str(port)
     if host == "0.0.0.0":
         logger.warning("监听 0.0.0.0：服务对局域网开放（含 AI 配置接口），注意环境安全")
+        try:
+            from api import _ensure_lan_token
+            tok = _ensure_lan_token()
+            logger.warning(f"LAN 访问 token（本机 ⚙️ 设置面板可见）：{tok[:8]}…")
+        except Exception:
+            pass
     logger.info(f"「arXiv 每日电讯」服务启动: http://{host}:{port}")
     app.run(host=host, port=port, debug=False, use_reloader=False)
 

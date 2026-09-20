@@ -102,6 +102,60 @@ def _write_profile_atomic(profile: dict) -> None:
 # The project root doubles as the static dir; never serve secrets or data.
 # Flask 的内置 static 路由（static_folder="."）会先于自定义路由匹配，
 # 所以用 before_request 拦截，保证任何路径都过黑名单。
+# ── LAN 暴露认证（审计 P0）：绑定 0.0.0.0 时，非本机请求必须携带 token ──
+# token 首次进入 0.0.0.0 模式时自动生成并写入 .env；本机(127.0.0.1/::1)豁免，
+# token 在设置面板仅对本机可见。同时校验 Host 头防 DNS rebinding。
+_ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def _bind_is_lan() -> bool:
+    return os.environ.get("DAEMON_HOST_ACTUAL", "") == "0.0.0.0"
+
+
+def _ensure_lan_token() -> str:
+    tok = os.environ.get("LAN_ACCESS_TOKEN", "")
+    if not tok:
+        import secrets
+        tok = secrets.token_urlsafe(24)
+        try:
+            _write_env_vars({"LAN_ACCESS_TOKEN": tok})
+            os.environ["LAN_ACCESS_TOKEN"] = tok
+            logging.getLogger(__name__).info("已生成 LAN 访问 token（见 ⚙️ 设置面板）")
+        except OSError:
+            pass
+    return tok
+
+
+@app.before_request
+def _lan_auth_guard():
+    if request.path.startswith("/api/") and _bind_is_lan():
+        if request.remote_addr not in ("127.0.0.1", "::1"):
+            supplied = request.headers.get("X-Access-Token", "")
+            if supplied != os.environ.get("LAN_ACCESS_TOKEN", ""):
+                return jsonify({"error": "unauthorized: LAN 访问需 X-Access-Token（本机 ⚙️ 设置面板查看）"}), 401
+    # Host 校验（防 DNS rebinding，两种绑定模式都查）
+    host = (request.host or "").split(":")[0]
+    if host and host not in _ALLOWED_HOSTS and host != _lan_local_ip():
+        return jsonify({"error": "bad host"}), 403
+    return None
+
+
+def _lan_local_ip() -> str:
+    cached = getattr(_lan_local_ip, "_ip", None)
+    if cached:
+        return cached
+    ip = ""
+    try:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _s:
+            _s.connect(("8.8.8.8", 80))
+            ip = _s.getsockname()[0]
+    except Exception:
+        pass
+    _lan_local_ip._ip = ip
+    return ip
+
+
 _STATIC_BLOCKED_PREFIXES = (
     "backend/", "scripts/", "tests/", "data/", "logs/", ".git", ".claude", ".understand-anything",
     "__pycache__", "design-system/", "docs/",
@@ -380,6 +434,10 @@ def get_selftest_report():
 @app.route("/api/trigger/<job>", methods=["POST"])
 def trigger_job(job: str):
     from backend.selfcheck import run_selftest_job
+    from backend.jobs import get_job_status as _gjs
+    _cur = (_gjs().get(job) or {})
+    if _cur.get("status") == "running":
+        return jsonify({"error": f"任务 {job} 正在运行中（进度见 ⚡ 任务中心），已拒绝重复触发"}), 409
     job_funcs = {
         "arxiv": run_arxiv_job,
         "crossref": run_crossref_job,
@@ -436,7 +494,10 @@ def get_settings():
     from backend.db import get_runtime_settings
     from backend.jobs import get_scheduled_at
     s = get_runtime_settings(force=True)
-    return jsonify({"settings": s, "meta": _SETTINGS_META, "scheduled": get_scheduled_at()})
+    resp = {"settings": s, "meta": _SETTINGS_META, "scheduled": get_scheduled_at()}
+    if _bind_is_lan():
+        resp["lan_access_token"] = _ensure_lan_token()
+    return jsonify(resp)
 
 
 @app.route("/api/settings", methods=["PUT"])
@@ -1727,8 +1788,12 @@ def purge_papers():
     ignored_ids = []
 
     if data.get("skip_rated"):
+        # 审计 P1：用户点赞/收藏过的论文绝不随 purge 物理删除（反馈历史不可逆）
         rows = conn.execute(
-            "SELECT p.id FROM papers p JOIN ai_results a ON p.id = a.paper_id WHERE a.recommendation = 'ignore'"
+            """SELECT p.id FROM papers p JOIN ai_results a ON p.id = a.paper_id
+               WHERE a.recommendation = 'ignore'
+                 AND NOT EXISTS (SELECT 1 FROM feedback f WHERE f.paper_id = p.id
+                                 AND (f.rating = 'like' OR f.bookmarked = 1))"""
         ).fetchall()
         ids = [r[0] for r in rows]
         if ids:

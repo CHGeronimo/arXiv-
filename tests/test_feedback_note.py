@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""评语闭环回归：note 存储 / COALESCE 保留 / 进提取prompt / feedback_notes 直通评分。"""
+"""反馈评语全生命周期：学术化改写/字段级更新/note_index 替换/主题提取。"""
 import json
 import sqlite3
 import sys
@@ -8,20 +8,32 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# 审计 P1：不碰生产库——chdir 到含生产库副本的临时目录（历史曾留孤儿行）
+import shutil, tempfile, os
+_tmpdir = tempfile.mkdtemp(prefix="arxivsci_test_")
+Path(_tmpdir, "data").mkdir(exist_ok=True)
+_src = Path(__file__).resolve().parent.parent / "data" / "papers.db"
+if _src.exists():
+    shutil.copy(_src, Path(_tmpdir, "data", "papers.db"))
+for prof in ("research_profile.json", "subscriptions.json"):
+    _pf = Path(__file__).resolve().parent.parent / prof
+    if _pf.exists():
+        shutil.copy(_pf, Path(_tmpdir, prof))
+os.chdir(_tmpdir)
+
 from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
-
 import backend.api as api  # noqa: E402
 
-DB = "data/papers.db"
 TESTPID = "note-test-paper"
+DB = "data/papers.db"  # chdir 后即临时副本
 conn = sqlite3.connect(DB, timeout=10)
 conn.execute("INSERT OR REPLACE INTO papers (id, source, title) VALUES (?,?,?)", (TESTPID, "arxiv", "Note Test"))
 conn.execute("INSERT OR REPLACE INTO ai_results (paper_id, method, motivation, recommendation) VALUES (?,?,?,?)",
              (TESTPID, "multi-agent method", "coordination motivation", "recommended"))
 conn.commit()
 
-prof_path = Path("research_profile.json")
+prof_path = Path("research_profile.json")  # chdir 后即临时副本
 # 完全隔离：测试期间把 api 的 profile 指到临时副本，
 # 与运行中 daemon 的跨进程写互不干扰（锁只在本进程内有效）
 tmp_prof = Path("/tmp/arxivsci-test-profile.json")

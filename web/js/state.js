@@ -68,8 +68,18 @@ export function setSidebarOpen(v) {
     }
 }
 
-export const _bookmarks = new Set(JSON.parse(localStorage.getItem('bookmarks') || '[]'));
-export const _readPapers = new Set(JSON.parse(localStorage.getItem('readPapers') || '[]'));
+// localStorage 损坏兜底：一处坏值不再导致整站模块加载失败白屏（审计 P1）
+function _safeSet(key) {
+    try {
+        const v = JSON.parse(localStorage.getItem(key) || '[]');
+        return new Set(Array.isArray(v) ? v : []);
+    } catch {
+        try { localStorage.removeItem(key); } catch { /* 忽略 */ }
+        return new Set();
+    }
+}
+export const _bookmarks = _safeSet('bookmarks');
+export const _readPapers = _safeSet('readPapers');
 
 function _postFlag(url, body) {
     fetch(url, {

@@ -1,7 +1,8 @@
 // js/digest.js — daily digest page with a tiny offline markdown renderer
 
 function _esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function _inline(t) {
@@ -125,10 +126,11 @@ function _bindGenerateButton() {
                 if (d.ok) baselineLen = (await d.text()).length;
             }
         } catch { /* 起点拿不到也能工作 */ }
+        btn.disabled = true;
         try {
             const resp = await fetch('/api/trigger/digest', { method: 'POST' });
-            if (!resp.ok) return;
-        } catch { return; }
+            if (!resp.ok) { showToast?.('简报触发失败'); btn.disabled = false; return; }
+        } catch { showToast?.('简报触发失败'); btn.disabled = false; return; }
         btn.disabled = true;
         const original = btn.textContent;
         btn.textContent = '生成中…（约1-2分钟）';

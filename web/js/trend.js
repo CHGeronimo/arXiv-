@@ -1,5 +1,5 @@
 // js/trend.js — weekly/monthly trend radar with history browsers
-import { showToast } from './state.js';
+import { showToast , escAttr} from './state.js';
 
 const SECTION_META = {
   new_methods:     { title: '新方法涌现', icon: '◆', color: 'var(--success)',  bg: 'rgba(52,211,153,0.06)' },
@@ -167,8 +167,8 @@ function renderReport(r) {
         </div>
         <div class="trend-card-body">
           ${bullets.length > 0
-            ? '<ul class="trend-list">' + bullets.map(b => `<li>${b}</li>`).join('') + '</ul>'
-            : `<p class="trend-paragraph">${content}</p>`}
+            ? '<ul class="trend-list">' + bullets.map(b => `<li>${escAttr(b)}</li>`).join('') + '</ul>'
+            : `<p class="trend-paragraph">${escAttr(content)}</p>`}
         </div>
       </div>
     `;

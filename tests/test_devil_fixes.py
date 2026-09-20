@@ -8,17 +8,29 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# 审计 P1：不碰生产库——chdir 到含生产库副本的临时目录（历史曾留孤儿行）
+import shutil, tempfile, os
+_tmpdir = tempfile.mkdtemp(prefix="arxivsci_test_")
+Path(_tmpdir, "data").mkdir(exist_ok=True)
+_src = Path(__file__).resolve().parent.parent / "data" / "papers.db"
+if _src.exists():
+    shutil.copy(_src, Path(_tmpdir, "data", "papers.db"))
+for prof in ("research_profile.json", "subscriptions.json"):
+    _pf = Path(__file__).resolve().parent.parent / prof
+    if _pf.exists():
+        shutil.copy(_pf, Path(_tmpdir, prof))
+os.chdir(_tmpdir)
+
 from backend.db import init_db, stop_writer  # noqa: E402
 init_db()
-
 import backend.api as api  # noqa: E402
 import backend.paper_store as paper_store  # noqa: E402
 from backend.crawler.models import Paper  # noqa: E402
-
 c = api.app.test_client()
-DB = "data/papers.db"
+
 TESTPID = "devil-test-paper"
 
+DB = "data/papers.db"  # chdir 后即临时副本
 conn = sqlite3.connect(DB, timeout=10)
 conn.execute("INSERT OR REPLACE INTO papers (id, source, title) VALUES (?,?,?)", (TESTPID, "arxiv", "Devil Test"))
 conn.execute("INSERT OR REPLACE INTO ai_results (paper_id, method, motivation, recommendation) VALUES (?,?,?,?)",

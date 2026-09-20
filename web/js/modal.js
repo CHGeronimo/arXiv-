@@ -34,13 +34,13 @@ export async function openPaperDetail(paper, navIdx) {
     const title = titleZh || titleEn;
     const origTitle = (titleZh && titleEn && titleZh !== titleEn) ? `<div style="color:var(--text-2);font-size:0.85rem;margin-top:4px">${titleEn}</div>` : '';
     const sourceBadge = paper.source === 'crossref'
-        ? `<span class="badge badge--source-crossref">${paper.journal_title || 'Journal'}</span>`
+        ? `<span class="badge badge--source-crossref">${escAttr(paper.journal_title || '期刊')}</span>`
         : paper.source === 'dblp'
         ? `<span class="badge badge--source-dblp">DBLP</span>`
         : paper.source === 'semantic_scholar'
         ? `<span class="badge badge--source-s2">S2</span>`
         : `<span class="badge badge--source-arxiv">arXiv</span>`;
-    const venueInfo = paper.venue ? ` <span class="badge badge--venue">${paper.venue}</span>` : '';
+    const venueInfo = paper.venue ? ` <span class="badge badge--venue">${escAttr(paper.venue)}</span>` : '';
     const ccfInfo = paper.ccf_tier ? ` <span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
     const citeInfo = paper.citation_count ? `<div style="margin-bottom:8px;font-size:0.85rem;color:var(--text-2)">&#9733; ${paper.citation_count} citations</div>` : '';
 
@@ -91,16 +91,16 @@ export async function openPaperDetail(paper, navIdx) {
         <h2 style="margin:12px 0">${escAttr(title)}</h2>
         ${escAttr(titleEn)}
         <p style="color:var(--text-2);font-size:0.85rem;margin-bottom:12px">
-            ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`).join(', ')}
+            ${(paper.authors || []).map(a => `<span class="author-link" data-author-name="${escAttr(a)}">${escAttr(a)}</span>`).join(', ')}
         </p>
         ${citeInfo}
         ${prefHtml}
         ${sections.join('')}
         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-            ${paper.url ? `<a href="${paper.url}" target="_blank" class="btn btn--secondary">论文链接</a>` : ''}
-            ${paper.pdf ? `<a href="${paper.pdf}" target="_blank" class="btn btn--secondary">PDF</a>` : ''}
-            ${paper.doi ? `<a href="https://doi.org/${paper.doi}" target="_blank" class="btn btn--secondary">DOI</a>` : ''}
-            ${codeUrl ? `<a href="${codeUrl}" target="_blank" class="btn btn--secondary" style="border-color:#22c55e;color:#22c55e">Code</a>` : ''}
+            ${paper.url ? `<a href="${escAttr(paper.url)}" target="_blank" rel="noopener" class="btn btn--secondary">论文链接</a>` : ''}
+            ${paper.pdf ? `<a href="${escAttr(paper.pdf)}" target="_blank" rel="noopener" class="btn btn--secondary">PDF</a>` : ''}
+            ${paper.doi ? `<a href="${escAttr(paper.doi ? 'https://doi.org/' + paper.doi : '')}" target="_blank" rel="noopener" class="btn btn--secondary">DOI</a>` : ''}
+            ${codeUrl ? `<a href="${escAttr(codeUrl)}" target="_blank" rel="noopener" class="btn btn--secondary" style="border-color:#22c55e;color:#22c55e">Code</a>` : ''}
             <button class="btn btn--secondary" data-export-bibtex="${escAttr(paper.id)}">BibTeX</button>
             <button class="btn btn--secondary ${userRating === 'like' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="like" style="border-color:#22c55e;color:#22c55e;font-size:0.95rem;padding:8px 18px">&#9757; 有用</button>
             <button class="btn btn--secondary ${userRating === 'dislike' ? 'voted' : ''}" data-feedback-id="${escAttr(paper.id)}" data-feedback-action="dislike" style="border-color:#ef4444;color:#ef4444;font-size:0.95rem;padding:8px 18px">&#9759; 没用</button>

@@ -34,7 +34,7 @@ export function renderPapers() {
         const ai = paper.AI || {};
         const hasAi = !!(ai.tldr || paper.tldr);
         const sourceBadge = paper.source === 'crossref'
-            ? `<span class="badge badge--source-crossref">${paper.journal_title || 'Journal'}</span>`
+            ? `<span class="badge badge--source-crossref">${escAttr(paper.journal_title || '期刊')}</span>`
             : paper.source === 'dblp'
             ? `<span class="badge badge--source-dblp">DBLP</span>`
             : paper.source === 'semantic_scholar'
@@ -46,7 +46,7 @@ export function renderPapers() {
             : paper.source === 'author_s2'
             ? `<span class="badge badge--source-s2">作者</span>`
             : `<span class="badge badge--source-arxiv">arXiv</span>`;
-        const venueBadge = paper.venue ? `<span class="badge badge--venue">${paper.venue}</span>` : '';
+        const venueBadge = paper.venue ? `<span class="badge badge--venue">${escAttr(paper.venue)}</span>` : '';
 
         const citeBadge = paper.citation_count ? `<span class="cite-badge">&#9733; ${paper.citation_count}</span>` : '';
         const articleType = paper.article_type || inferType(paper);
@@ -68,15 +68,15 @@ export function renderPapers() {
         }
         const ccfBadge = paper.ccf_tier ? `<span class="badge badge--ccf">${paper.ccf_tier}</span>` : '';
         const tldr = ai.tldr || paper.tldr || '';
-        const cardTldr = tldr ? `<div class="card-tldr">${tldr}</div>` : '';
+        const cardTldr = tldr ? `<div class="card-tldr">${escAttr(tldr)}</div>` : '';
         const relation = paper.relation
             ? `<div class="card-relation" title="${escAttr(paper.relation)}">🧭 ${escAttr(paper.relation)}</div>`
             : '';
-        const categories = (paper.categories || []).map(c => `<span class="paper-cat">${c}</span>`).join('');
+        const categories = (paper.categories || []).map(c => `<span class="paper-cat">${escAttr(c)}</span>`).join('');
         const authorList = (paper.authors || []).slice(0, 3).map(a =>
-            `<span class="author-link" data-author-name="${escAttr(a)}">${a}</span>`
+            `<span class="author-link" data-author-name="${escAttr(a)}">${escAttr(a)}</span>`
         ).join(', ');
-        const authors = authorList + ((paper.authors || []).length > 3 ? ' et al.' : '');
+        const authors = authorList + ((paper.authors || []).length > 3 ? ' 等' : '');
         const title = ai.title_zh || paper.title_zh || paper.title || '';
         const codeBadge = paper.code_url ? `<span class="paper-cat" style="background:rgba(34,197,94,0.2);color:#22c55e">Code</span>` : '';
         const idx = start + i;
@@ -100,7 +100,7 @@ export function renderPapers() {
                     <div class="paper-categories">${categories}${codeBadge}</div>
                     <button class="bookmark-btn ${isBookmarked ? 'active' : ''}" data-bm-id="${escAttr(paper.id)}" title="${isBookmarked ? '取消收藏' : '收藏'}">${isBookmarked ? '★' : '☆'}</button>
                 </div>
-                <div class="paper-title">${title}</div>
+                <div class="paper-title">${escAttr(title)}</div>
                 ${cardTldr}
                 ${relation}
                 <div class="paper-footer">

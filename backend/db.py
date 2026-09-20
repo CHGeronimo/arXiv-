@@ -303,7 +303,27 @@ def _flush(conn: sqlite3.Connection, batch: list[tuple[str, tuple[Any, ...]]]) -
         logger.debug(f"Flushed {len(batch)} writes")
     except Exception as e:
         conn.rollback()
-        logger.error(f"批量写入失败，已回滚 {len(batch)} 项: {e}")
+        # 审计 P1：整批回滚=静默丢失。重试一次；再失败逐条降级，
+        # 好行落库、坏行死信留痕（远好于整批蒸发）
+        try:
+            cursor = conn.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
+            for sql, params in batch:
+                cursor.execute(sql, params)
+            conn.commit()
+            logger.warning(f"批量写入重试成功 {len(batch)} 项（首次失败: {e}）")
+            return
+        except Exception:
+            conn.rollback()
+        ok = 0
+        for sql, params in batch:
+            try:
+                conn.execute(sql, params)
+                ok += 1
+            except Exception as row_e:
+                logger.error(f"写队列死信（该行放弃）: {row_e} | SQL={sql[:80]} | params={str(params)[:120]}")
+        conn.commit()
+        logger.error(f"批量写入失败已逐条降级：{ok}/{len(batch)} 落库，其余死信")
 
 
 def queue_write(sql: str, params: tuple[Any, ...] = ()) -> None:

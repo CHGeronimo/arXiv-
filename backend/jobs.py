@@ -200,7 +200,8 @@ class BaseCrawlerJob(ABC):
                         if ignored_total:
                             parts.append(f"{ignored_total} 拒绝")
                         # 手动多任务并行时共享 GLM 限流器，各任务速度减半——提示出来
-                        others = [k for k, v in get_job_status().items()
+                        _snap = dict(get_job_status())
+                        others = [k for k, v in _snap.items()
                                   if k != self.name and isinstance(v, dict) and v.get("status") == "running"]
                         if others:
                             parts.append(f"与 {','.join(others)} 并行抢LLM限额")
@@ -245,7 +246,13 @@ class BaseCrawlerJob(ABC):
                 logger.info(f"[{self.name}] ⊘ 收到停机信号，提前结束")
                 return
 
-            self._post_run(subs, fetched_info)
+            # error>0（LLM 故障等未落库未拉黑）时不推进 last_updated——
+            # 否则 arxiv /new 窗口翻篇，失败论文从源头永久丢失（审计 P1）
+            if skipped.get("error"):
+                logger.warning(f"[{self.name}] {skipped['error']} 篇处理失败，"
+                               f"不推进抓取水位（下轮重抓）")
+            else:
+                self._post_run(subs, fetched_info)
             fetched = fetched_box[0]  # join 后所有论文都已被取走，此即总数
             total_rejected = fetched - written
             msg = f"{written} 接受, {total_rejected} 拒绝 (共 {fetched})"
@@ -908,7 +915,7 @@ class Scheduler:
         for t in self._timers:
             t.cancel()
         self._timers.clear()
-        running = {n for n, s in _job_status.items() if s.get("status") == "running"}
+        running = {n for n, s in dict(_job_status).items() if s.get("status") == "running"}
         for job_name in JOB_FUNCS:
             if job_name not in running:
                 self._schedule_next(job_name)

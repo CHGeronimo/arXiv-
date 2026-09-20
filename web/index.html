@@ -242,7 +242,12 @@
                     <input id="bind-port" type="number" min="1" max="65535" value="8080" style="width:88px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--surface-0);color:var(--text-0);font-size:0.8rem;font-family:var(--font-mono);text-align:center">
                     <button id="btn-bind-save" class="btn btn--primary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">保存</button>
                 </div>
-                <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">⟳ 重启 daemon 后生效；0.0.0.0 会把服务（含 AI 供应商配置接口）暴露给局域网，公用网络慎用</p>
+                <p style="font-size:0.7rem;color:var(--text-3);margin:6px 0 0">⟳ 重启 daemon 后生效；0.0.0.0 会把服务暴露给局域网——非本机访问需携带下方访问令牌</p>
+            </div>
+            <div id="lan-token-row" style="display:none;margin-top:8px;padding:8px 12px;background:var(--surface-0);border-radius:6px;font-size:0.75rem">
+                <b style="color:var(--warning)">🔑 LAN 访问令牌</b>
+                <div id="lan-token-value" style="font-family:var(--font-mono);color:var(--text-1);margin-top:4px;user-select:all">（打开面板时加载）</div>
+                <span style="color:var(--text-3)">非本机设备访问时需在请求头携带 X-Access-Token</span>
             </div>
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px">
                 <button id="btn-run-selftest" class="btn btn--secondary" style="font-size:0.78rem;padding:4px 12px;white-space:nowrap">🧪 运行系统自检</button>
