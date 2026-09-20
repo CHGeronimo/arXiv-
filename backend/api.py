@@ -421,6 +421,62 @@ def extract_keywords():
 
 # ── Jobs / Triggers ───────────────────────────────────────────────
 
+_GITHUB_REPO = "CHGeronimo/arxivSCI-daily"
+_update_check_cache: dict = {"remote": "", "checked": 0.0, "ahead": 0}
+
+
+@app.route("/api/update-check", methods=["GET"])
+def check_update():
+    """检查 GitHub 远程是否有新提交（与本地 HEAD 比较）。
+
+    缓存 5 分钟（GitHub API 匿名限 60 次/时，30 分钟轮询绰绰有余）。
+    返回 {update_available, local, remote, ahead_by, url}。
+    """
+    import time as _t
+    import httpx as _hx
+
+    now = _t.monotonic()
+    if now - _update_check_cache["checked"] < 300:
+        return jsonify({
+            "update_available": _update_check_cache["ahead"] > 0,
+            "local": _DAEMON_VERSION,
+            "remote": _update_check_cache["remote"],
+            "ahead_by": _update_check_cache["ahead"],
+            "url": f"https://github.com/{_GITHUB_REPO}",
+        })
+
+    local = _git_hash()
+    remote, ahead = "", 0
+    try:
+        resp = _hx.get(
+            f"https://api.github.com/repos/{_GITHUB_REPO}/commits?per_page=10",
+            timeout=8,
+            headers={"Accept": "application/vnd.github.v3+json",
+                     "User-Agent": "arxivSCI-daily-update-check"},
+        )
+        if resp.status_code == 200:
+            commits = resp.json()
+            if commits:
+                remote = commits[0]["sha"][:7]
+                # 本地 HEAD 在远程列表中的位置（即落后多少个提交）
+                local_in_remote = any(c["sha"].startswith(local) for c in commits)
+                if local_in_remote:
+                    ahead = next(i for i, c in enumerate(commits) if c["sha"].startswith(local))
+                elif remote != local:
+                    ahead = len(commits)  # 本地不在前10中（落后较多或已分叉）
+    except Exception:
+        pass  # 网络不通→返回当前状态，不阻塞
+
+    _update_check_cache.update({"remote": remote, "checked": now, "ahead": ahead})
+    return jsonify({
+        "update_available": ahead > 0 and remote != local,
+        "local": local,
+        "remote": remote,
+        "ahead_by": ahead,
+        "url": f"https://github.com/{_GITHUB_REPO}",
+    })
+
+
 @app.route("/api/selftest", methods=["GET"])
 def get_selftest_report():
     """最近一次 🧪 系统自检报告（未跑过返回 404）。"""

@@ -470,6 +470,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initJobCenter();
 
+    // ── 版本更新检查：页面加载时 + 每 30 分钟 ──
+    const _checkUpdate = async () => {
+        try {
+            const r = await fetch('/api/update-check');
+            if (!r.ok) return;
+            const d = await r.json();
+            if (d.update_available && !localStorage.getItem('updateDismissed')) {
+                const banner = document.getElementById('update-banner');
+                const detail = document.getElementById('update-detail');
+                if (banner && detail) {
+                    detail.textContent = d.ahead_by > 0 ? `（落后 ${d.ahead_by} 个提交）` : '';
+                    banner.style.display = 'flex';
+                }
+            }
+        } catch { /* 静默 */ }
+    };
+    _checkUpdate();
+    setInterval(_checkUpdate, 30 * 60 * 1000);
+    // 忽略按钮记录（当日不再提醒）
+    document.querySelector('#update-banner button')?.addEventListener('click', () => {
+        localStorage.setItem('updateDismissed', new Date().toDateString());
+    });
+    // 新的一天自动解除忽略
+    if (localStorage.getItem('updateDismissed') !== new Date().toDateString()) {
+        localStorage.removeItem('updateDismissed');
+    }
+
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
     document.querySelectorAll('[data-dropdown]').forEach(btn => {
         btn.addEventListener('click', (e) => {
