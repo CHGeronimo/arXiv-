@@ -102,9 +102,10 @@ the very top of the page reflects live crawl-batch progress (papers streaming in
 - **🔄 Crawl**: trigger any of the five sources individually (with status counts) or all at once, outside the night window
 - **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis / ♻️ re-run stale pipeline results (identified by PIPELINE_VERSION, resumable)
 - **⚙️ System settings**: the four config sections above + the **🧪 system
-self-test** — 21 lightweight smoke checks: one request per network source, a real
+self-test** — 34 lightweight smoke checks: one request per network source, a real
 smoke run of **every LLM task** (quick filter / keywords / note academicization /
 clustering / scoring / knowledge cards / fulltext / trend / digest / idea check),
+API round-trips, data readiness, version stamp health, convergence config and stale counts,
 plus SQLite / scheduler / code-version / frontend assets,
 shown in a grouped ✓/⚠/✗ report, never a full crawl.
 
