@@ -89,7 +89,7 @@ CCF 第七版分级标签（130+ 会议 / 80+ 期刊，A/B/C 彩色标识）、
 
 - **🔄 手动抓取**：五个数据源逐个触发（带状态计数）或全部抓取，不受凌晨窗口限制
 - **🤖 AI 处理**：补 AI 增强 / 知识卡片提取 / 重跑图谱聚类 / 补全文分析 / ♻️ 重跑旧流程结果（按 PIPELINE_VERSION 识别旧版 AI 结果逐篇重评+重提卡片，可中断续跑）
-- **⚙️ 系统设置**：上述四块配置 + **🧪 系统自检**——21 项轻量冒烟（六个网络源各 1 条请求 + **全部 10 类 LLM 任务逐条真实链路冒烟**：快筛/关键词/评语学术化/聚类/评分/知识卡片/全文深读/趋势/简报/想法查重 + SQLite/调度/版本一致性/前端资源），分组弹窗展示 ✓/⚠/✗ 与耗时，绝不触发全量爬取
+- **⚙️ 系统设置**：上述四块配置 + **🧪 系统自检**——34 项轻量冒烟（网络源/LLM 任务/API 层/数据就绪/版本收敛/存储调度），分组弹窗展示 ✓/⚠/✗ 与耗时，绝不触发全量抓取
 
 ## 🧠 系统流水线
 
@@ -163,7 +163,7 @@ SQLite（WAL 模式，并发读写安全），11 张表覆盖论文、AI 结果�
 - **常用索引**：source / published_date / recommendation / relevance_score
 - **运行时设置 KV**：环境变量之上叠加，前端保存即写库，60s 缓存 + 调度器自动重排
 
-## 🔌 API（55 个端点）
+## 🔌 API（58 个端点）
 
 主要资源（完整列表见 `backend/api.py`）：
 
@@ -206,7 +206,7 @@ python3 scripts/audit_discovery.py --sample 20
 ├── daemon.py               # 入口薄壳（python daemon.py 用法不变），主体在 backend/
 ├── backend/                # 后端 Python 包
 │   ├── daemon.py           #   入口主体：绑定解析 + app factory + Scheduler
-│   ├── api.py              #   Flask 路由（55 端点）
+│   ├── api.py              #   Flask 路由（58 端点）
 │   ├── db.py               #   SQLite + 写队列 + schema/迁移 + 运行时设置
 │   ├── jobs.py             #   BaseCrawlerJob + 凌晨错峰调度器（replan 热生效）
 │   ├── paper_store.py      #   SQLite CRUD

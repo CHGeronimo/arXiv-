@@ -131,7 +131,7 @@ Personal runtime files (`research_profile.json`, `subscriptions.json`,
 Bind precedence: `--host/--port` CLI args > panel settings (`DAEMON_HOST/PORT` in
 `.env`) > default 127.0.0.1:8080.
 
-## 🔌 API (55 endpoints)
+## 🔌 API (58 endpoints)
 
 Full list in `backend/api.py` — papers (up to 50k lightweight), subscriptions &
 profile, field-level feedback with note academicization, provider switching
