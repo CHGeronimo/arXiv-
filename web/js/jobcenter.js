@@ -89,10 +89,22 @@ export function initJobCenter() {
     panel.addEventListener('click', (e) => e.stopPropagation());
     dd.addEventListener('click', () => { _panelOpen = dd.classList.contains('open'); });
 
+    let _firstPoll = true;
     const poll = async () => {
         try {
             const r = await fetch('/api/jobs');
-            if (r.ok) _renderJobs(await r.json());
+            if (r.ok) {
+                const all = await r.json();
+                _renderJobs(all);
+                // 刷新后恢复感知：首轮发现有 running 任务时提示一次去哪看
+                if (_firstPoll) {
+                    _firstPoll = false;
+                    const running = Object.values(all).filter(v => v?.status === 'running').length;
+                    if (running && typeof showToast === 'function') {
+                        import('./state.js').then(m => m.showToast(`⚡ ${running} 个任务进行中，点击顶栏 ⚡ 查看`));
+                    }
+                }
+            }
         } catch { /* 瞬时失败继续 */ }
         setTimeout(poll, _panelOpen ? 3000 : 8000);
     };

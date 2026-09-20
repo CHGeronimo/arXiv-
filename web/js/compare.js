@@ -3,7 +3,12 @@ import { fetchFullPaper, fetchKnowledgeCard } from './api.js';
 import { escAttr, showToast } from './state.js';
 
 const MAX = 3;
-const selected = [];  // [{id, title}]
+const selected = [];  // [{id, title}] — 刷新自动恢复（localStorage 持久化）
+try {
+    const saved = JSON.parse(localStorage.getItem('compareSel') || '[]');
+    if (Array.isArray(saved)) selected.push(...saved.filter(x => x && x.id));
+} catch { /* 损坏即弃 */ }
+const _persist = () => { try { localStorage.setItem('compareSel', JSON.stringify(selected)); } catch {} };
 
 export function isSelected(id) {
     return selected.some(p => p.id === id);
@@ -20,6 +25,7 @@ export function toggleCompare(paper) {
         }
         selected.push({ id: paper.id, title: escAttr(paper.title || paper.id) });
     }
+    _persist();
     _updateBar();
     _refreshButtons(paper.id);
     return true;
@@ -30,6 +36,7 @@ export function clearCompare() {
     selected.length = 0;
     _updateBar();
     ids.forEach(_refreshButtons);
+    _persist();
 }
 
 function _refreshButtons(id) {

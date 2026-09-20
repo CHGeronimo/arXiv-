@@ -107,7 +107,7 @@ export async function openPaperDetail(paper, navIdx) {
             <div class="modal-feedback-sliders" style="margin-top:12px">
                 <div class="feedback-slider-row"><span class="feedback-label">相关性</span><input type="range" min="1" max="5" value="${userRel || 3}" class="feedback-slider" data-slider-type="relevance" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userRel || '-'}</span></div>
                 <div class="feedback-slider-row"><span class="feedback-label">新颖性</span><input type="range" min="1" max="5" value="${userNov || 3}" class="feedback-slider" data-slider-type="novelty" data-slider-id="${escAttr(paper.id)}"><span class="feedback-val">${userNov || '-'}</span></div>
-                <div class="feedback-note-row"><input type="text" class="feedback-note" data-note-id="${escAttr(paper.id)}" value="${escAttr(fb.note || '')}" placeholder="评语（可选）：为什么有用/没用？会直接影响 AI 评分"></div>
+                <div class="feedback-note-row"><input type="text" class="feedback-note" data-note-id="${escAttr(paper.id)}" value="${escAttr(fb.note || _getNoteDraft(paper.id) || '')}" placeholder="评语（可选）：为什么有用/没用？会直接影响 AI 评分" data-note-id="${escAttr(paper.id)}"></div>
             </div>
             <button class="btn btn--secondary" data-delete-id="${escAttr(paper.id)}" style="border-color:#ef4444;color:#ef4444;margin-left:auto">删除</button>
         </div>
@@ -153,6 +153,16 @@ export async function openPaperDetail(paper, navIdx) {
     document.body.style.overflow = 'hidden';
     // 键盘可达性：打开即聚焦关闭按钮（审计 P2 焦点管理缺失）
     modal.querySelector('.close-btn')?.focus();
+
+    // 评语草稿：输入即存（0.5s 防抖），刷新/关弹窗不丢半截评语
+    const noteInput = detail.querySelector('.feedback-note');
+    if (noteInput) {
+        let _draftT = null;
+        noteInput.addEventListener('input', () => {
+            clearTimeout(_draftT);
+            _draftT = setTimeout(() => _setNoteDraft(paper.id, noteInput.value), 500);
+        });
+    }
 }
 
 export function closePaperModal() {
@@ -162,3 +172,16 @@ export function closePaperModal() {
 
 // 注：profile 编辑入口已统一到订阅面板"研究方向"tab（subscriptions.js），
 // 旧的 profile-modal（openProfileModal/saveProfile）已移除。
+
+
+// ── 评语草稿持久化（localStorage，key 维度 per-paper） ──
+function _noteDraftKey(pid) { return 'noteDraft:' + pid; }
+function _getNoteDraft(pid) {
+    try { return localStorage.getItem(_noteDraftKey(pid)) || ''; } catch { return ''; }
+}
+function _setNoteDraft(pid, val) {
+    try {
+        if (val) localStorage.setItem(_noteDraftKey(pid), val);
+        else localStorage.removeItem(_noteDraftKey(pid));
+    } catch { /* 忽略 */ }
+}

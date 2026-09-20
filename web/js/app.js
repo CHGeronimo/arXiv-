@@ -734,11 +734,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trend radar 页面的生成/周期切换由 trend.js 自行绑定（generateTrend）
 
     // Idea check
-    document.getElementById('btn-check-idea')?.addEventListener('click', async (e) => {
+        // 想法草稿自动保存（刷新不丢）+ 恢复
+    const _ideaInput = document.getElementById('idea-input');
+    if (_ideaInput) {
+        const saved = localStorage.getItem('ideaDraft');
+        if (saved && !_ideaInput.value) _ideaInput.value = saved;
+        let _ideaT = null;
+        _ideaInput.addEventListener('input', () => {
+            clearTimeout(_ideaT);
+            _ideaT = setTimeout(() => {
+                try { localStorage.setItem('ideaDraft', _ideaInput.value); } catch {}
+            }, 500);
+        });
+    }
+
+document.getElementById('btn-check-idea')?.addEventListener('click', async (e) => {
         const btn = e.currentTarget;
         if (btn.disabled) return;  // 防抖：慢响应期连点会并发/旧覆新（审计 P2）
         const idea = document.getElementById('idea-input')?.value?.trim();
         if (!idea) return;
+        localStorage.removeItem('ideaDraft');  // 提交即清草稿
         btn.disabled = true;
         const orig = btn.textContent;
         btn.textContent = '分析中…';
@@ -937,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }).then(r => r.ok ? fetchFeedback() : null).then(() => {
             if (feedbackData[paperId]) renderPapers();
             showToast('评语已保存，将影响后续评分');
+            try { localStorage.removeItem('noteDraft:' + paperId); } catch {}  // 已入库即清草稿
         });
     });
 
