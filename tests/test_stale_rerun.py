@@ -75,6 +75,10 @@ with patch.object(jobs, "_RERUN_LOCK_PATH", "/tmp/.rerun_test.lock"), \
         time.sleep(0.3)
     assert st and st["status"] == "done", st
     assert "3/3" in st["message"], st
+    # 结构化进度字段供 ⚡ 任务中心进度条使用（running 期写入；直接单测 _set_job_status）
+    jobs._set_job_status("enhance_rerun", "running", "unit", progress={"done": 2, "total": 3})
+    pr = jobs.get_job_status()["enhance_rerun"].get("progress") or {}
+    assert pr.get("total") == 3 and pr.get("done") == 2, pr
     assert set(written) == {f"rerun-test-{i}" for i in range(3)}, written
     assert set(cards) == set(written), "知识卡片应随增强重提取"
     assert "rerun-fresh" not in written

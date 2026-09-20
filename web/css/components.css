@@ -1024,6 +1024,22 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* --- ⚡ 任务中心：运行中按钮呼吸 + 面板 spinner --- */
+#dd-jobs > button { animation: none; }
+#dd-jobs.has-running > button { animation: jobs-pulse 2s ease-in-out infinite; }
+@keyframes jobs-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+#panel-jobs .spinner {
+    display: inline-block;
+    border: 2px solid var(--surface-3);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: jobs-spin 0.8s linear infinite;
+}
+@keyframes jobs-spin { to { transform: rotate(360deg); } }
+
 /* --- Settings modal: per-task model rows --- */
 .model-row {
   display: flex;

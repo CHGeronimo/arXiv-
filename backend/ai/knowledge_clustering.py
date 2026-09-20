@@ -21,12 +21,13 @@ MIN_CLUSTER_SIZE = 3
 MAX_CLUSTERS = 30
 
 
-def _progress(msg: str) -> None:
-    """进度双通道：日志 + clustering 任务状态（前端 🤖 菜单轮询）。"""
+def _progress(msg: str, done: int | None = None, total: int | None = None) -> None:
+    """进度双通道：日志 + clustering 任务状态（⚡ 任务中心轮询）。"""
     logger.info(msg)
     try:
         from backend.jobs import _set_job_status
-        _set_job_status("clustering", "running", msg)
+        prog = {"done": done, "total": total} if (done is not None and total) else None
+        _set_job_status("clustering", "running", msg, progress=prog)
     except Exception:
         pass
 
@@ -171,7 +172,9 @@ def _assign_papers_to_themes_llm(
                     else:
                         rescue_pids.append(pid)
                 if done % 5 == 0 or done == len(batches):
-                    _progress(f"主题分配批次 {done}/{len(batches)}（{done * batch_size}/{len(pids)} 篇）")
+                    ndone = min(done * batch_size, len(pids))
+                    _progress(f"主题分配批次 {done}/{len(batches)}（{ndone}/{len(pids)} 篇）",
+                              done=ndone, total=len(pids))
 
         # 救援通道：LLM 判"其他"/未返回的论文 → 关键词宽匹配（真不相关才会留在"其他"）
         if rescue_pids:

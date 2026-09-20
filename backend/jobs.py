@@ -87,12 +87,17 @@ def get_job_status() -> dict:
     return _job_status
 
 
-def _set_job_status(job: str, status: str, msg: str = ""):
-    _job_status[job] = {
+def _set_job_status(job: str, status: str, msg: str = "", progress: dict | None = None):
+    """progress 可选结构化进度：{done, total, speed_pmin, eta_min}——
+    前端 ⚡ 任务中心画进度条用；消息文本保持人类可读。"""
+    entry = {
         "status": status,
         "message": msg,
         "updated": datetime.now(timezone.utc).isoformat(),
     }
+    if progress:
+        entry["progress"] = progress
+    _job_status[job] = entry
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +210,10 @@ class BaseCrawlerJob(ABC):
                         else:
                             prog = f"已处理 {n}（抓取中，已得 {fetched_now} 篇）"
                         logger.info(f"[{self.name}] {prog} │ {' │ '.join(parts)}")
-                        _set_job_status(self.name, "running", f"{prog} │ {' │ '.join(parts)}")
+                        prog_obj = {"done": n, "speed_pmin": round(recent * 60, 1)}
+                        if producer_done.is_set() and fetched_now:
+                            prog_obj.update({"total": fetched_now, "eta_min": round(eta / 60)})
+                        _set_job_status(self.name, "running", f"{prog} │ {' │ '.join(parts)}", progress=prog_obj)
                 return result
 
             def _worker():
@@ -764,7 +772,10 @@ def _run_stale_rerun_impl():
                         eta = (total - n) / max(0.0001, speed)
                         msg = f"{n}/{total} · {speed * 60:.1f}篇/分 · ETA {eta / 60:.0f}分（成功重跑 {redo[0]}）"
                         logger.info(f"[rerun] {msg}")
-                        _set_job_status("enhance_rerun", "running", msg)
+                        _set_job_status("enhance_rerun", "running", msg,
+                                        progress={"done": n, "total": total,
+                                                  "speed_pmin": round(speed * 60, 1),
+                                                  "eta_min": round(eta / 60)})
 
         with ThreadPoolExecutor(max_workers=_ai_max_workers) as ex:
             futures = [ex.submit(_rerun_one, r) for r in rows]

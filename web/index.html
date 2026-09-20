@@ -19,6 +19,7 @@
     <script src="vendor/d3.v7.min.js"></script>
 </head>
 <body>
+    <div id="top-progress" style="display:none;position:fixed;top:0;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--accent-primary),var(--rec-must));z-index:9999;transition:width .8s ease;border-radius:0 2px 2px 0"></div>
     <header>
         <div class="header-left">
             <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
@@ -42,6 +43,10 @@
                     <hr style="border-color:var(--border);margin:4px 0">
                     <div class="dropdown-option" data-crawl="all"><span>全部抓取</span></div>
                 </div>
+            </div>
+            <div class="dropdown" id="dd-jobs">
+                <button class="btn btn--icon" data-dropdown="jobs" title="任务中心" style="position:relative">⚡<span id="jobs-badge" style="display:none;position:absolute;top:-2px;right:-2px;min-width:14px;height:14px;border-radius:7px;background:var(--rec-must);color:#fff;font-size:0.6rem;line-height:14px;text-align:center;padding:0 3px"></span></button>
+                <div class="dropdown-panel" id="panel-jobs" style="min-width:290px;right:0;left:auto;max-height:60vh;overflow-y:auto"></div>
             </div>
             <div class="dropdown" id="dd-ai">
                 <button class="btn btn--icon" data-dropdown="ai" title="AI 处理">🤖</button>

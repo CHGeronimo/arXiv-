@@ -94,7 +94,10 @@ skeleton loading, and code-version observability (page vs disk).
 | 🎛 Task models | default model + per-task overrides for 10 tasks (empty = follow default), with provider-aware suggestions | immediately, no restart |
 | 🌐 Listen address | bind IP (127.0.0.1 / 0.0.0.0 / specific IPv4) and port, with a LAN security warning | on daemon restart (panel shows "⟳ pending restart") |
 
-The top bar splits actions by responsibility:
+The top bar splits actions by responsibility, plus a global **⚡ job center** — a
+persistent button showing the count of running jobs (pulsing), opening a panel with
+per-job **progress bars + n/N + speed + ETA** and ✓ summaries; a 3px gradient bar at
+the very top of the page reflects live crawl-batch progress (papers streaming in):
 
 - **🔄 Crawl**: trigger any of the five sources individually (with status counts) or all at once, outside the night window
 - **🤖 AI processing**: retro enhancement / knowledge-card extraction / graph re-clustering / full-text analysis / ♻️ re-run stale pipeline results (identified by PIPELINE_VERSION, resumable)

@@ -14,6 +14,7 @@ import { openPaperDetail, closePaperModal, navigateModal } from './modal.js';
 import { loadGraph } from './graph.js';
 import { loadTrendRadar } from './trend.js';import { initDigestPage } from './digest.js';
 import { toggleCompare, openCompare, closeCompare, clearCompare } from './compare.js';
+import { initJobCenter } from './jobcenter.js';
 
 // Theme
 const THEME_LABELS = { dark: '深色', light: '浅色', academic: '学术', warm: '暖色', auto: '自动' };
@@ -440,6 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('selftest-modal')?.addEventListener('click', (e) => {
         if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
     });
+
+    initJobCenter();
 
     // Dropdown toggle（🔄 手动爬取菜单；侧边栏重构时曾被误删，2026-09-05 恢复）
     document.querySelectorAll('[data-dropdown]').forEach(btn => {
