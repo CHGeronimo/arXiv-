@@ -14,7 +14,9 @@
 ![Tests](https://img.shields.io/badge/tests-34/34-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-A self-hosted research literature intelligence station: six discovery sources
+A self-hosted research literature intelligence station:
+
+📖 **[Full Feature Guide](docs/GUIDE.md)** (中文) — detailed documentation for every feature six discovery sources
 are crawled automatically every night (pipelined: papers stream into AI
 analysis as they are fetched), a tiered LLM pipeline filters and deeply
 annotates them in Chinese, your likes / dislikes / notes feed back into scoring
