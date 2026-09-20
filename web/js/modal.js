@@ -47,17 +47,17 @@ export async function openPaperDetail(paper, navIdx) {
     const aiFields = paper.AI || {};
     const sections = [];
     const aiParts = [];
-    if (aiFields.tldr) aiParts.push(`<b>TL;DR</b> ${escAttr(aiFields.tldr)}`);
-    if (aiFields.motivation) aiParts.push(`<b>Motivation</b> ${escAttr(aiFields.motivation)}`);
-    if (aiFields.method) aiParts.push(`<b>Method</b> ${escAttr(aiFields.method)}`);
-    if (aiFields.result) aiParts.push(`<b>Result</b> ${escAttr(aiFields.result)}`);
-    if (aiFields.conclusion) aiParts.push(`<b>Conclusion</b> ${escAttr(aiFields.conclusion)}`);
+    if (aiFields.tldr) aiParts.push(`<b>一句话</b> ${escAttr(aiFields.tldr)}`);
+    if (aiFields.motivation) aiParts.push(`<b>动机</b> ${escAttr(aiFields.motivation)}`);
+    if (aiFields.method) aiParts.push(`<b>方法</b> ${escAttr(aiFields.method)}`);
+    if (aiFields.result) aiParts.push(`<b>结果</b> ${escAttr(aiFields.result)}`);
+    if (aiFields.conclusion) aiParts.push(`<b>结论</b> ${escAttr(aiFields.conclusion)}`);
     if (aiParts.length) sections.push(`<h3>AI 解读</h3><p>${aiParts.join('<br><br>')}</p>`);
 
     const summaryZh = aiFields.summary_zh || paper.summary_zh || '';
     if (summaryZh) sections.push(`<h3>中文摘要</h3><p>${escAttr(summaryZh)}</p>`);
     const abstractEn = paper.summary || '';
-    if (abstractEn) sections.push(`<h3>Abstract</h3><p>${escAttr(abstractEn)}</p>`);
+    if (abstractEn) sections.push(`<h3>英文摘要</h3><p>${escAttr(abstractEn)}</p>`);
     if (!sections.length) sections.push(`<p style="color:var(--text-2)">暂无摘要</p>`);
 
     const codeUrl = paper.code_url || '';
@@ -122,13 +122,13 @@ export async function openPaperDetail(paper, navIdx) {
         el.innerHTML = `
             <h3 style="margin-top:16px">知识卡片</h3>
             <div style="margin:8px 0;padding:12px;background:var(--accent-muted);border-radius:8px">
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Problem</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.problem || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Method</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.method_extracted || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Result</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.result_extracted || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">Keywords</span>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">问题</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.problem || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">方法</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.method_extracted || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">结果</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(card.result_extracted || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">关键词</span>
                     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${(card.keywords || []).map(k => `<span style="padding:2px 8px;border-radius:3px;font-size:0.75rem;background:var(--surface-2);color:var(--accent-primary)">${escAttr(k)}</span>`).join('')}</div>
                 </div>
-                ${card.relation_to_profile ? `<div><span style="color:var(--accent-primary);font-weight:600">Profile Relation</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-2)">${escAttr(card.relation_to_profile)}</p></div>` : ''}
+                ${card.relation_to_profile ? `<div><span style="color:var(--accent-primary);font-weight:600">与研究方向的关系</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-2)">${escAttr(card.relation_to_profile)}</p></div>` : ''}
             </div>`;
     });
     fetchFulltextAnalysis(paper.id).then(analysis => {
@@ -138,11 +138,11 @@ export async function openPaperDetail(paper, navIdx) {
         el.innerHTML = `
             <h3 style="margin-top:16px">正文深度分析</h3>
             <div style="margin:8px 0;padding:12px;background:var(--accent-muted);border-radius:8px">
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">方法实现</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.method_implementation || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">实验设计</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.experimental_design || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">关键结果</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.key_results_detail || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">局限性</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.limitations || 'N/A')}</p></div>
-                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">可复现性</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.reproducibility || 'N/A')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">方法实现</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.method_implementation || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">实验设计</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.experimental_design || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">关键结果</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.key_results_detail || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">局限性</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.limitations || '—')}</p></div>
+                <div style="margin-bottom:8px"><span style="color:var(--accent-primary);font-weight:600">可复现性</span><p style="margin:4px 0;font-size:0.88rem">${escAttr(analysis.reproducibility || '—')}</p></div>
                 ${analysis.relevance_to_profile ? `<div><span style="color:var(--accent-primary);font-weight:600">与研究方向的关系</span><p style="margin:4px 0;font-size:0.85rem;color:var(--text-2)">${escAttr(analysis.relevance_to_profile)}</p></div>` : ''}
             </div>`;
     });
@@ -151,6 +151,8 @@ export async function openPaperDetail(paper, navIdx) {
     document.getElementById('modal-next')?.addEventListener('click', () => navigateModal(1));
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+    // 键盘可达性：打开即聚焦关闭按钮（审计 P2 焦点管理缺失）
+    modal.querySelector('.close-btn')?.focus();
 }
 
 export function closePaperModal() {

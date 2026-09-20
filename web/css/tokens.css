@@ -41,7 +41,7 @@
   --surface-0: #0f1419;  --surface-1: #161b22;
   --surface-2: #1c2333;  --surface-3: #222d3f;
   --text-0: #ecf0f6;     --text-1: #c9d1d9;
-  --text-2: #8b949e;     --text-3: #6e7681;
+  --text-2: #9aa4b1;     --text-3: #848f9d;  /* WCAG AA≥4.5 审计修正 */
   --accent-primary: #818cf8; --accent-muted: rgba(129,140,248,0.12);
   --accent-hover: #6366f1;
   --success: #34d399; --warning: #fbbf24; --danger: #f87171; --info: #60a5fa;
@@ -57,7 +57,7 @@
   --surface-0: #f6f8fa;  --surface-1: #ffffff;
   --surface-2: #f0f2f5;  --surface-3: #e8ecf0;
   --text-0: #1f2937;     --text-1: #374151;
-  --text-2: #6b7280;     --text-3: #9ca3af;
+  --text-2: #5f6873;     --text-3: #767f8a;  /* WCAG AA 审计修正 */
   --accent-primary: #4f46e5; --accent-muted: rgba(79,70,229,0.08);
   --accent-hover: #4338ca;
   --success: #059669; --warning: #d97706; --danger: #dc2626; --info: #2563eb;
@@ -73,7 +73,7 @@
   --surface-0: #faf8f5;  --surface-1: #ffffff;
   --surface-2: #f5f0eb;  --surface-3: #ece5dd;
   --text-0: #2c2416;     --text-1: #4a3f2f;
-  --text-2: #7a6e5d;     --text-3: #a0947f;
+  --text-2: #6e6353;     --text-3: #857a68;  /* WCAG AA 审计修正 */
   --accent-primary: #8b5e3c; --accent-muted: rgba(139,94,60,0.1);
   --accent-hover: #6d4a30;
   --success: #2e7d32; --warning: #e65100; --danger: #c62828; --info: #1565c0;
@@ -89,7 +89,7 @@
   --surface-0: #1a1510;  --surface-1: #231e17;
   --surface-2: #2d2620;  --surface-3: #3a322a;
   --text-0: #f5e6d3;     --text-1: #d4c4a8;
-  --text-2: #a89880;     --text-3: #7a6e5d;
+  --text-2: #b3a48c;     --text-3: #998c76;  /* WCAG AA 审计修正 */
   --accent-primary: #e8a849; --accent-muted: rgba(232,168,73,0.12);
   --accent-hover: #d4952e;
   --success: #81c784; --warning: #ffb74d; --danger: #e57373; --info: #64b5f6;

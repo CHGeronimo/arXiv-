@@ -1233,7 +1233,15 @@ def cluster_papers(cluster_name: str):
         ids = set(json.loads(row[0]) if isinstance(row[0], str) else row[0])
     except (json.JSONDecodeError, TypeError):
         ids = set()
-    papers = [p for p in load_all_papers(light=True) if p.get("id") in ids]
+    # 审计 P2：SQL IN 直接取，不再全库加载（原来点一个节点=JOIN 2837 行）
+    id_list = list(ids)
+    papers = []
+    for i in range(0, len(id_list), 900):  # SQLite 变量上限
+        chunk = id_list[i:i + 900]
+        ph = ",".join("?" * len(chunk))
+        rows = get_conn().execute(
+            f"SELECT p.id, p.title, p.published_date FROM papers p WHERE p.id IN ({ph})", chunk)
+        papers.extend(dict(r) for r in rows)
     papers.sort(key=lambda p: (p.get("published_date") or ""), reverse=True)
     return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 

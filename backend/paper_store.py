@@ -279,7 +279,8 @@ def _insert_paper_row(p: dict) -> None:
             val = json.dumps(val, ensure_ascii=False)
         row[col] = val
 
-    if not row.get("ccf_tier"):
+    # 审计 P2：回填后绝大多数已持久化；仅 venue 非空才尝试匹配（空 venue 纯浪费）
+    if not row.get("ccf_tier") and (row.get("venue") or row.get("journal_title")):
         row["ccf_tier"] = _match_ccf(row.get("venue", ""), row.get("journal_title", "")) or None
 
     if not row.get("code_url"):

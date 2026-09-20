@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', async (e) => {
         const active = document.activeElement;
         const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !typing) {  // 输入中 ESC 不关弹窗（防误触丢评语）
             // Close all modals and dropdowns uniformly
             document.querySelectorAll('.modal.active, .subscription-modal.active').forEach(m => {
                 m.classList.remove('active');
@@ -734,9 +734,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Trend radar 页面的生成/周期切换由 trend.js 自行绑定（generateTrend）
 
     // Idea check
-    document.getElementById('btn-check-idea')?.addEventListener('click', async () => {
+    document.getElementById('btn-check-idea')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        if (btn.disabled) return;  // 防抖：慢响应期连点会并发/旧覆新（审计 P2）
         const idea = document.getElementById('idea-input')?.value?.trim();
         if (!idea) return;
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = '分析中…';
         const emptyEl = document.getElementById('idea-empty');
         const el = document.getElementById('idea-result');
         if (emptyEl) emptyEl.style.display = 'none';
@@ -793,6 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 emptyEl.style.display = '';
             }
         }
+    btn.disabled = false; btn.textContent = orig;
     });
 
     // Compare modal + floating bar

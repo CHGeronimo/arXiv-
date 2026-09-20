@@ -1,3 +1,4 @@
+const _lastProgToast = { t: 0 };
 // js/api.js — API fetch wrappers
 
 import { showToast } from './state.js';
@@ -89,7 +90,11 @@ export async function triggerCrawl(job, { loadPapers }) {
                     const st = await (await fetch('/api/jobs')).json();
                     const s = st.clustering;
                     if (!s || s.status === 'running') {
-                        if (s?.message) showToast(`聚类进度：${s.message}`);
+                        // 进度 toast 去重：每 60s 最多一条（原来 5s 一条刷屏数分钟）
+                        if (s?.message && Date.now() - (_lastProgToast.t || 0) > 60000) {
+                            _lastProgToast.t = Date.now();
+                            showToast(`聚类进度：${s.message}`);
+                        }
                         if (Date.now() - t0 > 600000) { clearInterval(timer); showToast('聚类超时，稍后到 🕸️ 刷新查看'); }
                         return;
                     }
