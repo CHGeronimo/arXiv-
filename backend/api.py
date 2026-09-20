@@ -1041,6 +1041,9 @@ def _retro_knowledge_extract():
 
     logger = logging.getLogger("knowledge-extract")
     logger.info(f"知识卡片抽取: {len(rows)} 篇待处理")
+    from backend.jobs import _set_job_status as _kstat
+    _kstat("knowledge", "running", f"{len(rows)} 篇待提取卡片",
+           progress={"done": 0, "total": len(rows)})
 
     for i, row in enumerate(rows):
         paper = {
@@ -1053,9 +1056,12 @@ def _retro_knowledge_extract():
                 "INSERT OR REPLACE INTO knowledge_cards (paper_id, problem, method_extracted, result_extracted, keywords, relation_to_profile) VALUES (?,?,?,?,?,?)",
                 (card["paper_id"], card["problem"], card["method_extracted"], card["result_extracted"], card["keywords"], card["relation_to_profile"]),
             )
-        if (i + 1) % 50 == 0:
+        if (i + 1) % 50 == 0 or (i + 1) == len(rows):
             logger.info(f"知识卡片进度: {i + 1}/{len(rows)}")
+            _kstat("knowledge", "running", f"{i + 1}/{len(rows)}",
+                   progress={"done": i + 1, "total": len(rows)})
     logger.info(f"知识卡片抽取完成: {len(rows)} 篇已处理")
+    _kstat("knowledge", "done", f"{len(rows)} 篇卡片已提取，触发聚类")
 
     if len(rows) > 0:
         from backend.ai.knowledge_clustering import run_clustering
@@ -1088,6 +1094,9 @@ def _retro_fulltext_analyze():
 
     logger = logging.getLogger("fulltext-analyze")
     logger.info(f"正文深度分析: {len(rows)} 篇待处理")
+    from backend.jobs import _set_job_status as _fstat
+    _fstat("fulltext", "running", f"{len(rows)} 篇待深读",
+           progress={"done": 0, "total": len(rows)})
 
     analyzed = 0
     for i, row in enumerate(rows):
@@ -1106,10 +1115,13 @@ def _retro_fulltext_analyze():
                  result["relevance_to_profile"]),
             )
             analyzed += 1
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 10 == 0 or (i + 1) == len(rows):
             logger.info(f"正文分析进度: {i + 1}/{len(rows)} ({analyzed} 篇已分析)")
+            _fstat("fulltext", "running", f"{i + 1}/{len(rows)}（成功 {analyzed}）",
+                   progress={"done": i + 1, "total": len(rows)})
 
     logger.info(f"正文深度分析完成: {analyzed}/{len(rows)}")
+    _fstat("fulltext", "done", f"{analyzed}/{len(rows)} 篇深读完成")
 
 
 @app.route("/api/paper/<path:paper_id>/fulltext", methods=["GET"])

@@ -605,6 +605,7 @@ def run_retro_enhance():
 
         if not rows:
             logger.info("[retro-enhance] ⊘ 无需增强的论文")
+            _set_job_status("enhance", "done", "无需增强的论文")
             return
 
         # Convert rows to dicts, decoding JSON fields
@@ -623,7 +624,10 @@ def run_retro_enhance():
             to_enhance.append(d)
 
         logger.info(f"[retro-enhance] {len(to_enhance)} 篇待增强")
+        _set_job_status("enhance", "running", f"{len(to_enhance)} 篇待增强",
+                        progress={"done": 0, "total": len(to_enhance)})
         enhanced_count = 0
+        _re_done = [0]
 
         with ThreadPoolExecutor(max_workers=_ai_max_workers) as executor:
             futures = {
@@ -646,14 +650,19 @@ def run_retro_enhance():
                     logger.warning(
                         f"[retro-enhance] 失败 {p.get('id', '?')}: {e}"
                     )
-                if enhanced_count % 10 == 0:
+                _re_done[0] += 1
+                if _re_done[0] % 10 == 0 or _re_done[0] == len(to_enhance):
                     logger.info(
-                        f"[retro-enhance] {enhanced_count}/{len(to_enhance)}"
+                        f"[retro-enhance] {_re_done[0]}/{len(to_enhance)}"
                     )
+                    _set_job_status("enhance", "running", f"{_re_done[0]}/{len(to_enhance)}（成功 {enhanced_count}）",
+                                    progress={"done": _re_done[0], "total": len(to_enhance)})
 
         logger.info(f"[retro-enhance] ✔ 完成: {enhanced_count} 篇已增强")
+        _set_job_status("enhance", "done", f"{enhanced_count}/{len(to_enhance)} 篇已增强")
     except Exception as e:
         logger.error(f"[retro-enhance] ✖ 失败: {e}", exc_info=True)
+        _set_job_status("enhance", "error", str(e)[:160])
 
 
 # ---------------------------------------------------------------------------
@@ -800,14 +809,18 @@ def _run_stale_rerun_impl():
 
 def run_digest_job():
     logger.info("[digest] ▶ 开始")
+    _set_job_status("digest", "running", "简报生成中…")
     try:
         path = generate_digest()
         if path:
             logger.info(f"[digest] ✔ 已保存: {path}")
+            _set_job_status("digest", "done", f"已保存 {path}")
         else:
-            logger.info("[digest] ⊘ 今日无新论文")
+            logger.info(f"[digest] ⊘ 今日无新论文")
+            _set_job_status("digest", "done", "今日无新论文")
     except Exception as e:
         logger.error(f"[digest] ✖ 失败: {e}", exc_info=True)
+        _set_job_status("digest", "error", str(e)[:160])
 
 
 # ---------------------------------------------------------------------------
