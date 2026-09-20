@@ -113,6 +113,13 @@ export async function triggerCrawl(job, { loadPapers }) {
         } catch { showToast('启动失败'); }
         return;
     }
+    if (job === 'card-rerun') {
+        try {
+            const resp = await fetch('/api/trigger/card-rerun', { method: 'POST' });
+            showToast(resp.ok ? '🗂 卡片重提启动（进度见 ⚡ 任务中心）' : '启动失败');
+        } catch { showToast('启动失败'); }
+        return;
+    }
     if (job === 'enhance-rerun') {
         try {
             const resp = await fetch('/api/trigger/enhance-rerun', { method: 'POST' });

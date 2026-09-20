@@ -208,6 +208,12 @@ def init_db() -> None:
     ai_cols = {r[1] for r in conn.execute("PRAGMA table_info(ai_results)")}
     if "pipeline_version" not in ai_cols:
         conn.execute("ALTER TABLE ai_results ADD COLUMN pipeline_version TEXT")
+    card_cols = {r[1] for r in conn.execute("PRAGMA table_info(knowledge_cards)")}
+    if "card_version" not in card_cols:
+        conn.execute("ALTER TABLE knowledge_cards ADD COLUMN card_version TEXT")
+    cluster_cols = {r[1] for r in conn.execute("PRAGMA table_info(knowledge_clusters)")}
+    if "cluster_version" not in cluster_cols:
+        conn.execute("ALTER TABLE knowledge_clusters ADD COLUMN cluster_version TEXT")
     trend_cols = {r[1] for r in conn.execute("PRAGMA table_info(trend_reports)")}
     if "period_type" not in trend_cols:
         conn.execute("ALTER TABLE trend_reports ADD COLUMN period_type TEXT DEFAULT 'weekly'")

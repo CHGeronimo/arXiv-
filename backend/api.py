@@ -1246,6 +1246,21 @@ def cluster_papers(cluster_name: str):
     return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 
 
+@app.route("/api/trigger/card-rerun", methods=["POST"])
+def trigger_card_rerun():
+    """组件级重跑：只重提知识卡片（快 5 倍）。"""
+    from backend.jobs import run_card_rerun
+    threading.Thread(target=run_card_rerun, daemon=True).start()
+    return jsonify({"status": "triggered", "job": "card_rerun"})
+
+
+@app.route("/api/stale-counts", methods=["GET"])
+def get_stale_counts():
+    """各层旧版本计数（♻️ 菜单/自动收敛决策用）。"""
+    from backend.jobs import _stale_counts
+    return jsonify(_stale_counts())
+
+
 @app.route("/api/trigger/enhance-rerun", methods=["POST"])
 def trigger_enhance_rerun():
     """重跑旧流程 AI 结果（按 PIPELINE_VERSION 识别；中断可续）。"""

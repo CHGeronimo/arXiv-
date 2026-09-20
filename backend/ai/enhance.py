@@ -20,10 +20,18 @@ from .structure import Structure
 
 logger = logging.getLogger(__name__)
 
-# 流程版本戳：提示词/解析逻辑有实质改进时递增（YYYY-MM-DD[.n]）。
-# 旧结果通过 🤖「重跑旧流程结果」按此识别重跑；中断续跑天然支持
-# （重跑过的会被打上新版本，再次触发只补剩余）。
-PIPELINE_VERSION = "2026-09-19"
+# ── 分层流程版本戳（YYYY-MM-DD[.n]）──
+# 各组件独立递增：改哪层只重跑哪层，不再全链重跑。
+# 旧结果通过 ♻️「重跑旧流程」按对应层版本识别；中断续跑天然支持。
+# ENHANCE_VER：影响 tldr/评分/推荐等级的提示词或解析变更
+# CARD_VER：仅影响知识卡片提取的提示词/解析变更
+# CLUSTER_VER：聚类算法/提示词变更（只重聚类，不动底层卡片）
+ENHANCE_VER = "2026-09-19"   # 当前与旧全局戳同值（首次分层不触发重跑）
+CARD_VER = "2026-09-19"
+CLUSTER_VER = "2026-09-19"
+
+# 兼容别名：增强打戳与重跑选择器用
+PIPELINE_VERSION = ENHANCE_VER
 
 _AI_DIR = os.path.dirname(os.path.abspath(__file__))
 

@@ -312,7 +312,7 @@ def _insert_ai_row(paper_id: str, ai: dict) -> None:
     queue_write(sql, tuple(row[c] for c in AI_COLS))
 
 
-CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile"]
+CARD_COLS = ["paper_id", "problem", "method_extracted", "result_extracted", "keywords", "relation_to_profile", "card_version"]
 
 FULLTEXT_COLS = [
     "paper_id", "method_implementation", "experimental_design",
@@ -327,6 +327,7 @@ def _insert_knowledge_card(paper_id: str, paper: dict) -> None:
         return
     cols = ", ".join(CARD_COLS)
     placeholders = ", ".join(f":{c}" for c in CARD_COLS)
+    card["card_version"] = __import__("backend.ai.enhance", fromlist=["CARD_VER"]).CARD_VER
     sql = f"INSERT OR REPLACE INTO knowledge_cards ({cols}) VALUES ({placeholders})"
     queue_write(sql, tuple(card.get(c) for c in CARD_COLS))
 

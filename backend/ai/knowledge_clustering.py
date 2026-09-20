@@ -373,12 +373,13 @@ def compute_clusters() -> list[dict]:
 
 
 def save_clusters(clusters: list[dict]) -> None:
+    from backend.ai.enhance import CLUSTER_VER
     conn = get_conn()
     conn.execute("DELETE FROM knowledge_clusters")
     for c in clusters:
         conn.execute(
-            "INSERT INTO knowledge_clusters (cluster_name, method_keywords, paper_ids, problem_domains) VALUES (?, ?, ?, ?)",
-            (c["cluster_name"], c["method_keywords"], c["paper_ids"], c["problem_domains"]),
+            "INSERT INTO knowledge_clusters (cluster_name, method_keywords, paper_ids, problem_domains, cluster_version) VALUES (?, ?, ?, ?, ?)",
+            (c["cluster_name"], c["method_keywords"], c["paper_ids"], c["problem_domains"], CLUSTER_VER),
         )
     conn.commit()
 
