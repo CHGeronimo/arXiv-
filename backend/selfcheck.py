@@ -304,6 +304,49 @@ def run_selftest() -> dict:
         return f"{n} 个聚类"
     _check(checks, "数据", "知识聚类", _clusters_ready)
 
+    # ── 版本戳与收敛组：分层版本/收敛配置/各层旧版量 ──────────────
+    def _version_layers():
+        from backend.ai.enhance import ENHANCE_VER, CARD_VER, CLUSTER_VER
+        return f"增强 {ENHANCE_VER} / 卡片 {CARD_VER} / 聚类 {CLUSTER_VER}"
+    _check(checks, "版本", "三层版本戳", _version_layers)
+
+    def _converge_config():
+        from backend.db import get_runtime_settings
+        st = get_runtime_settings()
+        pct = int(st.get("CONVERGE_PCT", 10))
+        max_min = int(st.get("CONVERGE_MAX_MIN", 30))
+        if pct < 1 or pct > 50:
+            return (f"CONVERGE_PCT={pct} 越界（应 1-50）", "warn")
+        if max_min < 5 or max_min > 120:
+            return (f"CONVERGE_MAX_MIN={max_min} 越界（应 5-120）", "warn")
+        return f"每轮 {pct}% / 限时 {max_min} 分钟"
+    _check(checks, "收敛", "配置有效性", _converge_config)
+
+    def _stale_report():
+        from backend.jobs import _stale_counts
+        stale = _stale_counts()
+        parts = []
+        if stale.get("enhance"):
+            parts.append(f"增强旧版 {stale['enhance']} 篇")
+        if stale.get("card"):
+            parts.append(f"卡片旧版 {stale['card']} 篇")
+        if not parts:
+            return "全层最新 ✓"
+        hint = "（夜间自动渐进收敛中）"
+        return "、".join(parts) + hint
+    _check(checks, "收敛", "旧版存量", _stale_report)
+
+    def _card_rerun_endpoint():
+        from backend.api import app as _app
+        r = _app.test_client().get("/api/stale-counts")
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        d = r.get_json()
+        if "enhance" not in d or "card" not in d:
+            raise RuntimeError(f"响应缺键: {list(d)}")
+        return f"enhance={d['enhance']} card={d['card']}"
+    _check(checks, "收敛", "stale-counts 端点", _card_rerun_endpoint)
+
     # ── 存储与调度组：只读不写 ─────────────────────────────────
     def _db():
         from backend.db import get_conn

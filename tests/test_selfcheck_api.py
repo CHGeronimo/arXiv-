@@ -86,6 +86,9 @@ def _full_mocks():
     # 反馈环主题去重（真实函数走 LLM，测试替换）
     stack.enter_context(patch("backend.api._deduplicate_topics",
                               return_value=["opponent modeling", "diffusion policy"]))
+    # 版本戳/收敛（_stale_counts 走真实 DB 只读——不 mock；card_rerun 端点走 test_client 只读）
+    stack.enter_context(patch("backend.db.get_runtime_settings",
+                              return_value={"CONVERGE_PCT": 10, "CONVERGE_MAX_MIN": 30}))
     return stack
 
 
@@ -100,13 +103,13 @@ with _full_mocks():
     r = sc.run_selftest()
     fails = [ch for ch in r["checks"] if ch["status"] != "ok"]
     assert not fails, fails
-    assert r["total"] == len(r["checks"]) == 30, r["total"]
+    assert r["total"] == len(r["checks"]) == 34, r["total"]
     llm_names = [ch["name"] for ch in r["checks"] if ch["group"] == "LLM"]
     assert len(llm_names) == 12, llm_names
     assert sc.get_last_report() is r
     g = c.get("/api/selftest").get_json()
-    assert g["ok"] == 30
-    print(f"[2] 全 Mock 全通过（30 项，LLM {len(llm_names)} 条）✓")
+    assert g["ok"] == 34
+    print(f"[2] 全 Mock 全通过（34 项，LLM {len(llm_names)} 条）✓")
 
     # [3] 失败路径：arXiv 网络异常 → 单项 fail，其余不受影响
     def _boom_arxiv(url, **kw):
@@ -117,7 +120,7 @@ with _full_mocks():
         r3 = sc.run_selftest()
     arxiv_ch = [ch for ch in r3["checks"] if ch["name"].startswith("arXiv")][0]
     assert arxiv_ch["status"] == "fail" and "connection refused" in arxiv_ch["detail"]
-    assert r3["ok"] + r3["warn"] + r3["fail"] == r3["total"] == 30
+    assert r3["ok"] + r3["warn"] + r3["fail"] == r3["total"] == 34
     print("[3] 失败路径隔离 ✓")
 
     # [4] 警告路径：OpenAlex 配额熔断 → warn；评分任务失败独立成行
@@ -143,7 +146,7 @@ with _full_mocks():
         time.sleep(0.3)
     assert st and st["status"] == "done", st
     final = c.get("/api/selftest").get_json()
-    assert final["total"] == 30
+    assert final["total"] == 34
     print(f"[5] 触发→后台运行→状态+报告 ✓（{st['message']}）")
 
 print("\n系统自检测试通过 ✅")
