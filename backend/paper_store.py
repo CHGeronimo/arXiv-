@@ -41,15 +41,19 @@ _quick_chain = None
 
 
 def get_ai_chain():
-    """Lazy-init the main AI enhancement chain and research profile."""
-    global _ai_chain, _ai_profile
+    """Lazy-init the main AI enhancement chain; profile always read fresh.
+
+    2026-09-22 修复：曾缓存 _ai_profile 导致用户改方向后增强管线仍用旧值
+    （429/858 篇卡片"未提供方向"实锤）。现在只缓存 LLM chain（构建贵），
+    profile 每次调用重读文件（读取廉价，JSON 解析 <1ms）。
+    """
+    global _ai_chain
     if _ai_chain is None:
         import os
         model_name = os.environ.get("MODEL_NAME", "glm-5.3-flash")
         _ai_chain = build_chain(model_name)
-        _ai_profile = load_research_profile()
         logger.info(f"AI 链已初始化: {model_name}")
-    return _ai_chain, _ai_profile
+    return _ai_chain, load_research_profile()
 
 
 def reset_ai_chain():
