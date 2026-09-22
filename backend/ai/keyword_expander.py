@@ -246,6 +246,12 @@ def _expand(
         ),
         encoding="utf-8",
     )
+    # 新查询写入后刷新本地预筛词集（否则预筛用旧词直到 daemon 重启）
+    try:
+        from backend.paper_store import reset_ai_chain
+        reset_ai_chain()
+    except Exception:
+        pass
     return merged, None
 
 
