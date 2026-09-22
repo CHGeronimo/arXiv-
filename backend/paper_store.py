@@ -78,6 +78,7 @@ def get_quick_chain():
 # ---------------------------------------------------------------------------
 
 _local_terms: set[str] | None = None
+_local_terms_at: float = 0.0  # TTL 时间戳（60s，改关键词后最多 1 分钟生效）
 
 
 def _local_filter_enabled() -> bool:
@@ -91,8 +92,9 @@ def _local_filter_enabled() -> bool:
 def get_local_terms() -> set[str]:
     """Build the local-filter term set: tokens (len>=4) from profile keywords
     plus the LLM-expanded search queries cache. Cached until profile reset."""
-    global _local_terms
-    if _local_terms is None:
+    global _local_terms, _local_terms_at
+    import time as _t
+    if _local_terms is None or _t.monotonic() - _local_terms_at > 60:
         phrases = list(load_research_profile().get("keywords", []))
         try:
             cached = json.loads(
@@ -107,6 +109,7 @@ def get_local_terms() -> set[str]:
                 if len(tok) >= 4:
                     terms.add(tok)
         _local_terms = terms
+        _local_terms_at = _t.monotonic()
         logger.info(f"本地预筛词表: {len(terms)} 个 token")
     return _local_terms
 
