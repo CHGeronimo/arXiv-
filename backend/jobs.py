@@ -535,7 +535,12 @@ JOBS: dict[str, BaseCrawlerJob] = {
 
 def run_arxiv_job():
     JOBS["arxiv"].run()
-    # 抓取批完成后渐进收敛旧版本（每次最多 50 篇，不独占时间窗）
+    # 期刊渐进回溯（如已设定 BACKFILL_MONTHS）
+    try:
+        run_backfill_nightly()
+    except Exception as e:
+        logger.warning(f"夜间回溯跳过: {e}")
+    # 抓取批完成后渐进收敛旧版本
     try:
         run_auto_convergence()
     except Exception as e:
@@ -684,8 +689,13 @@ def run_retro_enhance():
 _RERUN_LOCK_PATH = "data/.rerun.lock"  # 测试可指向临时文件
 
 
-def run_journal_backfill(months: int = 6):
-    """期刊历史回溯：按发表日期抓取订阅期刊的往期论文，走正常 AI 管道。"""
+def run_journal_backfill(months: int = 6, nightly: int = 0):
+    """期刊历史回溯（渐进式）：设定目标月数后每晚自动推进。
+
+    手动触发（nightly=0）：一次性跑完（原行为，不推荐大量期刊）。
+    渐进模式（nightly>0）：只处理 nightly 本期刊，剩余留待后续夜间调度。
+    进度存储在 KV（backfill_progress），⚡ 任务中心可见。
+    """
     import fcntl
     from pathlib import Path as _P
     _P("data").mkdir(exist_ok=True)
@@ -693,16 +703,13 @@ def run_journal_backfill(months: int = 6):
     try:
         fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        _set_job_status("journal_backfill", "error", "另一实例正在回溯，勿重复触发")
-        logger.warning("[backfill] ✘ 另一实例运行中")
+        _set_job_status("journal_backfill", "error", "另一实例正在回溯")
         lock_fh.close()
         return
     try:
         from datetime import datetime as _dt, timedelta as _td
-        from_date = (_dt.now() - _td(days=months * 30)).strftime("%Y-%m-%d")
-        _set_job_status("journal_backfill", "running",
-                        f"回溯 {months} 个月（{from_date} 起）…")
-        logger.info(f"[backfill] ▶ 期刊历史回溯 {months} 个月（{from_date} 起）")
+        from backend.db import get_runtime_settings, get_conn as _gc
+        from backend.crawler.crossref_crawler import CrossrefCrawler
 
         subs = _load_subs()
         journals = subs.crossref_journals or []
@@ -710,17 +717,32 @@ def run_journal_backfill(months: int = 6):
             _set_job_status("journal_backfill", "done", "无订阅期刊")
             return
 
-        from backend.crawler.crossref_crawler import CrossrefCrawler
-        from backend.crawler.subs_store import Journal
-        from backend.db import get_runtime_settings
-        conn = get_conn()
+        # 读取或初始化进度
+        conn = _gc()
+        prog_row = conn.execute(
+            "SELECT value FROM subscriptions WHERE key='backfill_progress'").fetchone()
+        import json as _j
+        prog = _j.loads(prog_row[0]) if prog_row else {"cursor": 0, "months": months, "done": 0}
+        if prog.get("months") != months:
+            prog = {"cursor": 0, "months": months, "done": 0}  # 目标变了→重置
+        cursor = int(prog.get("cursor", 0))
+        if cursor >= len(journals):
+            _set_job_status("journal_backfill", "done",
+                            f"回溯完成: {len(journals)} 本期刊 × {months} 个月 ✓")
+            return
+
+        from_date = (_dt.now() - _td(days=months * 30)).strftime("%Y-%m-%d")
+        batch = journals[cursor:cursor + nightly] if nightly > 0 else journals[cursor:]
+        batch_label = f"期刊 {cursor + 1}-{min(cursor + len(batch), len(journals))}/{len(journals)}"
+        _set_job_status("journal_backfill", "running",
+                        f"{batch_label} × {months} 个月（{from_date} 起）")
+        logger.info(f"[backfill] ▶ {batch_label} × {months} 个月")
+
         known = {r[0] for r in conn.execute("SELECT id FROM papers")}
         ignored = {r[0] for r in conn.execute("SELECT paper_id FROM ignored_papers")}
-
         crawler = CrossrefCrawler(journals, known_ids=known | ignored)
-        total_fetched, total_new = 0, 0
 
-        # 流水线：生产者（逐期刊回溯）→ 消费者（AI worker）
+        # 流水线：生产者（逐期刊回溯）→ AI worker
         paper_q = queue.Queue(maxsize=50)
         producer_done = threading.Event()
         done_count = [0]
@@ -729,14 +751,12 @@ def run_journal_backfill(months: int = 6):
         last_log = [time.monotonic()]
 
         def _produce():
-            nonlocal total_fetched
             try:
-                for j in journals:
+                for j in batch:
                     if _shutdown:
                         break
                     items = crawler._fetch_backfill(j.issn, from_date, max_rows=500)
-                    total_fetched += len(items)
-                    logger.info(f"[backfill] {j.name}: {len(items)} 篇（{from_date} 起）")
+                    logger.info(f"[backfill] {j.name}: {len(items)} 篇")
                     for item in items:
                         paper = crawler._parse_item(item, j)
                         if paper and paper.article_type == "research":
@@ -749,7 +769,6 @@ def run_journal_backfill(months: int = 6):
                     paper_q.put(None)
 
         def _worker():
-            nonlocal total_new
             while not _shutdown:
                 paper = paper_q.get()
                 try:
@@ -763,24 +782,34 @@ def run_journal_backfill(months: int = 6):
                         now = time.monotonic()
                         if done_count[0] % 10 == 0 and now - last_log[0] >= 3:
                             last_log[0] = now
-                            msg = f"{done_count[0]} 篇已处理 · {new_count[0]} 入库"
+                            msg = f"{batch_label}: {done_count[0]} 篇处理 · {new_count[0]} 入库"
                             logger.info(f"[backfill] {msg}")
                             _set_job_status("journal_backfill", "running", msg,
-                                            progress={"done": done_count[0]})
+                                            progress={"done": cursor + len(batch), "total": len(journals)})
                 finally:
                     paper_q.task_done()
 
-        producer = threading.Thread(target=_produce, daemon=True, name="backfill-crawl")
+        producer = threading.Thread(target=_produce, daemon=True)
         producer.start()
-        workers = [threading.Thread(target=_worker, daemon=True, name=f"backfill-ai-{i}")
-                   for i in range(_ai_max_workers)]
+        workers = [threading.Thread(target=_worker, daemon=True) for _ in range(_ai_max_workers)]
         for w in workers:
             w.start()
         for w in workers:
             w.join()
 
+        # 更新进度
+        new_cursor = cursor + len(batch)
+        conn.execute(
+            "INSERT OR REPLACE INTO subscriptions (key, value) VALUES ('backfill_progress', ?)",
+            (_j.dumps({"cursor": new_cursor, "months": months, "done": new_count[0]}),))
+        conn.commit()
         sync_write("SELECT 1")
-        msg = f"回溯完成: {total_fetched} 篇抓取, {new_count[0]} 篇入库（{len(journals)} 本期刊 × {months} 个月）"
+
+        remaining_n = len(journals) - new_cursor
+        if remaining_n > 0:
+            msg = f"{batch_label}: {new_count[0]} 篇入库，剩余 {remaining_n} 本期刊待回溯"
+        else:
+            msg = f"回溯全部完成: {len(journals)} 本 × {months} 个月，共 {prog.get('done',0) + new_count[0]} 篇入库"
         _set_job_status("journal_backfill", "done", msg)
         logger.info(f"[backfill] ✔ {msg}")
     except Exception as e:
@@ -792,6 +821,27 @@ def run_journal_backfill(months: int = 6):
             lock_fh.close()
         except Exception:
             pass
+
+
+def run_backfill_nightly():
+    """夜间调度：读取 BACKFILL_MONTHS 设置，渐进推进期刊回溯。"""
+    from backend.db import get_runtime_settings
+    st = get_runtime_settings()
+    months = int(st.get("BACKFILL_MONTHS", 0))
+    if months <= 0:
+        return  # 未启用
+    nightly = int(st.get("BACKFILL_NIGHTLY", 5))
+    # 检查是否已完成
+    conn = get_conn()
+    row = conn.execute("SELECT value FROM subscriptions WHERE key='backfill_progress'").fetchone()
+    if row:
+        import json as _j
+        prog = _j.loads(row[0])
+        subs = _load_subs()
+        if prog.get("cursor", 0) >= len(subs.crossref_journals or []):
+            return  # 已完成
+    logger.info(f"[backfill] 夜间渐进: {months} 个月 × {nightly} 本/晚")
+    run_journal_backfill(months=months, nightly=nightly)
 
 
 def run_stale_rerun():

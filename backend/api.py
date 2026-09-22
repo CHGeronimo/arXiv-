@@ -554,6 +554,8 @@ _SETTINGS_META = {
     "LLM_NIGHT_CONCURRENCY": {"label": "LLM 凌晨并发（低峰可放宽，如 9）", "type": "int", "min": 1, "max": 12, "restart": False},
     "CONVERGE_PCT": {"label": "夜间收敛百分比（每轮处理旧版量%，1-50）", "type": "int", "min": 1, "max": 50, "restart": False},
     "CONVERGE_MAX_MIN": {"label": "夜间收敛时间上限分钟（5-120）", "type": "int", "min": 5, "max": 120, "restart": False},
+    "BACKFILL_MONTHS": {"label": "期刊渐进回溯月数（0=关，1-24）", "type": "int", "min": 0, "max": 24, "restart": False},
+    "BACKFILL_NIGHTLY": {"label": "每晚回溯几本期刊（1-10）", "type": "int", "min": 1, "max": 10, "restart": False},
 }
 
 

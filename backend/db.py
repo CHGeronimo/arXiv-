@@ -430,6 +430,8 @@ _SETTING_DEFAULTS = {
     "LLM_DAY_CONCURRENCY": 6, "LLM_NIGHT_CONCURRENCY": 9,  # 两档并发（白天实测安全6）
     "CONVERGE_PCT": 10,       # 夜间收敛：每轮处理旧版量的百分比
     "CONVERGE_MAX_MIN": 30,   # 夜间收敛：单轮时间上限（分钟）
+    "BACKFILL_MONTHS": 0,     # 期刊渐进回溯目标月数（0=不启用，1-24）
+    "BACKFILL_NIGHTLY": 5,    # 每晚回溯几本期刊（1-10）
 }
 
 

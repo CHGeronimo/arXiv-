@@ -114,28 +114,42 @@ export async function triggerCrawl(job, { loadPapers }) {
         return;
     }
     if (job.startsWith('backfill-')) {
-        const months = parseInt(job.split('-')[1]) || 6;
+        const sub = job.split('-')[1];
+        if (sub === 'stop') {
+            try {
+                fetch('/api/settings', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ BACKFILL_MONTHS: 0 }),
+                });
+                showToast('⊘ 期刊回溯已停止（今晚起不再执行）');
+            } catch { showToast('操作失败'); }
+            return;
+        }
+        if (sub === 'now') {
+            try {
+                const resp = await fetch('/api/trigger/journal-backfill', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gradual_next: true }),
+                });
+                showToast(resp.ok ? '⚡ 立即回溯下一批启动（进度见 ⚡）' : '启动失败');
+            } catch { showToast('启动失败'); }
+            return;
+        }
+        const months = parseInt(sub) || 6;
         try {
+            // 设定渐进目标 + 立即跑第一批
+            await fetch('/api/settings', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ BACKFILL_MONTHS: months }),
+            });
             const resp = await fetch('/api/trigger/journal-backfill', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ months }),
+                body: JSON.stringify({ months, nightly: 5 }),
             });
-            if (!resp.ok) { showToast('启动失败'); return; }
-            showToast(`📚 ${months} 个月期刊回溯启动（历史论文将走 AI 管道筛选，进度见 ⚡）`);
-            const t0 = Date.now();
-            const timer = setInterval(async () => {
-                try {
-                    const st = await (await fetch('/api/jobs')).json();
-                    const s = st.journal_backfill;
-                    if (!s || s.status === 'running') {
-                        if (Date.now() - t0 > 3600000) { clearInterval(timer); showToast('回溯仍在进行，进度见 ⚡ 任务中心'); }
-                        return;
-                    }
-                    clearInterval(timer);
-                    showToast(s.status === 'done' ? `✓ ${s.message}` : `回溯失败: ${s.message || s.status}`);
-                } catch { /* 轮询瞬时失败 */ }
-            }, 10000);
-        } catch { showToast('启动失败'); }
+            showToast(resp.ok
+                ? `📚 已设定 ${months} 个月渐进回溯：每晚 5 本期刊，约 ${Math.ceil(73/5)} 晚完成`
+                : '设定失败');
+        } catch { showToast('设定失败'); }
         return;
     }
     if (job === 'card-rerun') {
