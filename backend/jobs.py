@@ -705,7 +705,7 @@ def run_journal_backfill(months: int = 6):
         logger.info(f"[backfill] ▶ 期刊历史回溯 {months} 个月（{from_date} 起）")
 
         subs = _load_subs()
-        journals = subs.crossref.journals if subs.crossref else []
+        journals = subs.crossref_journals or []
         if not journals:
             _set_job_status("journal_backfill", "done", "无订阅期刊")
             return
