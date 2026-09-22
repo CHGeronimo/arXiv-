@@ -376,6 +376,16 @@ def put_profile():
     merged.update(data)
     _write_profile_atomic(merged)
     reset_ai_chain()
+    # 方向变更时清除全部版本戳——旧结果是按旧方向处理的，需重跑
+    import sqlite3 as _sq
+    try:
+        _c = get_conn()
+        _c.execute("UPDATE ai_results SET pipeline_version = NULL")
+        _c.execute("UPDATE knowledge_cards SET card_version = NULL")
+        _c.commit()
+        logging.getLogger(__name__).info("研究方向已变更，清除全部版本戳（待重跑）")
+    except Exception as _e:
+        logging.getLogger(__name__).warning(f"清戳失败: {_e}")
     return jsonify(merged)
 
 
