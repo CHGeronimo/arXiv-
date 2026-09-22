@@ -6,7 +6,7 @@ const JOB_LABELS = {
     trend_auto: '📡 趋势刷新', enhance_rerun: '♻️ 重跑旧流程', clustering: '🕸️ 图谱聚类',
     trend: '📡 趋势报告', digest: '📰 今日简报', selftest: '🧪 系统自检',
     enhance: '🤖 补 AI 增强', knowledge: '🗂 知识卡片提取', fulltext: '📄 补全文分析',
-    card_rerun: '🗂 旧版卡片重提',
+    card_rerun: '🗂 旧版卡片重提', journal_backfill: '📚 期刊历史回溯',
 };
 const STATUS_META = {
     running: { icon: '<span class="spinner" style="width:10px;height:10px;border-width:2px"></span>', cls: 'var(--accent-primary)' },

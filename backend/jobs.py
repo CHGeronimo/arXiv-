@@ -684,6 +684,116 @@ def run_retro_enhance():
 _RERUN_LOCK_PATH = "data/.rerun.lock"  # 测试可指向临时文件
 
 
+def run_journal_backfill(months: int = 6):
+    """期刊历史回溯：按发表日期抓取订阅期刊的往期论文，走正常 AI 管道。"""
+    import fcntl
+    from pathlib import Path as _P
+    _P("data").mkdir(exist_ok=True)
+    lock_fh = open("data/.backfill.lock", "w")
+    try:
+        fcntl.flock(lock_fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        _set_job_status("journal_backfill", "error", "另一实例正在回溯，勿重复触发")
+        logger.warning("[backfill] ✘ 另一实例运行中")
+        lock_fh.close()
+        return
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        from_date = (_dt.now() - _td(days=months * 30)).strftime("%Y-%m-%d")
+        _set_job_status("journal_backfill", "running",
+                        f"回溯 {months} 个月（{from_date} 起）…")
+        logger.info(f"[backfill] ▶ 期刊历史回溯 {months} 个月（{from_date} 起）")
+
+        subs = _load_subs()
+        journals = subs.crossref.journals if subs.crossref else []
+        if not journals:
+            _set_job_status("journal_backfill", "done", "无订阅期刊")
+            return
+
+        from backend.crawler.crossref_crawler import CrossrefCrawler
+        from backend.crawler.subs_store import Journal
+        from backend.db import get_runtime_settings
+        conn = get_conn()
+        known = {r[0] for r in conn.execute("SELECT id FROM papers")}
+        ignored = {r[0] for r in conn.execute("SELECT paper_id FROM ignored_papers")}
+
+        crawler = CrossrefCrawler(journals, known_ids=known | ignored)
+        total_fetched, total_new = 0, 0
+
+        # 流水线：生产者（逐期刊回溯）→ 消费者（AI worker）
+        paper_q = queue.Queue(maxsize=50)
+        producer_done = threading.Event()
+        done_count = [0]
+        new_count = [0]
+        lock = threading.Lock()
+        last_log = [time.monotonic()]
+
+        def _produce():
+            nonlocal total_fetched
+            try:
+                for j in journals:
+                    if _shutdown:
+                        break
+                    items = crawler._fetch_backfill(j.issn, from_date, max_rows=500)
+                    total_fetched += len(items)
+                    logger.info(f"[backfill] {j.name}: {len(items)} 篇（{from_date} 起）")
+                    for item in items:
+                        paper = crawler._parse_item(item, j)
+                        if paper and paper.article_type == "research":
+                            paper_q.put(paper)
+            except Exception as e:
+                logger.error(f"[backfill] 抓取异常: {e}", exc_info=True)
+            finally:
+                producer_done.set()
+                for _ in range(_ai_max_workers):
+                    paper_q.put(None)
+
+        def _worker():
+            nonlocal total_new
+            while not _shutdown:
+                paper = paper_q.get()
+                try:
+                    if paper is None:
+                        return
+                    result = append_paper(paper, enhance=True)
+                    with lock:
+                        done_count[0] += 1
+                        if result == "written":
+                            new_count[0] += 1
+                        now = time.monotonic()
+                        if done_count[0] % 10 == 0 and now - last_log[0] >= 3:
+                            last_log[0] = now
+                            msg = f"{done_count[0]} 篇已处理 · {new_count[0]} 入库"
+                            logger.info(f"[backfill] {msg}")
+                            _set_job_status("journal_backfill", "running", msg,
+                                            progress={"done": done_count[0]})
+                finally:
+                    paper_q.task_done()
+
+        producer = threading.Thread(target=_produce, daemon=True, name="backfill-crawl")
+        producer.start()
+        workers = [threading.Thread(target=_worker, daemon=True, name=f"backfill-ai-{i}")
+                   for i in range(_ai_max_workers)]
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+
+        sync_write("SELECT 1")
+        msg = f"回溯完成: {total_fetched} 篇抓取, {new_count[0]} 篇入库（{len(journals)} 本期刊 × {months} 个月）"
+        _set_job_status("journal_backfill", "done", msg)
+        logger.info(f"[backfill] ✔ {msg}")
+    except Exception as e:
+        logger.error(f"[backfill] ✖ {e}", exc_info=True)
+        _set_job_status("journal_backfill", "error", str(e)[:160])
+    finally:
+        try:
+            fcntl.flock(lock_fh, fcntl.LOCK_UN)
+            lock_fh.close()
+        except Exception:
+            pass
+
+
 def run_stale_rerun():
     """重跑旧流程结果（跨进程单实例）：daemon 与游离进程同时跑会双倍并发
     打穿限流（2026-09-19 实锤 1302 风暴），fcntl 锁保证全局仅一个实例。"""

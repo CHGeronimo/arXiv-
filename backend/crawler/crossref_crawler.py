@@ -40,6 +40,35 @@ class CrossrefCrawler:
         except Exception:
             return True
 
+    def _fetch_backfill(self, issn: str, from_date: str, max_rows: int = 500) -> List[dict]:
+        """历史回溯：按发表日期从 from_date 起抓取，offset 分页直到取完或达 max_rows。"""
+        all_items: List[dict] = []
+        offset = 0
+        while offset < max_rows:
+            url = (
+                f"{CROSSREF_BASE}/works"
+                f"?rows=100&offset={offset}&sort=published&order=desc"
+                f"&filter=issn:{issn},from-pub-date:{from_date},type:journal-article"
+            ) + (f"&{MAILTO}" if MAILTO else "")
+            for attempt in range(3):
+                try:
+                    resp = httpx.get(url, timeout=30)
+                    if resp.status_code == 429:
+                        import time as _t; _t.sleep(3)
+                        continue
+                    resp.raise_for_status()
+                    items = resp.json().get("message", {}).get("items", [])
+                    all_items.extend(items)
+                    if len(items) < 100:
+                        return all_items  # 没有更多了
+                    offset += 100
+                    break
+                except Exception as e:
+                    logger.warning(f"回溯 fetch {issn} offset={offset} attempt {attempt+1}: {e}")
+                    if attempt == 2:
+                        return all_items
+        return all_items
+
     def _fetch_recent(self, issn_list: List[str]) -> List[dict]:
         issn_filter = ",".join(f"issn:{i}" for i in issn_list)
         url = (

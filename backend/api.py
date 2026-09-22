@@ -1314,6 +1314,16 @@ def cluster_papers(cluster_name: str):
     return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 
 
+@app.route("/api/trigger/journal-backfill", methods=["POST"])
+def trigger_journal_backfill():
+    """期刊历史回溯：抓取订阅期刊的往期论文（按发表日期）。"""
+    data = request.get_json(silent=True) or {}
+    months = max(1, min(24, int(data.get("months", 6))))
+    from backend.jobs import run_journal_backfill
+    threading.Thread(target=run_journal_backfill, args=(months,), daemon=True).start()
+    return jsonify({"status": "triggered", "job": "journal_backfill", "months": months})
+
+
 @app.route("/api/trigger/card-rerun", methods=["POST"])
 def trigger_card_rerun():
     """组件级重跑：只重提知识卡片（快 5 倍）。"""
