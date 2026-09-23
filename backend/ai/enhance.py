@@ -51,7 +51,7 @@ DEFAULT_AI = {
 
 
 def load_research_profile() -> dict:
-    profile_path = os.path.join(os.path.dirname(__file__), '..', 'research_profile.json')
+    profile_path = os.path.join(os.path.dirname(__file__), '..', '..', 'research_profile.json')
     if os.path.exists(profile_path):
         with open(profile_path, 'r') as f:
             return json.load(f)
