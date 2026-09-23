@@ -1316,6 +1316,57 @@ def cluster_papers(cluster_name: str):
     return jsonify({"cluster": cluster_name, "count": len(papers), "papers": papers})
 
 
+@app.route("/api/resume-status", methods=["GET"])
+def get_resume_status():
+    """各可恢复任务的待完成量——前端「恢复中断任务」面板用。"""
+    from backend.jobs import _stale_counts
+    from backend.db import get_runtime_settings
+    conn = get_conn()
+
+    # 增强重跑待完成
+    stale = _stale_counts()
+
+    # 期刊回溯进度
+    backfill = {"active": False, "done": 0, "total": 0, "months": 0}
+    row = conn.execute("SELECT value FROM subscriptions WHERE key='backfill_progress'").fetchone()
+    if row:
+        import json as _j
+        prog = _j.loads(row[0])
+        subs = Subscriptions.load()
+        total = len(subs.crossref_journals or [])
+        backfill = {
+            "active": prog.get("cursor", 0) < total,
+            "done": min(prog.get("cursor", 0), total),
+            "total": total,
+            "months": prog.get("months", 0),
+        }
+
+    # 补增强（无 AI 结果的论文）
+    no_ai = conn.execute("""
+        SELECT COUNT(*) FROM papers p
+        LEFT JOIN ai_results a ON p.id = a.paper_id
+        LEFT JOIN ignored_papers ig ON ig.paper_id = p.id
+        WHERE a.paper_id IS NULL AND ig.paper_id IS NULL
+    """).fetchone()[0]
+
+    # 补全文分析（must-read/recommended 但无 fulltext）
+    no_ft = conn.execute("""
+        SELECT COUNT(*) FROM papers p
+        JOIN ai_results a ON p.id = a.paper_id
+        LEFT JOIN fulltext_analysis f ON p.id = f.paper_id
+        WHERE f.paper_id IS NULL AND a.recommendation IN ('must-read','recommended')
+              AND p.source = 'arxiv'
+    """).fetchone()[0]
+
+    return jsonify({
+        "enhance_rerun": {"pending": stale["enhance"], "label": "重跑旧版增强"},
+        "card_rerun": {"pending": stale["card"], "label": "重提旧版卡片"},
+        "backfill": backfill,
+        "retro_enhance": {"pending": no_ai, "label": "补 AI 增强"},
+        "fulltext": {"pending": no_ft, "label": "补全文分析"},
+    })
+
+
 @app.route("/api/trigger/journal-backfill", methods=["POST"])
 def trigger_journal_backfill():
     """期刊历史回溯：抓取订阅期刊的往期论文（按发表日期）。"""

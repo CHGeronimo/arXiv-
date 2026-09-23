@@ -393,6 +393,54 @@ document.addEventListener('DOMContentLoaded', () => {
         finally { btn.disabled = false; }
     });
 
+    // 🔄 恢复中断任务面板
+    const _openResumePanel = async () => {
+        const modal = document.getElementById('resume-modal');
+        const list = document.getElementById('resume-list');
+        modal.classList.add('active');
+        list.innerHTML = '<div class="spinner"></div>';
+        try {
+            const r = await fetch('/api/resume-status');
+            const d = await r.json();
+            const rows = [];
+            if (d.enhance_rerun?.pending > 0)
+                rows.push({ label: '♻️ 重跑旧版增强', count: `${d.enhance_rerun.pending} 篇待重跑`, action: 'enhance-rerun', desc: '按新方向重新评分（~18s/篇）' });
+            if (d.card_rerun?.pending > 0)
+                rows.push({ label: '🗂 重提旧版卡片', count: `${d.card_rerun.pending} 张待重提`, action: 'card-rerun', desc: '只更新知识卡片（~3s/篇）' });
+            if (d.backfill?.active)
+                rows.push({ label: `📚 期刊回溯（${d.backfill.months} 个月）`, count: `${d.backfill.done}/${d.backfill.total} 本完成`, action: 'backfill-now', desc: `剩余 ${d.backfill.total - d.backfill.done} 本待回溯` });
+            if (d.retro_enhance?.pending > 0)
+                rows.push({ label: '🤖 补 AI 增强', count: `${d.retro_enhance.pending} 篇无 AI 结果`, action: 'enhance', desc: '为未增强的论文补跑分析' });
+            if (d.fulltext?.pending > 0)
+                rows.push({ label: '📄 补全文分析', count: `${d.fulltext.pending} 篇待深读`, action: 'fulltext', desc: '必读/推荐级的全文深度分析' });
+
+            if (!rows.length) {
+                list.innerHTML = '<p style="text-align:center;padding:24px;color:var(--success)">✓ 所有任务均已完成</p>';
+            } else {
+                list.innerHTML = rows.map(row => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px dashed var(--border)">
+                        <div style="flex:1">
+                            <div style="font-size:0.88rem;color:var(--text-0)">${escAttr(row.label)}</div>
+                            <div style="font-size:0.72rem;color:var(--text-3)">${escAttr(row.count)} · ${escAttr(row.desc)}</div>
+                        </div>
+                        <button class="btn btn--primary" data-resume-action="${row.action}" style="font-size:0.78rem;padding:4px 14px;white-space:nowrap">继续</button>
+                    </div>`).join('');
+                list.querySelectorAll('[data-resume-action]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        modal.classList.remove('active');
+                        triggerCrawl(btn.dataset.resumeAction, { loadPapers });
+                    });
+                });
+            }
+        } catch { list.innerHTML = '<p style="color:var(--danger);padding:16px">加载失败</p>'; }
+    };
+    document.getElementById('close-resume-modal')?.addEventListener('click', () => {
+        document.getElementById('resume-modal').classList.remove('active');
+    });
+    document.getElementById('resume-modal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+    });
+
     // 🕸️ 图谱聚类下钻：点节点/详情按钮 → 该聚类论文列表 → 点开详情
     window._openClusterPapers = async (name) => {
         const modal = document.getElementById('cluster-modal');
@@ -516,7 +564,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     document.getElementById('panel-crawl').addEventListener('click', _onCrawlMenuClick);
-    document.getElementById('panel-ai')?.addEventListener('click', _onCrawlMenuClick);
+    document.getElementById('panel-ai')?.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-crawl]');
+        if (item && item.dataset.crawl === 'resume-panel') {
+            item.closest('.dropdown')?.classList.remove('open');
+            _openResumePanel();
+            return;
+        }
+        _onCrawlMenuClick(e);
+    });
 
     // ⚙️ 系统设置入口 + 🧪 自检（设置弹窗内）
     document.getElementById('btn-settings')?.addEventListener('click', () => openSettingsModal());

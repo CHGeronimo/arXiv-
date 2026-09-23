@@ -64,10 +64,13 @@
                     <div class="dropdown-option" data-crawl="enhance-rerun"><span>♻️ 重跑旧版增强+卡片</span></div>
                     <div class="dropdown-option" data-crawl="card-rerun"><span>🗂 只重提旧版卡片（快5倍）</span></div>
                     <hr style="border-color:var(--border);margin:4px 0">
-                    <div class="dropdown-option" data-crawl="backfill-3"><span>📚 期刊回溯 3 个月</span></div>
-                    <div class="dropdown-option" data-crawl="backfill-6"><span>📚 期刊回溯 6 个月</span></div>
-                    <div class="dropdown-option" data-crawl="backfill-12"><span>📚 期刊回溯 12 个月</span></div>
-                    <div class="dropdown-option" data-crawl="backfill-24"><span>📚 期刊回溯 24 个月</span></div>
+                    <div class="dropdown-option" data-crawl="backfill-6"><span>📚 设定期刊回溯 6 个月（渐进）</span></div>
+                    <div class="dropdown-option" data-crawl="backfill-12"><span>📚 设定期刊回溯 12 个月（渐进）</span></div>
+                    <div class="dropdown-option" data-crawl="backfill-24"><span>📚 设定期刊回溯 24 个月（渐进）</span></div>
+                    <div class="dropdown-option" data-crawl="backfill-now"><span>⚡ 立即回溯下一批</span></div>
+                    <div class="dropdown-option" data-crawl="backfill-stop"><span>⊘ 停止期刊回溯</span></div>
+                    <hr style="border-color:var(--border);margin:4px 0">
+                    <div class="dropdown-option" data-crawl="resume-panel"><span>🔄 恢复中断任务…</span></div>
                 </div>
             </div>
             <button id="btn-profile" class="btn btn--icon" title="研究方向">🎯</button>
@@ -275,6 +278,16 @@
             </div>
             <div id="settings-schedule" style="margin-top:14px;padding:10px;background:var(--surface-0);border-radius:6px;font-size:0.8rem;color:var(--text-2)"></div>
             <button id="btn-save-settings" class="btn btn--primary" style="width:100%;margin-top:14px">保存并立即生效</button>
+        </div>
+    </div>
+
+    <!-- Resume Tasks Modal（恢复中断任务） -->
+    <div id="resume-modal" class="modal">
+        <div class="modal-content" style="max-width:480px">
+            <button class="close-btn" id="close-resume-modal">&times;</button>
+            <h2 style="margin:0 0 4px">🔄 恢复中断任务</h2>
+            <p style="font-size:0.78rem;color:var(--text-3);margin:0 0 12px">以下任务有未完成的工作，点击继续</p>
+            <div id="resume-list"></div>
         </div>
     </div>
 
