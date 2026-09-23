@@ -103,13 +103,13 @@ with _full_mocks():
     r = sc.run_selftest()
     fails = [ch for ch in r["checks"] if ch["status"] != "ok"]
     assert not fails, fails
-    assert r["total"] == len(r["checks"]) == 34, r["total"]
+    assert r["total"] == len(r["checks"]) == 36, r["total"]
     llm_names = [ch["name"] for ch in r["checks"] if ch["group"] == "LLM"]
     assert len(llm_names) == 12, llm_names
     assert sc.get_last_report() is r
     g = c.get("/api/selftest").get_json()
-    assert g["ok"] == 34
-    print(f"[2] 全 Mock 全通过（34 项，LLM {len(llm_names)} 条）✓")
+    assert g["ok"] == 36
+    print(f"[2] 全 Mock 全通过（36 项，LLM {len(llm_names)} 条）✓")
 
     # [3] 失败路径：arXiv 网络异常 → 单项 fail，其余不受影响
     def _boom_arxiv(url, **kw):
@@ -120,7 +120,7 @@ with _full_mocks():
         r3 = sc.run_selftest()
     arxiv_ch = [ch for ch in r3["checks"] if ch["name"].startswith("arXiv")][0]
     assert arxiv_ch["status"] == "fail" and "connection refused" in arxiv_ch["detail"]
-    assert r3["ok"] + r3["warn"] + r3["fail"] == r3["total"] == 34
+    assert r3["ok"] + r3["warn"] + r3["fail"] == r3["total"] == 36
     print("[3] 失败路径隔离 ✓")
 
     # [4] 警告路径：OpenAlex 配额熔断 → warn；评分任务失败独立成行
@@ -146,7 +146,7 @@ with _full_mocks():
         time.sleep(0.3)
     assert st and st["status"] == "done", st
     final = c.get("/api/selftest").get_json()
-    assert final["total"] == 34
+    assert final["total"] == 36
     print(f"[5] 触发→后台运行→状态+报告 ✓（{st['message']}）")
 
 print("\n系统自检测试通过 ✅")

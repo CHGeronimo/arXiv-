@@ -295,6 +295,35 @@ def run_selftest() -> dict:
         return f"方向 {len(d.get('direction', ''))} 字 · 偏好 {len(d.get('liked_topics', []))}/{len(d.get('disliked_topics', []))}"
     _check(checks, "数据", "研究画像", _profile_ready)
 
+    def _ai_pipeline_profile():
+        """AI 管线的 profile 读取路径必须与 API 层一致——目录重构后曾断裂
+        （enhance.py 找 backend/ 而非项目根），导致全部 AI 任务拿空方向。"""
+        from backend.ai.enhance import load_research_profile as _lp
+        ai_profile = _lp()
+        direction = ai_profile.get("direction", "")
+        keywords = ai_profile.get("keywords", [])
+        if not direction and not keywords:
+            return ("✗ AI 管线读不到研究画像（路径断裂？）——增强/快筛/预筛全部退化", "fail")
+        if not direction:
+            return ("AI 管线方向为空（关键词仍在），增强提示词缺方向", "warn")
+        if not keywords:
+            return ("AI 管线关键词为空，本地预筛 0 token（全部走 LLM，费配额）", "warn")
+        return f"方向 {len(direction)} 字 + 关键词 {len(keywords)} 条 ✓"
+    _check(checks, "数据", "AI 管线路径一致性", _ai_pipeline_profile)
+
+    def _prefilter_terms():
+        """本地预筛词表必须 > 0——为 0 意味着所有论文直接进 LLM（烧配额）。"""
+        from backend.paper_store import get_local_terms, _local_terms
+        # 强制重建（清 TTL 缓存）
+        import backend.paper_store as _ps
+        _ps._local_terms = None
+        _ps._local_terms_at = 0.0
+        terms = get_local_terms()
+        if not terms:
+            return ("✗ 本地预筛词表 0 token——所有论文跳过预筛直接进 LLM", "fail")
+        return f"{len(terms)} 个 token（预筛正常拦截零相关论文）"
+    _check(checks, "数据", "本地预筛词表", _prefilter_terms)
+
     def _clusters_ready():
         row = __import__("backend.db", fromlist=["get_conn"]).get_conn().execute(
             "SELECT COUNT(*) FROM knowledge_clusters").fetchone()
