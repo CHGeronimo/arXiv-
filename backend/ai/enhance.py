@@ -59,13 +59,72 @@ def load_research_profile() -> dict:
 
 
 def build_chain(model_name: str):
-    """Build the AI enhancement LangChain pipeline with structured JSON output."""
-    llm = build_chat(model_name, thinking=True).with_structured_output(Structure, method="json_mode")
+    """Build the AI enhancement pipeline (raw LLM + tolerant parse).
+
+    不用 with_structured_output：GLM 思考模式偶发返回 {"answer": "..."} 信封
+    或对话式文本而非结构化 JSON——pydantic 严格校验直接丢整篇高质量分析。
+    改为裸链 + _parse_structure 容错解析（与 quick_filter/idea_checker 同款）。
+    """
+    llm = build_chat(model_name, thinking=True)
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system),
         HumanMessagePromptTemplate.from_template(template=template)
     ])
     return prompt_template | llm
+
+
+def _parse_structure(content) -> Structure | None:
+    """容错解析：正则取 JSON + answer 信封解包 + 部分字段缺省填充。"""
+    import json as _json
+    import re as _re
+    text = content if isinstance(content, str) else getattr(content, "content", str(content))
+    data: dict = {}
+    m = _re.search(r"\{.*\}", text, _re.DOTALL)
+    if m:
+        try:
+            data = _json.loads(m.group())
+        except _json.JSONDecodeError:
+            data = {}
+    # answer 信封解包
+    if isinstance(data, dict) and isinstance(data.get("answer"), dict):
+        data = data["answer"]
+    if not isinstance(data, dict):
+        return None
+
+    # 字段别名与缺省
+    aliases = {
+        "tldr": ["tldr", "TLDR", "tl_dr"],
+        "title_zh": ["title_zh", "titleZh", "title_chinese"],
+        "summary_zh": ["summary_zh", "summaryZh", "abstract_zh"],
+    }
+    for canon, alts in aliases.items():
+        if canon not in data:
+            for alt in alts:
+                if alt in data:
+                    data[canon] = data.pop(alt)
+                    break
+
+    # 评分和推荐给安全默认值（防止 LLM 忘了填）
+    try:
+        data.setdefault("quality_score", max(1, min(10, int(data.get("quality_score", 3)))))
+        data.setdefault("relevance_score", max(1, min(10, int(data.get("relevance_score", 3)))))
+    except (ValueError, TypeError):
+        data["quality_score"] = 3
+        data["relevance_score"] = 3
+    rec = str(data.get("recommendation", "reference")).lower().strip()
+    if rec not in ("must-read", "recommended", "reference", "ignore"):
+        data["recommendation"] = "reference"
+    data.setdefault("skip_reason", "")
+
+    # 必填字符串字段给空串默认
+    for f in ("tldr", "motivation", "method", "result", "conclusion",
+              "title_zh", "summary_zh"):
+        data.setdefault(f, "")
+
+    try:
+        return Structure(**data)
+    except Exception:
+        return None
 
 
 def _extract_partial(error_msg: str) -> dict:
@@ -98,7 +157,7 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
     and avoid permanently blacklisting the paper.
     """
     try:
-        response: Structure = chain.invoke({
+        resp = chain.invoke({
             "language": language,
             "content": paper.get("summary", ""),
             "title": paper.get("title", ""),
@@ -109,7 +168,11 @@ def enhance_single(paper: dict, chain, profile: dict, language: str) -> dict:
             "disliked_topics": "\n".join(profile.get("disliked_topics", [])[-100:]),
             "recent_notes": "\n".join(profile.get("feedback_notes", [])[-20:]) or "(none)",
         })
-        paper["AI"] = response.model_dump()
+        parsed = _parse_structure(resp)
+        if parsed is None:
+            paper["AI"] = {**DEFAULT_AI, "_llm_failed": True}
+            return paper
+        paper["AI"] = parsed.model_dump()
     except langchain_core.exceptions.OutputParserException as e:
         partial = _extract_partial(str(e))
         if partial:
