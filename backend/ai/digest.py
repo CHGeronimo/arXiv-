@@ -70,7 +70,7 @@ def generate_digest(date_str: str | None = None, language: str = "Chinese") -> s
         })
 
     model_name = task_model("digest")
-    llm = build_chat(model_name, thinking=True, temperature=0.3, priority=True)
+    llm = build_chat(model_name, thinking=True, temperature=0.3, timeout=300, priority=True)
     prompt = ChatPromptTemplate.from_template(DIGEST_PROMPT)
     chain = prompt | llm
 
